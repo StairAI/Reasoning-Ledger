@@ -81,16 +81,17 @@ Agent X's Trace
 
 ## 3. Agent Behavior Taxonomy
 
-| # | Behavior | Description |
-|---|---|---|
-| 1 | `Observing` | The triggering event |
-| 2 | `ToolCalling` | Any external invocation: API, KB, model, sub-agent, on-chain read |
-| 3 | `Planning` | Goal decomposition |
-| 4 | `Thinking` | Analysis + option evaluation + decision (single arc) |
-| 5 | `Acting` | External execution |
-| 6 | `Reflecting` | Post-outcome analysis |
+| # | Behavior | Kind | Description |
+|---|---|---|---|
+| 1 | `Observing` | Composite | The triggering event |
+| 2 | `Planning` | Composite | Goal decomposition |
+| 3 | `Thinking` | Composite | Analysis + option evaluation + decision (single arc) |
+| 4 | `Acting` | Composite | The terminal commitment that resolves the decision cycle |
+| 5 | `Reflecting` | Composite | Post-outcome analysis |
+| 6 | `ToolCalling` | Operational | Any external invocation: API, KB, sub-agent, on-chain read, local function |
+| 7 | `Other` | Operational | Catch-all for behaviors outside the defined taxonomy |
 
-**Scoring eligibility:** session must contain ≥1 `Thinking` and exactly 1 `Acting` record. Others optional.
+**Other.** An escape hatch for agent behaviors that don't fit the six typed categories. Use sparingly; prefer a typed behavior when one fits.
 
 ---
 
@@ -100,18 +101,43 @@ Agent X's Trace
 
 ```typescript
 interface BaseRecord {
+  schema_version: string;            // Version of the record schema this record conforms to, e.g. "1.0".
+                                     // SDK sets this automatically from its bundled constant.
   agent_id: string;
   session_id: string;
-  client_record_id: string;      // SDK-generated UUID; idempotency key
+  client_record_id: string;          // SDK-generated UUID; idempotency key
   behavior: BehaviorType;
-  client_ts_utc: number;         // Epoch milliseconds; client-reported timestamp for this record;
-                                 // preserved across retries
+  client_ts_utc: number;             // Epoch milliseconds; client-reported timestamp for this record;
+                                     // preserved across retries
   notes?: string;
   tags?: string[];
+
+  // Cross-cutting execution context (optional; may be set by the SDK as a default at init)
+  model_invocation?: ModelInvocation;
+
+  // Hierarchy (optional; expresses that this record sits under another record's scope)
+  parent_record_id?: string;
+}
+
+interface ModelInvocation {
+  provider: string;                  // e.g. "anthropic", "openai", "stair_internal"
+  model_name: string;                // e.g. "claude-opus-4-7"
+  model_version?: string;
+  tokens_in?: number;
+  tokens_out?: number;
+  cost_usd?: number;
+  temperature?: number;
+  finish_reason?: string;            // "stop" | "length" | "refusal" | ...
 }
 ```
 
 All timestamp fields in the schema use **epoch milliseconds (integer, 64-bit)** unless explicitly stated otherwise. Human-readable date strings appear only inside `description` / `*_summary` free-text fields.
+
+**`model_invocation`** captures the LLM call that produced this record, when applicable. Because LLM invocation is cross-cutting — it can back any cognitive behavior (Planning, Thinking, Reflecting) as well as operational ones — it lives on `BaseRecord` rather than as a dedicated behavior type. SDK clients may set a default `ModelInvocation` at initialization that is applied to every submitted record unless overridden on the record itself (see §7.1).
+
+**`parent_record_id`** expresses that this record sits under another record's scope — e.g. a `ToolCalling` that occurred inside a `Thinking` step's execution. Data-flow edges (one record's output feeds another's reasoning) continue to be captured structurally — e.g. `ThinkingInput.input_record_id` references the record whose payload this input corresponds to. An agent is free to emit flat traces (no parent) or nested traces.
+
+**`schema_version`** makes each record self-describing. The SDK stamps it from a bundled constant (`"1.0"` in v0.1) without requiring partner code to set it. The server validates that the version is supported and rejects records with unknown versions. When the schema evolves, older SDKs continue to submit their known version, and the server accepts supported past versions until they are retired — giving partners a migration window rather than a breaking flag day.
 
 ### 4.1 `Observing`
 
@@ -127,9 +153,9 @@ interface ObservingRecord extends BaseRecord {
                                              // received the trigger. Useful for measuring upstream
                                              // latency and for Tier 1/2 reconciliation.
   trigger_description: string;               // Required narrative: plain-language explanation of the
-                                             // trigger. Parallel to `goal` on Planning, `hypothesis`
-                                             // on Thinking, `action_summary` on Acting. Distinct from
-                                             // `notes` (optional, across-the-board escape hatch).
+                                             // trigger. Parallel to `goal` on Planning,
+                                             // `action_summary` on Acting. Distinct from `notes`
+                                             // (optional, across-the-board escape hatch).
   trigger_payload_summary: string;           // Non-sensitive summary (format depends on trigger_type)
 }
 ```
@@ -159,44 +185,71 @@ For `cron_trigger` — name the scheduled task and its configured parameters:
 ```typescript
 interface ToolCallingRecord extends BaseRecord {
   behavior: "ToolCalling";
-  call_id: string;               // Unique within session; referenced by Thinking
-  tool_id: string;
-  tool_category: ToolCategory;
-  intent: string;
-  input_summary: string;
-  output_summary: string;
+  tool_meta: Record<string, unknown>;   // Flexible JSON — tool identity, version, category,
+                                        // and any category-specific references (see Suggested shapes)
+  description: string;                  // Free-form description of this tool call: purpose, context,
+                                        // how the input and output relate to the agent's reasoning
+  input_payload: unknown;               // Input to the tool (string, object, array — whatever fits)
+  output_payload: unknown;              // Output from the tool. If `success: false`, put error info here.
   success: boolean;
-  error?: string;
-  latency_ms?: number;
-  data_freshness_ms?: number;
-  chain_ref?: OnChainRef;        // when tool_category === "on_chain_data"
-  api_ref?: ExternalApiRef;      // when tool_category === "external_api"
-  kb_ref?: InternalKbRef;        // when tool_category === "internal_kb"
-  function_ref?: FunctionRef;    // when tool_category in ["function","model","sub_agent"]
 }
-
-type ToolCategory =
-  | "on_chain_data" | "external_api" | "internal_kb"
-  | "function" | "model" | "sub_agent";
-
-interface OnChainRef {
-  network: string;
-  contract_id: string;
-  blob_id?: string;
-  referenced_trace_record_id?: string;
-  block_timestamp?: number;                  // Epoch ms
-}
-interface ExternalApiRef { endpoint: string; http_status?: number; }
-interface InternalKbRef {
-  store_type: "vector_db" | "sql" | "in_context_memory" | "file_cache";
-  store_id: string;
-  results_count: number;
-  relevance_score?: number;
-}
-interface FunctionRef { function_name: string; invocation_context?: string; }
 ```
 
-Cross-agent reasoning dependencies are captured automatically via `OnChainRef.referenced_trace_record_id`.
+**Identity.** Tool calls are identified by the inherited `client_record_id` on `BaseRecord`. Other records (e.g. `ThinkingInput.input_record_id`) reference a tool call by that ID.
+
+**LLM invocations are not a tool call.** When a record is *produced via* an LLM — even if that LLM is "invoked" as a tool in the agent's code — use the `model_invocation` field on `BaseRecord` (§4.0) instead. Reserve `ToolCalling` for calls to external APIs, KBs, on-chain reads, local functions, and sub-agents.
+
+**Cross-agent dependencies & nested calls.** Cross-agent reasoning dependencies are captured inside `tool_meta` by convention (see Suggested shapes). Hierarchical composition — e.g. a `ToolCalling` that occurred inside a `Thinking` step — is expressed with `parent_record_id` (§4.0).
+
+**Suggested shapes for `tool_meta`.** Not enforced by v0.1 schema — use whatever makes sense. These are starting points agents should gravitate to, so scoring and UIs can rely on common keys.
+
+```jsonc
+// External API
+{
+  "tool_id": "polymarket_api",
+  "tool_version": "v3",
+  "category": "external_api",
+  "endpoint": "/markets",
+  "method": "GET",
+  "http_status": 200
+}
+
+// On-chain data read
+{
+  "tool_id": "sui_oracle",
+  "category": "on_chain_data",
+  "network": "sui_mainnet",
+  "contract_id": "0xabc...def",
+  "blob_id": "walrus_blob_xyz",
+  "referenced_trace_record_id": "trace_oddsmaker_prematch_001",
+  "block_timestamp": 1781380020000
+}
+
+// Internal knowledge base
+{
+  "tool_id": "deep_field_kb_v2",
+  "category": "internal_kb",
+  "store_type": "vector_db",
+  "results_count": 4,
+  "relevance_score": 0.91
+}
+
+// Local function / deterministic compute
+{
+  "tool_id": "xg_calibration",
+  "tool_version": "0.4.2",
+  "category": "function"
+}
+
+// Sub-agent invocation
+{
+  "tool_id": "oddsmaker",
+  "category": "sub_agent",
+  "agent_id": "oddsmaker_v1",
+  "invoked_session_id": "om-cycle-0042",
+  "referenced_trace_record_id": "trace_oddsmaker_response_001"
+}
+```
 
 ### 4.3 `Planning`
 
@@ -214,34 +267,18 @@ interface PlanningRecord extends BaseRecord {
 ```typescript
 interface ThinkingRecord extends BaseRecord {
   behavior: "Thinking";
-  inputs: ThinkingInput[];
-  hypothesis: string;
-  analysis: string;
-  disconfirming_signals?: string[];
-  alternatives: DecisionAlternative[];
-  chosen_alternative_id: string;
-  decision_rationale: string;
-  reversibility: "irreversible" | "reversible" | "conditional";
-  reversal_condition?: string;
-  confidence: number;            // 0.0–1.0
-  confidence_basis: string;
+  prompt: string;                // The reasoning logic / prompt that produced this thinking step
+  inputs: ThinkingInput[];       // Inputs considered (may be empty)
+  output_payload: string;        // JSON-encoded output of the reasoning
 }
 
 interface ThinkingInput {
-  call_id?: string;              // References ToolCalling in same session
-  signal_id: string;
-  signal_value: string;
-  weight: number;
-  weight_rationale: string;
-}
-
-interface DecisionAlternative {
-  alternative_id: string;
-  label: string;
-  expected_value: string;
-  downside: string;
+  input_record_id?: string;      // Optional: references another record's `client_record_id`
+  input_payload: string;         // JSON-encoded payload of this input
 }
 ```
+
+`prompt` carries the reasoning logic — the instructions, template, or system prompt that drove this step. `inputs` are the pieces of evidence fed into that logic; each can either reference another record (`input_record_id`) or carry its own payload, or both. `output_payload` is the structured result the reasoning produced, as a JSON-encoded string.
 
 ### 4.5 `Acting`
 
@@ -277,14 +314,28 @@ interface ReflectingRecord extends BaseRecord {
 }
 
 interface SignalReview {
-  signal_id: string;
-  original_weight: number;
-  retrospective_weight: number;
-  note: string;
+  input_record_id?: string;      // References an input record considered in the original Thinking
+  note: string;                  // Retrospective commentary on how this input should have been weighed
 }
 ```
 
 Reflecting records anchor as a separate commitment linked to the original session anchor (see Section 10).
+
+**Edits triggered by reflection.** When a Reflecting record leads to a concrete change — modifying a config, adjusting a weight, editing a prompt template — emit the change as an `Acting` record in a *new session* whose entry record carries `parent_record_id` pointing at the Reflecting. This preserves the "≤1 Acting per session" rule, gives the edit its own audit trail (`parameters` capturing `target_resource`, `before`, `after`, `change_description`, and optionally a `reviewer` field to distinguish automated from human-approved edits), and makes the causal chain from underperforming outcome → reflection → strategy change queryable via `parent_record_id`. `Reflecting.adjustment` describes the recommendation; the edit-Acting's `parameters` describes the actual change — they can legitimately differ (e.g., reflection recommends a weight of 0.75, reviewer approves 0.70), and that divergence is itself useful audit information.
+
+### 4.7 `Other`
+
+Catch-all for behaviors outside the six typed categories — custom agent operations, environment-specific events, experimental behavior classes. `Other` records are persisted and retrievable, but do not satisfy scoring eligibility and do not contribute to process scores. Prefer a typed behavior when one fits.
+
+```typescript
+interface OtherRecord extends BaseRecord {
+  behavior: "Other";
+  label: string;                     // Short category hint, e.g. "file_edit", "state_mutation"
+  data: Record<string, unknown>;     // Freeform payload
+}
+```
+
+If a pattern emerges across multiple partners (e.g. `"file_edit"` appears consistently), it becomes a candidate for promotion to a typed behavior in a future schema version.
 
 ---
 
@@ -317,13 +368,21 @@ Trust relies on `server_ts_utc`. `client_ts_utc` is the timestamp the client att
 
 | ID | Assigned by | Scope |
 |---|---|---|
+| `agent_id` | Server | Globally unique |
 | `client_record_id` | SDK | Dedup key: `(agent_id, client_record_id)` |
 | `record_id` | Server | Globally unique |
 | `session_id` | Agent | Unique within `agent_id` |
 
-### 5.3 Agent Identity
+### 5.3 Owner & Agent Identity
 
-`agent_id` is allocated via one-time registration (see Section 6). In v1 it is a simple registered string + API key. Identity lifecycle (versions, ownership, external identity import, BYOI signing) in v2.
+Identity in v1 has two levels:
+
+- **Owner** — an organization or account. One owner can have many agents. Billing, quotas, and agent-name idempotency are scoped to an owner. Owners are identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface.
+- **Agent** — a reasoning-producing entity. Identified by `agent_id`. Each agent belongs to exactly one owner in v1 (no shared ownership, no ownership transfer). An `api_key` authenticates an agent for record submission; the server resolves the owning account from the `api_key` when needed (billing, quota, admin views).
+
+`agent_id` is the attribution key stamped onto every record. Records carry no owner reference — auth is via `api_key`, and the server maps `api_key → agent → owner` internally.
+
+Deeper identity lifecycle (agent versions, ownership transfer, external identity import, BYOI signing) is deferred to v2.
 
 ---
 
@@ -331,30 +390,24 @@ Trust relies on `server_ts_utc`. `client_ts_utc` is the timestamp the client att
 
 ### 6.1 Purpose
 
-`agent_id` is the root index for every record an agent submits — all traces, sessions, and records are grouped under it. Registration is a one-time action that must precede any record submission.
+Registration creates an `agent_id`, issues an `api_key`, and (internally on the server) attaches the agent to an owner account identified by `owner_email`. The owner account is created on first use of a given email, or resolved if it already exists — no separate owner-setup step is required from the SDK consumer.
 
 ### 6.2 What Registration Produces
 
 | Artifact | Notes |
 |---|---|
 | `agent_id` | Stable string, unique per registration |
-| `api_key` | Authentication secret; shown once at registration |
+| `api_key` | Authentication secret for this agent; shown once at registration |
 | Anchor wallet address | Custodial: generated by Stair AI. BYOW: provided by partner. |
 | Optional metadata | Display name, description, website, tags |
 
-### 6.3 Registration Modes
-
-Registration happens once per agent, via either:
-
-**(a) Control-plane HTTP endpoint** — for ops flows, dashboards, BD onboarding. Returns credentials that can be put into env vars.
-
-**(b) SDK method** — for programmatic provisioning:
+### 6.3 Registration Flow
 
 ```typescript
 const { agent_id, api_key, anchor_wallet_address } = await LedgerClient.register({
-  name: "deep_field",                       // Partner-chosen; unique within org scope
-  owner_email: "colin@stairai.com",
-  wallet: { mode: "custodial" },            // or { mode: "byow", address: "0x..." }
+  name: "deep_field",                       // Partner-chosen; unique within the owner's scope
+  owner_email: "colin@stairai.com",         // Identifies the owner account; created on first use
+  wallet: { mode: "custodial" },            // Or { mode: "byow", address: "0x..." } — see §11
   metadata: {
     description: "Multi-step football match predictor",
     tags: ["sports", "prediction"],
@@ -362,29 +415,33 @@ const { agent_id, api_key, anchor_wallet_address } = await LedgerClient.register
 });
 ```
 
-After registration the partner initializes `LedgerClient` with the returned credentials as in Section 7.1.
+If an owner account with `owner_email` already exists, the new agent is attached to it; otherwise a new owner account is created server-side. The caller does not see an owner identifier — the server tracks the mapping internally.
+
+After registration the partner initializes `LedgerClient` with the returned credentials as in §7.1.
 
 ### 6.4 Idempotency
 
-Registration is idempotent on `(owner, name)`. Repeating the call returns the existing `agent_id` without creating a new agent. `api_key` is **not** re-disclosed on repeat calls — key rotation uses a separate endpoint.
+Registration is idempotent on `(owner_email, name)` — repeating the call returns the existing `agent_id` without creating a new agent. `api_key` is **not** re-disclosed on repeat calls — key rotation uses a separate endpoint.
 
 ### 6.5 Registration API
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/agents` | Register a new agent; returns `agent_id`, `api_key`, `anchor_wallet_address` |
+| `POST /v1/agents` | Register a new agent (creating or resolving the owner from `owner_email`); returns `agent_id`, `api_key`, `anchor_wallet_address` |
 | `GET  /v1/agents/:agent_id` | Fetch agent metadata (public fields only) |
-| `PATCH /v1/agents/:agent_id` | Update metadata (requires API key) |
+| `PATCH /v1/agents/:agent_id` | Update agent metadata (requires `api_key`) |
 | `POST /v1/agents/:agent_id/rotate-key` | Issue a new `api_key`; invalidate previous |
 
 ### 6.6 v1 Limitations
 
 - One active `api_key` per agent
+- No owner-level API (owner grouping is internal; owner-scoped views deferred to v2)
 - No version management (all records submitted under same `agent_id` regardless of internal model changes)
-- No ownership transfer
+- No ownership transfer (an agent cannot be moved to a different owner)
+- No shared ownership (an agent belongs to exactly one owner)
 - No revocation beyond key rotation
 
-Comprehensive identity management → v2.
+Comprehensive identity and org management → v2.
 
 ---
 
@@ -400,6 +457,13 @@ const client = new LedgerClient({
   agentId: "deep_field_v1",
   environment: "production",
   wallet: { mode: "custodial" },  // or { mode: "byow", ... }  — see Section 11
+
+  // Optional: default ModelInvocation applied to every submitted record.
+  // Any record may override by setting its own model_invocation.
+  defaultModelInvocation: {
+    provider: "anthropic",
+    model_name: "claude-opus-4-7",
+  },
 });
 ```
 
@@ -459,9 +523,9 @@ interface RecordError {
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/agents` | Register new agent; returns credentials |
+| `POST /v1/agents` | Register new agent (creating or resolving the owner from `owner_email`); returns credentials |
 | `GET  /v1/agents/:agent_id` | Fetch agent metadata |
-| `PATCH /v1/agents/:agent_id` | Update metadata |
+| `PATCH /v1/agents/:agent_id` | Update agent metadata |
 | `POST /v1/agents/:agent_id/rotate-key` | Rotate API key |
 
 **Data plane (record submission & retrieval):**
@@ -480,11 +544,11 @@ Idempotency: dedup on `(agent_id, client_record_id)`. Duplicate → original ack
 
 ## 9. Validation Rules
 
-**Client-side (hard errors):** valid `behavior`, non-empty `session_id`, `client_ts_utc` positive integer (epoch ms), `confidence ∈ [0,1]`, `chosen_alternative_id` matches an entry, `tool_category` ↔ `*_ref` consistency, `Acting.execution_id` present when target is public-chain + confirmed.
+**Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object.
 
-**Server-side:** API key ↔ `agent_id` match, `(agent_id, client_record_id)` unique, ≤1 `Acting` per session, `server_ts_utc` and `record_id` server-assigned, batch ≤50.
+**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, client_record_id)` unique, ≤1 `Acting` per session, `parent_record_id` (when set) resolves to an existing record under the same `agent_id`, `server_ts_utc` and `record_id` server-assigned, batch ≤50.
 
-**Intentional non-rules:** no "first record must be Observing," no session lifecycle, no session timeout.
+**Intentional non-rules:** no "first record must be Observing," no session lifecycle, no session timeout, no enforced hierarchy shape (traces may be flat or nested).
 
 ---
 
@@ -595,7 +659,7 @@ A partner can switch from custodial to BYOW for future sessions. Historical sess
 
 **Tier 1.** When `Acting.target_system` is a public-chain system and `execution_id` is provided, an Oracle pipeline fetches the tx on-chain and verifies: parameters match the record, tx timestamp is after `Acting.server_ts_utc`. Launch targets: Polymarket, Uniswap, SUI DEXs.
 
-**Tier 2.** Server-side analysis flags anomalies across dimensions: `latency_ms` vs realistic distribution, `data_freshness_ms` vs tool refresh cadence, cross-agent consistency, self-consistency drift, score–outcome correlation. Runs async; does not block submission. Specific thresholds are not public (to prevent adversarial optimization).
+**Tier 2.** Server-side analysis flags anomalies across dimensions: convention-level signals in `tool_meta` (e.g. latency or freshness when provided) vs realistic distributions, cross-agent consistency, self-consistency drift, score–outcome correlation. Runs async; does not block submission. Specific thresholds are not public (to prevent adversarial optimization).
 
 ### 12.3 Tier Re-evaluation
 
@@ -615,7 +679,7 @@ Wallet mode (custodial vs BYOW) is **orthogonal** to Trust Tier. BYOW does not a
 
 ### v1 — Foundation (Q2 2026)
 
-Record / session / trace model · 6 behaviors · TS SDK · single + batch submission · in-memory retry · custodial + BYOW wallets · Trust Tier 0–2 · Arena 5 agents migrated · 2–3 commercial partners · Champions League dry run May 31.
+Record / session / trace model · 7 behaviors (6 typed + `Other` catch-all) · cross-cutting `model_invocation` · `parent_record_id` hierarchy · TS SDK · single + batch submission · in-memory retry · custodial + BYOW wallets · Trust Tier 0–2 · Arena 5 agents migrated · 2–3 commercial partners · Champions League dry run May 31.
 
 ### v2 — Ecosystem Expansion (Q3 2026)
 
@@ -641,7 +705,7 @@ Separate design doc. Scoring v1 (basic RAID) with SDK v1; trust-tier ceilings wi
 
 ## 14. Open Questions
 
-1. **On-chain data privilege:** does `tool_category: "on_chain_data"` get a score boost, or is weight purely agent-declared?
+1. **On-chain data privilege:** do tool calls whose `tool_meta` declares `category: "on_chain_data"` (or equivalent) get a score boost, or is weight purely agent-declared?
 2. **Multiple `Acting` per session:** partial fills across venues legitimately need this; relax the constraint?
 3. **Batch size:** 50 sufficient?
 4. **Rate limits:** per-agent ceilings for `/records` and `/records:batch`?
