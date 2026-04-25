@@ -1,8 +1,8 @@
 # Reasoning Ledger SDK — Design Document
 
 **Version:** 1  
-**Date:** April 23, 2026  
-**Author:** Colin Qian (CTO, Stair AI)  
+**Date:** April 25, 2026  
+**Author:** Colin Qian
 **Status:** Draft for team review
 
 ---
