@@ -136,7 +136,7 @@ interface ModelInvocation {
 
 All timestamp fields in the schema use **epoch milliseconds (integer, 64-bit)** unless explicitly stated otherwise. Human-readable date strings appear only inside `description` / `*_summary` free-text fields.
 
-**`model_invocation`** captures the LLM call that produced this record, when applicable. Because LLM invocation is cross-cutting — it can back any cognitive behavior (Planning, Thinking, Reflecting) as well as operational ones — it lives on `BaseRecord` rather than as a dedicated behavior type. SDK clients may set a default `ModelInvocation` at initialization that is applied to every submitted record unless overridden on the record itself (see §7.1).
+**`model_invocation`** captures the LLM call that produced this record, when applicable. Because LLM invocation is cross-cutting — it can back any cognitive behavior (Planning, Thinking, Reflecting) as well as operational ones — it lives on `BaseRecord` rather than as a dedicated behavior type. SDK clients may set a default `ModelInvocation` at initialization that is applied to every submitted record unless overridden on the record itself (see §8.1).
 
 **`parent_record_id`** expresses that this record sits under another record's scope — e.g. a `ToolCalling` that occurred inside a `Thinking` step's execution. Data-flow edges (one record's output feeds another's reasoning) continue to be captured structurally — e.g. `ThinkingInput.input_record_id` references the record whose payload this input corresponds to. An agent is free to emit flat traces (no parent) or nested traces.
 
@@ -382,7 +382,7 @@ The agent's human-readable `name` is for display, search, and resolution only �
 
 Identity in v1 has two levels:
 
-- **Owner** — an organization or account. Identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface. **The `api_key` and the anchor wallet address are owner-level** — issued once at owner registration and shared by every agent the owner creates. One owner can have many agents; billing, quotas, and agent-name idempotency are scoped to the owner. (The wallet is collected at owner registration but only used by the v2 anchoring pipeline — see §11.)
+- **Owner** — an organization or account. Identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface. **The `api_key` and the anchor wallet address are owner-level** — issued once at owner registration and shared by every agent the owner creates. One owner can have many agents; billing, quotas, and agent-name idempotency are scoped to the owner. (The wallet is collected at owner registration but only used by the v2 anchoring pipeline — see §12.)
 - **Agent** — a reasoning-producing entity. Identified by `agent_id`. Each agent belongs to exactly one owner in v1 (no shared ownership, no ownership transfer). Agents have **no secret of their own** — every request authenticates with the owner's `api_key` plus the `agent_id` it is acting on; the server enforces that `agent_id` belongs to the `api_key`'s owner.
 
 `agent_id` is the attribution key stamped onto every record. Records carry no owner reference — auth is via `api_key`, and the server maps `api_key → owner → set of agent_ids` internally.
@@ -397,7 +397,7 @@ Deeper identity lifecycle (agent versions, ownership transfer, external identity
 
 Registration is two-stage:
 
-1. **Owner registration** (out-of-band) — done once per partner organization through the Stair AI website or BD onboarding flow, **not via the SDK**. Issues the `api_key` and provisions the anchor wallet (custodial-generated or BYOW-supplied). Both are owner-level: shared by every agent the owner subsequently creates. The wallet is stored as owner metadata in v1; the v2 anchoring pipeline (§10, §11) is what actually uses it to sign on-chain transactions.
+1. **Owner registration** (out-of-band) — done once per partner organization through the Stair AI website or BD onboarding flow, **not via the SDK**. Issues the `api_key` and provisions the anchor wallet (custodial-generated or BYOW-supplied). Both are owner-level: shared by every agent the owner subsequently creates. The wallet is stored as owner metadata in v1; the v2 anchoring pipeline (§11, §12) is what actually uses it to sign on-chain transactions.
 2. **Agent registration** (via SDK) — repeated as the owner adds more agents. Authenticated by the owner's `api_key`. Returns an `agent_id`. No additional secret is issued.
 
 Splitting these stages keeps secrets and wallet provisioning out of partner agent code, where they would otherwise be checked in or leak through retries. The SDK only ever sees the already-issued `api_key`.
@@ -427,9 +427,9 @@ Owner registration happens **outside the SDK** — through the Stair AI website 
 - The owner's `anchor_wallet_address` (custodial: generated by Stair AI; BYOW: supplied by the partner during onboarding)
 - Optional metadata (display name, website, contact email)
 
-The wallet mode (custodial or BYOW; see §11) is chosen during this onboarding and applies to every agent the owner subsequently registers. The wallet itself is collected and stored at v1 registration; it is not used to sign anything until the v2 anchoring pipeline ships.
+The wallet mode (custodial or BYOW; see §12) is chosen during this onboarding and applies to every agent the owner subsequently registers. The wallet itself is collected and stored at v1 registration; it is not used to sign anything until the v2 anchoring pipeline ships.
 
-The corresponding HTTP endpoints (`POST /v1/owners`, `PATCH /v1/owners/me`, `POST /v1/owners/me/rotate-key` — see §8) are exposed on the Trace Service for the website / admin tooling to call. They are **not** part of the SDK surface — partners do not invoke them programmatically from agent code.
+The corresponding HTTP endpoints (`POST /v1/owners`, `PATCH /v1/owners/me`, `POST /v1/owners/me/rotate-key` — see §9) are exposed on the Trace Service for the website / admin tooling to call. They are **not** part of the SDK surface — partners do not invoke them programmatically from agent code.
 
 ### 6.4 Agent Registration
 
@@ -446,7 +446,7 @@ const { agent_id } = await LedgerClient.registerAgent({
 });
 ```
 
-After registration the partner initializes `LedgerClient` with the owner's `api_key` plus the new `agent_id` as in §7.1. Adding more agents is just additional `registerAgent` calls — no further owner setup, no new api_key, no new wallet.
+After registration the partner initializes `LedgerClient` with the owner's `api_key` plus the new `agent_id` as in §8.1. Adding more agents is just additional `registerAgent` calls — no further owner setup, no new api_key, no new wallet.
 
 ### 6.5 Idempotency
 
@@ -467,9 +467,286 @@ Comprehensive identity and org management → v2.
 
 ---
 
-## 7. SDK API Design
+## 7. SDK API Reference
 
-### 7.1 Client Initialization
+This section is the canonical surface of the Reasoning Ledger SDK across languages. Signatures are written in a language-neutral pseudo-IDL — concrete bindings (TypeScript first, Python and Go later) follow the idioms of their host language but expose the same identifiers, parameters, and return shapes. The next section walks through these symbols in usage examples.
+
+### 7.1 Public Surface (Overview)
+
+| Group | Symbols |
+|---|---|
+| Static factory functions | `LedgerClient.registerAgent`, `LedgerClient.resolveAgentId` |
+| Client | `LedgerClient` (constructor + instance methods) |
+| Session | `Session` (instance methods) |
+| Helpers / utilities (§7.7) | `newRecordId`, `nowEpochMs`, `isValidRecordId` |
+| Configuration types (§7.8) | `LedgerClientConfig`, `RetryConfig`, `WalletConfig`, `ModelInvocation` |
+| Response types (§7.9) | `RecordAck`, `BatchAck`, `RecordError`, `AgentRegistration` |
+| Errors (§7.10) | `LedgerError` (base) and subclasses |
+| Record types (re-exported) | All record interfaces from §4 |
+
+Anything not listed in this section is **internal** and may change without notice. Importing or reflecting into private symbols is unsupported.
+
+---
+
+### 7.2 `LedgerClient.registerAgent` (static)
+
+Register a new agent under an existing owner.
+
+```
+registerAgent(opts) -> AgentRegistration
+
+opts:
+  api_key:    string                — owner-level api_key (issued out-of-band per §6.3)
+  name:       string                — partner-chosen human-readable name; unique within owner
+  metadata?:  AgentMetadata         — optional display fields (description, website, tags)
+
+returns: AgentRegistration          — { agent_id, name, created_at }   (see §7.9)
+```
+
+**Idempotent** on `(owner, name)`. Repeating with the same `name` under the same `api_key` returns the existing agent without creating a new one.
+
+**Errors:** `AuthError`, `ValidationError`, `NetworkError`, `ServerError`.
+
+---
+
+### 7.3 `LedgerClient.resolveAgentId` (static)
+
+Look up an existing agent's `agent_id` by name. Use this when only the human-readable name is on hand (dev shells, ops scripts, environments where the UUID wasn't persisted). Best practice: call once at startup and cache the result; do not call per-request.
+
+```
+resolveAgentId(opts) -> string
+
+opts:
+  api_key: string
+  name:    string
+
+returns: agent_id (UUID v4) of the matching agent under the calling owner
+```
+
+**Errors:** `AuthError`, `NotFoundError`, `NetworkError`, `ServerError`.
+
+---
+
+### 7.4 `LedgerClient` Constructor
+
+```
+LedgerClient(config: LedgerClientConfig) -> LedgerClient
+```
+
+Construct a client bound to a single agent. The constructor performs no network call; it stores configuration and prepares the HTTP transport. The api_key and agent_id are validated lazily on the first request.
+
+`LedgerClientConfig` is defined in §7.8.
+
+---
+
+### 7.5 `LedgerClient` Instance Methods
+
+#### `submit(record) -> RecordAck`
+
+Submit one record.
+
+```
+submit(record) -> RecordAck
+
+record: a Record (any of the 7 behavior types in §4) with these caveats:
+  - record_id:       optional; SDK fills with a fresh UUID v4 if omitted
+  - schema_version:  optional; SDK fills from the bundled constant
+  - client_ts_utc:   optional; SDK fills with nowEpochMs() if omitted
+  - agent_id:        injected from the LedgerClient; ignored if supplied
+
+returns: RecordAck (§7.9)
+```
+
+**Behavior:** validates the record locally per §10 client-side rules; on failure, raises `ValidationError` synchronously and does not contact the server. On success, sends a single submission request, retrying transient failures per `RetryConfig`. The same `record_id` is reused across retries — the server matches `(agent_id, record_id)` and returns the original ack with `is_duplicate: true` if the prior attempt landed.
+
+**Errors:** `ValidationError`, `AuthError`, `RateLimitError`, `NetworkError`, `ServerError`, `IdempotencyConflictError` (raised when the same `record_id` is reused with a different body).
+
+#### `submitBatch(records) -> BatchAck`
+
+Submit up to 50 records in one request.
+
+```
+submitBatch(records) -> BatchAck
+
+records: list of Record values, max 50, with the same omit-and-fill rules as submit
+
+returns: BatchAck (§7.9) — results array preserves input order; entries are
+         RecordAck on success and RecordError on per-record failure
+```
+
+Per-record validation runs locally; only locally-valid records are sent. Partial server-side failure does **not** raise — inspect `BatchAck.results` to find per-record errors. Batch-level failures (auth, oversized batch, transport) raise as for `submit`.
+
+#### `getRecord(record_id) -> Record`
+
+Fetch a single stored record.
+
+```
+getRecord(record_id: string) -> Record
+```
+
+**Errors:** `AuthError`, `NotFoundError`, `NetworkError`, `ServerError`.
+
+#### `getSession(session_id) -> SessionFetch`
+
+Fetch every record submitted under `(agent_id, session_id)`.
+
+```
+getSession(session_id: string) -> SessionFetch
+
+SessionFetch:
+  session_id: string
+  records:    list of Record, ordered by server_ts_utc ascending
+```
+
+#### `getTrace(opts?) -> TracePage`
+
+Paginated read of the calling agent's full trace.
+
+```
+getTrace(opts?) -> TracePage
+
+opts (all optional):
+  before:  string  — record_id cursor; returns records older than this
+  limit:   number  — default 100, max 500
+
+TracePage:
+  records:     list of Record
+  next_cursor: string or null
+```
+
+#### `newSession(session_id?) -> Session`
+
+Local-only convenience. Returns a `Session` (§7.6) bound to a `session_id` — caller-supplied or SDK-generated. No network call.
+
+```
+newSession(session_id?: string) -> Session
+```
+
+---
+
+### 7.6 `Session` Instance Methods
+
+A `Session` is local SDK sugar that pins a `session_id` so callers don't have to pass it on every record. There is no server-side session lifecycle; `Session` is purely a convenience wrapper around the underlying `LedgerClient`.
+
+```
+Session.id          : string                          (read-only property; the bound session_id)
+
+Session.submit(record)        -> RecordAck            (same as LedgerClient.submit, but
+                                                       session_id is auto-injected)
+Session.submitBatch(records)  -> BatchAck             (same as LedgerClient.submitBatch, but
+                                                       session_id is auto-injected on each record)
+```
+
+Same errors as the corresponding `LedgerClient` methods.
+
+---
+
+### 7.7 Helpers / Utilities
+
+Standalone functions, exported alongside the classes. They take no `LedgerClient` instance — they are pure utilities partners can call to align their own code with what the SDK does internally.
+
+#### `newRecordId() -> string`
+
+Generate a fresh UUID v4 suitable for use as a `record_id`. Use when constructing a parent-child pair where the child's `parent_record_id` must reference an as-yet-unsubmitted parent. The SDK calls this internally when `record_id` is not supplied to `submit`.
+
+#### `nowEpochMs() -> number`
+
+Returns the current time as an integer epoch-millisecond. The SDK uses this primitive whenever `client_ts_utc` is omitted from a submitted record. Exposed so partner code that needs to stamp timestamps stays consistent with what the SDK records.
+
+#### `isValidRecordId(value: string) -> boolean`
+
+True iff `value` is a syntactically valid UUID v4. Useful for validating record IDs read from external systems before passing them to `parent_record_id` or `input_record_id`.
+
+This helper group is the home for any future small utilities of the same shape — record-id parsing, schema-version comparison, etc. Partners should expect the list to grow over time without breaking changes.
+
+---
+
+### 7.8 Configuration Types
+
+```
+LedgerClientConfig:
+  api_key:                  string
+  agent_id:                 string                  — UUID v4 from registration
+  environment?:             "production" | "staging" | "development"   — default "production"
+  endpoint?:                string                  — override the Trace Service base URL
+  default_model_invocation?: ModelInvocation        — applied to every submitted record unless
+                                                       the record sets its own model_invocation;
+                                                       see §4.0
+  retry?:                   RetryConfig
+  http_transport?:          HttpTransport           — language-specific hook to override
+                                                       network calls (for tests / instrumentation)
+
+RetryConfig:
+  attempts:    number          — default 3 (one initial + two retries)
+  backoff_ms:  list of number  — default [500, 1000, 2000]
+
+WalletConfig (tagged union):
+  CustodialWalletConfig:  { mode: "custodial" }
+  ByowWalletConfig:       { mode: "byow",
+                            address: string,
+                            signer?: function(tx_bytes: bytes) -> bytes }
+```
+
+`WalletConfig` is **not** a field on `LedgerClientConfig` — wallet mode is established at owner registration (§6.3) and is not reconfigured at client construction. The type is exported for partners building owner-onboarding tooling and for the v2 anchoring SDK component.
+
+`ModelInvocation` is re-exported from §4.0; the shape is unchanged.
+
+---
+
+### 7.9 Response Types
+
+```
+RecordAck:
+  record_id:      string    — echoes the UUID the SDK submitted
+  session_id:     string
+  server_ts_utc:  number    — epoch ms; authoritative timestamp for trust purposes
+  is_duplicate:   boolean   — true if (agent_id, record_id) was already on file
+
+BatchAck:
+  batch_id:  string                          — server-assigned, opaque; for ops/debug
+  results:   list of (RecordAck | RecordError)  — same order as the submitted batch
+
+RecordError:
+  record_id: string         — identifies which record failed
+  code:      string         — stable machine-readable code (see §7.10)
+  message:   string         — human-readable; for logs, not for branching
+
+AgentRegistration:
+  agent_id:    string       — UUID v4
+  name:        string
+  created_at:  number       — epoch ms
+```
+
+---
+
+### 7.10 Errors
+
+The SDK raises a single error hierarchy. All errors carry a stable `code` string and an optional `details` map of machine-readable supplementary info. Bindings should expose these as exceptions in the host language's idiom (TS classes, Python exception classes, Go error types implementing a common interface).
+
+```
+LedgerError (base):
+  code:     string
+  message:  string
+  details?: map of string -> any
+```
+
+| Class | `code` | When raised |
+|---|---|---|
+| `ValidationError` | `validation_failed` | Local schema check failed; the record never reached the network. `details.field` and `details.reason` carry the specific violation. |
+| `AuthError` | `auth_invalid` / `auth_expired` | API key rejected or unknown to the server. |
+| `RateLimitError` | `rate_limited` | Server returned a rate-limit signal. `details.retry_after_ms` carries the suggested wait. |
+| `NetworkError` | `network_failed` | Request never reached the server (DNS, timeout, abort) after exhausting retries. |
+| `ServerError` | `server_5xx` | Server returned a non-retryable 5xx. `details.status` carries the HTTP status. |
+| `IdempotencyConflictError` | `record_id_conflict` | The same `record_id` was previously submitted with a different body. |
+| `NotFoundError` | `not_found` | Lookup target (record, session, agent) does not exist or is not visible to the calling owner. |
+
+Partners may branch on either the class hierarchy or on `code`. New error subclasses may be added in minor versions; partners writing forward-compatible error handling should fall through to `LedgerError` for unknown subtypes.
+
+---
+
+## 8. SDK Usage Examples
+
+### 8.1 Client Initialization
 
 `agent_id` is a server-assigned UUID. The agent's human-readable `name` (chosen by the partner at registration) is *metadata only* — it is mutable, scoped to the owner, and never appears on records. Code paths inside the SDK use `agent_id` exclusively; this avoids a hidden name-resolution round trip on every client construction and prevents a rename from silently redirecting which agent your code submits as.
 
@@ -519,7 +796,7 @@ const client = new LedgerClient({ apiKey: process.env.STAIRAI_API_KEY, agentId, 
 
 The wallet mode is established at owner registration (§6.3) and applies to every agent under the owner — it does not need to be passed at client init.
 
-### 7.2 Submission
+### 8.2 Submission
 
 ```typescript
 // Single record
@@ -539,11 +816,11 @@ await session.submit({ behavior: "Observing", /* ... */ });
 await session.submit({ behavior: "Acting", /* ... */ });
 ```
 
-### 7.3 Retry
+### 8.3 Retry
 
 In-memory only. Exponential backoff (500ms, 1s, 2s by default, configurable). Same `record_id` on retry → server returns original ack with `is_duplicate: true`. No persistent local sink in v1.
 
-### 7.4 Response Shapes
+### 8.4 Response Shapes
 
 ```typescript
 interface RecordAck {
@@ -567,7 +844,7 @@ interface RecordError {
 
 ---
 
-## 8. Trace Service API
+## 9. Trace Service API
 
 **Control plane (owner & agent lifecycle — see Section 6):**
 
@@ -588,7 +865,7 @@ Owner endpoints are reached only by the Stair AI website / admin tooling — the
 | Endpoint | Purpose |
 |---|---|
 | `POST /v1/agents` | Register a new agent under the calling owner (auth: `api_key`); returns `agent_id` (UUID v4) |
-| `GET  /v1/agents?name=...` | Resolve the calling owner's agent by `name`; returns `agent_id` and metadata. Backs `LedgerClient.resolveAgentId` (§7.1). |
+| `GET  /v1/agents?name=...` | Resolve the calling owner's agent by `name`; returns `agent_id` and metadata. Backs `LedgerClient.resolveAgentId` (§7.3). |
 | `GET  /v1/agents/:agent_id` | Fetch agent metadata (public fields only) |
 | `PATCH /v1/agents/:agent_id` | Update agent metadata (auth: owner's `api_key`) |
 
@@ -606,7 +883,7 @@ Idempotency: dedup on `(agent_id, record_id)`. Duplicate → original ack return
 
 ---
 
-## 9. Validation Rules
+## 10. Validation Rules
 
 **Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `record_id` is a valid UUID v4, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object.
 
@@ -616,9 +893,9 @@ Idempotency: dedup on `(agent_id, record_id)`. Duplicate → original ack return
 
 ---
 
-## 10. Trace Service Architecture
+## 11. Trace Service Architecture
 
-### 10.1 v1 — Server-Only
+### 11.1 v1 — Server-Only
 
 ```
 Agent ──HTTP──▶ Trace Service ──▶ Persistent Store (records, sessions, owners)
@@ -633,7 +910,7 @@ Agent ──HTTP──▶ Trace Service ──▶ Persistent Store (records, ses
 
 No chain interaction. No Walrus, no SUI. The wallet collected at owner registration sits idle in the owners table until v2.
 
-### 10.2 v2 — Anchoring Pipeline (preview)
+### 11.2 v2 — Anchoring Pipeline (preview)
 
 v2 adds chain anchoring as a **separate backend pipeline** that runs alongside the v1 record-ingestion path, not inside it:
 
@@ -653,11 +930,11 @@ A separate SDK component (also v2) lets partners read anchor state — `merkle_r
 
 ---
 
-## 11. Wallet Integration
+## 12. Wallet Integration
 
-> **What is v1 vs v2 in this section.** Wallet *provisioning* — collecting custodial vs BYOW choice, generating or recording the address — happens at v1 owner registration. Wallet *use* — actually signing on-chain anchor transactions — is part of the v2 anchoring pipeline (§10.2). The BYOW signer callback shape defined here is part of the v1 SDK API for forward compatibility, but in v1 it is never invoked because no anchor transactions are produced.
+> **What is v1 vs v2 in this section.** Wallet *provisioning* — collecting custodial vs BYOW choice, generating or recording the address — happens at v1 owner registration. Wallet *use* — actually signing on-chain anchor transactions — is part of the v2 anchoring pipeline (§11.2). The BYOW signer callback shape defined here is part of the v1 SDK API for forward compatibility, but in v1 it is never invoked because no anchor transactions are produced.
 
-### 11.1 Two Modes
+### 12.1 Two Modes
 
 Partners choose one mode at **owner registration** (§6.3). The choice is owner-level — every agent under the owner uses the same anchor wallet.
 
@@ -668,7 +945,7 @@ Partners choose one mode at **owner registration** (§6.3). The choice is owner-
 
 Both modes produce identical trace records and anchors on-chain. The difference is only in *who owns the key that signs the anchor*.
 
-### 11.2 Custodial Mode (Zero Web3 Experience Required)
+### 12.2 Custodial Mode (Zero Web3 Experience Required)
 
 ```typescript
 const client = new LedgerClient({
@@ -683,7 +960,7 @@ const client = new LedgerClient({
 - All anchor txs signed and submitted by Stair AI
 - Partner has no on-chain exposure and no gas management
 
-### 11.3 BYOW Mode
+### 12.3 BYOW Mode
 
 ```typescript
 const client = new LedgerClient({
@@ -702,7 +979,7 @@ const client = new LedgerClient({
 - SDK invokes `signer(txBytes)` and returns the signature
 - Server submits the signed tx to SUI; partner's address is recorded as the anchor author
 
-### 11.4 Server-Side Responsibilities
+### 12.4 Server-Side Responsibilities
 
 In both modes the Trace Service:
 - Builds the anchor tx (Merkle root + Walrus blob ID + metadata)
@@ -711,11 +988,11 @@ In both modes the Trace Service:
 
 The `anchor_author_address` is surfaced in `GET /v1/sessions/:id` so consumers can distinguish custodial anchors (Stair AI signer) from partner-signed anchors.
 
-### 11.5 Migration Path
+### 12.5 Migration Path
 
 A partner can switch the owner's wallet mode (custodial ↔ BYOW) for future sessions. Because the wallet is owner-level, the switch applies to every agent under that owner from that point on. Historical sessions remain anchored under whichever mode was active at the time; there is no re-anchoring in v1.
 
-### 11.6 Out of Scope for v1
+### 12.6 Out of Scope for v1
 
 - Partner-signing at the **record** level (currently only anchor-level; records themselves are unsigned). Record-level BYOI signing → v2.
 - Wallet recovery / key rotation for custodial wallets. KMS-level recovery only in v1.
@@ -723,75 +1000,55 @@ A partner can switch the owner's wallet mode (custodial ↔ BYOW) for future ses
 
 ---
 
-## 12. Trust & Attestation
-
-### 12.1 Tiers
-
-| Tier | Name | Verification | v1 |
-|---|---|---|---|
-| 0 | Self-Report | Server timestamps only | ✅ |
-| 1 | Oracle-Verified Acting | On-chain tx reconciles with `Acting` record | ✅ |
-| 2 | Behavioral Consistency | Server-side statistical analysis passes | ✅ |
-| 3 | Witness-Attested | Signed responses from tool providers | v2 |
-| 4 | zkTLS-Verified | Cryptographic proofs of external calls | v3 |
-| 5 | TEE-Attested | Trusted runtime attestation | v1.0 |
-
-### 12.2 v1 Tiers in Detail
-
-**Tier 0 (baseline).** Every session starts here. Trust rests on `server_ts_utc` stamped before external action completes + commercial agreements.
-
-**Tier 1.** When `Acting.target_system` is a public-chain system and `execution_id` is provided, an Oracle pipeline fetches the tx on-chain and verifies: parameters match the record, tx timestamp is after `Acting.server_ts_utc`. Launch targets: Polymarket, Uniswap, SUI DEXs.
-
-**Tier 2.** Server-side analysis flags anomalies across dimensions: convention-level signals in `tool_meta` (e.g. latency or freshness when provided) vs realistic distributions, cross-agent consistency, self-consistency drift, score–outcome correlation. Runs async; does not block submission. Specific thresholds are not public (to prevent adversarial optimization).
-
-### 12.3 Tier Re-evaluation
-
-Tier is always the current evaluation — not path-dependent. When new attestations become available or detection rules change, all historical sessions are re-evaluated. No formal demotion / dispute flow needed.
-
-### 12.4 Score × Tier
-
-Tier caps the Stair AI Score a session can receive. Exact ceilings are defined in the separate Scoring Module design.
-
-### 12.5 Wallet Mode vs Trust Tier
-
-Wallet mode (custodial vs BYOW) is **orthogonal** to Trust Tier. BYOW does not automatically increase Trust Tier in v1 — anchor authorship and record authenticity are separate questions. In v2, record-level BYOI signing will contribute to a higher Tier.
-
----
-
 ## 13. Roadmap
 
-### v1 — Foundation (Q2 2026)
+### v0.1 — Foundation
 
-Record / session / trace model · 7 behaviors (6 typed + `Other` catch-all) · cross-cutting `model_invocation` · `parent_record_id` hierarchy · TS SDK · single + batch submission · in-memory retry · custodial + BYOW wallets · Trust Tier 0–2 · Arena 5 agents migrated · 2–3 commercial partners · Champions League dry run May 31.
+- **Base record model:** `BaseRecord` with `record_id`, `session_id`, `agent_id`, `client_ts_utc`, `schema_version`, `model_invocation`, `parent_record_id`.
+- **Base behaviors:** 7 record types — Observing, ToolCalling, Planning, Thinking, Acting, Reflecting, Other.
+- **TypeScript SDK:** `LedgerClient`, `Session`, helper utilities, validation, retry, error hierarchy.
+- **Reasoning Ledger Server:** owner & agent control plane, record submission and retrieval, persistent store, no chain interaction.
+- **Python SDK:** language port of the TypeScript surface; conforms to the same record schema and HTTP contract.
 
-### v2 — Ecosystem Expansion (Q3 2026)
+### v1 — Official Release
 
-Python SDK · field-level encryption & privacy control · BYOI record signing · agent identity solution (versions, ownership, external identity import) · schema versioning & migration tooling · Trust Tier 3 (witness signatures) · on-chain `tool_id` registry.
+- **Blockchain integration:** Walrus DA + SUI Trace Ledger commits as a separate backend pipeline that reads from the server's persistent store.
+- **Data signal on-chain pipelines:** anchor publishing, signal subscription endpoints, and a chain-reader SDK component for partners verifying anchor state directly from chain.
+- **Basic encryption:** field-level encryption for sensitive payloads (`output_payload`, `tool_meta` regions); partner-held keys.
+- **Schema versioning & migration tooling:** declared schema versions, server-side multi-version acceptance, partner migration helpers.
+- **Trust Tier 1–2 surfacing:** oracle reconciliation for public-chain Acting records; behavioral-consistency analyzer results exposed to partners.
 
-### v3 — Cryptographic Trust (Q4 2026)
+### v2 — Ecosystem Expansion
 
-Go SDK · Trust Tier 4 (zkTLS) · multi-chain adapter (Celestia / EigenDA / ETH L2 / Solana) · Blind Sequencer · first breaking-change migration drill.
+- **Data model expansion:** new typed behaviors promoted from common `Other` patterns; richer cross-record references; multi-agent composition primitives.
+- **Go SDK:** language port; expands the supported runtime matrix beyond TS / Python.
+- **Multi-chain adapter:** Celestia, EigenDA, Ethereum L2s, Solana — chain-agnostic anchor backend.
+- **Blind Sequencer:** independent timestamping service that defends against post-hoc trace fabrication.
+- **Agent skill:** dual-use distribution of the Reasoning Ledger as an agent skill — (a) dev-time integration into Claude Code / Codex / similar, surfacing correct schemas and call patterns into generated code; (b) runtime skill consumed by an LLM-driven agent so reasoning records are emitted at the right phases of execution.
+- **Use-case-specific frameworks:** opinionated wrappers for trading, research, coding, and operations agents — pre-wired observing/thinking/acting patterns.
+- **Scoring integration:** RAID score consumption surface in the SDK; score retrieval, threshold subscription, score-aware client-side logging.
 
-### v1.0 — Institutional Grade (Q1 2027)
+### v3 — Cryptographic Trust
 
-Trust Tier 5 (TEE) · next-gen SDK with automated code-integration audit (committed audit, not zk) · schema v1.0 freeze · use-case-specific frameworks · backtest framework (independent tool, no trace output).
-
-### Long-term R&D (2027+)
-
-zk-based code integration proof · multi-agent composition primitives · cross-protocol trust interop · decentralized Trace Service.
+- **Backtest framework:** replay historical traces against alternative agent strategies; standalone tool, produces no on-chain records.
+- **Zero-knowledge components:** zkTLS proofs of external API calls (Trust Tier 4); zk-based proofs of code integration; TEE attestation as a complementary path.
 
 ### Parallel — Scoring Module
 
-Separate design doc. Scoring v1 (basic RAID) with SDK v1; trust-tier ceilings with v2; multi-agent credit traceability with v3; economic layer (subscription, fee split, staking) with v1.0.
+Separate design doc. Scoring v0.1 (basic RAID) ships with SDK v0.1; trust-tier ceilings with v1; multi-agent credit traceability with v2; economic layer (subscription, fee split, staking) with v3.
 
 ---
 
 ## 14. Open Questions
 
-1. **On-chain data privilege:** do tool calls whose `tool_meta` declares `category: "on_chain_data"` (or equivalent) get a score boost, or is weight purely agent-declared?
-2. **Multiple `Acting` per session:** partial fills across venues legitimately need this; relax the constraint?
-3. **Batch size:** 50 sufficient?
-4. **Rate limits:** per-agent ceilings for `/records` and `/records:batch`?
-5. **Tier 1 Oracle coverage:** priority list beyond Polymarket / Uniswap / SUI DEX?
-6. **Witness-partner BD timing:** which tool providers first? When to start BD for v2 Q3 2026 delivery?
-7. **Custodial wallet key recovery:** what's the recovery story if Stair AI KMS has an incident?
+Genuinely open in the current v0.1 design:
+
+1. **Multiple `Acting` per session.** Partial fills across venues (e.g., a bet split between Polymarket and a sibling market) legitimately need more than one terminal commitment in one decision cycle. Relax the `≤1 Acting per session` rule, or require a new session per fill?
+2. **Versioning policy.** What triggers a `schema_version` bump (additive vs breaking), and how long does the server accept past versions during a migration window? Is one minor-version of overlap enough, or do we commit to a longer support tail?
+3. **Sub-agent cross-reference.** Is the `tool_meta.category: "sub_agent"` convention sufficient for cross-agent traceability, or should sub-agent identity (`agent_id`, `invoked_session_id`, `referenced_record_id`) be promoted to a structured field on `BaseRecord` or `ToolCallingRecord`?
+4. **`Other` promotion criteria.** When does a recurring `Other.label` value (e.g., `"file_edit"`) get promoted to a typed behavior in a future schema version? What's the cross-partner usage threshold and the proposal/review process?
+5. **Server retention pre-anchoring.** With chain anchoring deferred to v1, how long does the v0.1 server retain records before some integrity backstop is required — snapshot-to-cold-storage, partner-side mirroring, periodic Merkle root export, or simply "retained indefinitely until v1"?
+
+Deferred to v1 (non-blocking for v0.1):
+
+- **Custodial wallet key recovery.** Wallet provisioning happens in v0.1 but no signing occurs until v1. Becomes a hard question once v1's anchoring pipeline begins signing transactions: what's the recovery story when Stair AI's KMS has an incident?
