@@ -2,7 +2,7 @@
 
 **Version:** 1  
 **Date:** April 25, 2026  
-**Author:** Colin Qian 
+**Author:** Colin Qian  
 **Status:** Draft for team review
 
 ---
