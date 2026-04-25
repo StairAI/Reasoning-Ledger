@@ -32,13 +32,15 @@ The Reasoning Ledger SDK is the integration surface for third-party agents to su
 
 **v1 scope:**
 - TypeScript client library (`@stairai/ledger-sdk`)
-- Record-oriented submission; idempotent via client-generated ID
+- Record-oriented submission; idempotent via SDK-generated `record_id`
 - Single-record and batch endpoints
-- Chain anchoring triggered server-side on `Acting` record
-- Both custodial wallet (Stair AI managed) and BYOW (bring your own wallet) modes
-- Trust Tier 0–2 supported
+- Server-side persistence; record / session / trace retrieval endpoints
+- Owner-level wallet provisioning (custodial / BYOW) at owner registration — wallet is collected and stored as owner metadata, ready to be used when v2 anchoring lights up
+- Trust Tier 0 (server timestamps); Tier 1–2 scaffolded server-side, not exposed in SDK
 
-**Deferred (see Section 13):** Python / Go SDKs, field-level encryption, witness / zkTLS / TEE attestation, multi-chain adapters, Blind Sequencer, agent identity lifecycle, schema migration tooling, next-gen SDK with automated code auditing.
+**Out of scope for v1, deferred to v2 (see Section 13):** the actual chain-anchoring pipeline — Merkle root computation, Walrus blob upload, SUI commit transactions, BYOW signer invocation. v2 ships anchoring as a *separate backend pipeline* that reads from the server's persistent store and commits to chain, plus a *separate SDK component* for partners to read anchor state directly from chain. The core SDK in v1 interacts with server data only and never produces or reads chain transactions.
+
+**Also deferred:** Python / Go SDKs, field-level encryption, witness / zkTLS / TEE attestation, multi-chain adapters, Blind Sequencer, agent identity lifecycle, schema migration tooling, next-gen SDK with automated code auditing.
 
 ---
 
@@ -60,11 +62,11 @@ Agent X's Trace
 │  ├─ Observing
 │  ├─ ToolCalling × N
 │  ├─ Thinking
-│  └─ Acting           ← anchoring triggered
+│  └─ Acting           (terminal record of the decision cycle)
 │
 ├─ session "cycle-002"
 │  ├─ Observing
-│  └─ Thinking         (no Acting — not anchored, not scored)
+│  └─ Thinking         (no Acting — incomplete cycle; not scored)
 │
 └─ session "cycle-001" (post-outcome)
    └─ Reflecting       (attached via session_id)
@@ -105,7 +107,8 @@ interface BaseRecord {
                                      // SDK sets this automatically from its bundled constant.
   agent_id: string;
   session_id: string;
-  client_record_id: string;          // SDK-generated UUID; idempotency key
+  record_id: string;                 // UUID v4. SDK-generated before submission; doubles as the
+                                     // idempotency key on (agent_id, record_id).
   behavior: BehaviorType;
   client_ts_utc: number;             // Epoch milliseconds; client-reported timestamp for this record;
                                      // preserved across retries
@@ -195,7 +198,7 @@ interface ToolCallingRecord extends BaseRecord {
 }
 ```
 
-**Identity.** Tool calls are identified by the inherited `client_record_id` on `BaseRecord`. Other records (e.g. `ThinkingInput.input_record_id`) reference a tool call by that ID.
+**Identity.** Tool calls are identified by the inherited `record_id` on `BaseRecord`. Other records (e.g. `ThinkingInput.input_record_id`) reference a tool call by that ID.
 
 **LLM invocations are not a tool call.** When a record is *produced via* an LLM — even if that LLM is "invoked" as a tool in the agent's code — use the `model_invocation` field on `BaseRecord` (§4.0) instead. Reserve `ToolCalling` for calls to external APIs, KBs, on-chain reads, local functions, and sub-agents.
 
@@ -273,7 +276,7 @@ interface ThinkingRecord extends BaseRecord {
 }
 
 interface ThinkingInput {
-  input_record_id?: string;      // Optional: references another record's `client_record_id`
+  input_record_id?: string;      // Optional: references another record's `record_id`
   input_payload: string;         // JSON-encoded payload of this input
 }
 ```
@@ -318,8 +321,6 @@ interface SignalReview {
   note: string;                  // Retrospective commentary on how this input should have been weighed
 }
 ```
-
-Reflecting records anchor as a separate commitment linked to the original session anchor (see Section 10).
 
 **Edits triggered by reflection.** When a Reflecting record leads to a concrete change — modifying a config, adjusting a weight, editing a prompt template — emit the change as an `Acting` record in a *new session* whose entry record carries `parent_record_id` pointing at the Reflecting. This preserves the "≤1 Acting per session" rule, gives the edit its own audit trail (`parameters` capturing `target_resource`, `before`, `after`, `change_description`, and optionally a `reviewer` field to distinguish automated from human-approved edits), and makes the causal chain from underperforming outcome → reflection → strategy change queryable via `parent_record_id`. `Reflecting.adjustment` describes the recommendation; the edit-Acting's `parameters` describes the actual change — they can legitimately differ (e.g., reflection recommends a weight of 0.75, reviewer approves 0.70), and that divergence is itself useful audit information.
 
@@ -366,48 +367,78 @@ Trust relies on `server_ts_utc`. `client_ts_utc` is the timestamp the client att
 
 ### 5.2 Identifiers
 
-| ID | Assigned by | Scope |
-|---|---|---|
-| `agent_id` | Server | Globally unique |
-| `client_record_id` | SDK | Dedup key: `(agent_id, client_record_id)` |
-| `record_id` | Server | Globally unique |
-| `session_id` | Agent | Unique within `agent_id` |
+| ID | Format | Assigned by | Scope |
+|---|---|---|---|
+| `agent_id` | UUID v4 | Server | Globally unique; opaque; the canonical handle for an agent |
+| `agent name` | Human-readable string | Partner | Unique within an owner; metadata; mutable; **never appears on records** |
+| `record_id` | UUID v4 | SDK | Globally unique; doubles as the idempotency key on `(agent_id, record_id)` |
+| `session_id` | Partner-chosen string | Agent | Unique within `agent_id` |
+
+The agent's human-readable `name` is for display, search, and resolution only — `agent_id` (UUID) is what the SDK and records use at runtime.
+
+`record_id` is generated by the SDK as a UUID v4 *before* the network call. It both identifies the record globally and serves as the dedup key for retries — if the SDK retries a transient failure, the server matches on `(agent_id, record_id)` and returns the original ack rather than creating a duplicate. There is no separate "client" vs "server" record ID; the SDK owns generation and the server stores the value as-is.
 
 ### 5.3 Owner & Agent Identity
 
 Identity in v1 has two levels:
 
-- **Owner** — an organization or account. One owner can have many agents. Billing, quotas, and agent-name idempotency are scoped to an owner. Owners are identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface.
-- **Agent** — a reasoning-producing entity. Identified by `agent_id`. Each agent belongs to exactly one owner in v1 (no shared ownership, no ownership transfer). An `api_key` authenticates an agent for record submission; the server resolves the owning account from the `api_key` when needed (billing, quota, admin views).
+- **Owner** — an organization or account. Identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface. **The `api_key` and the anchor wallet address are owner-level** — issued once at owner registration and shared by every agent the owner creates. One owner can have many agents; billing, quotas, and agent-name idempotency are scoped to the owner. (The wallet is collected at owner registration but only used by the v2 anchoring pipeline — see §11.)
+- **Agent** — a reasoning-producing entity. Identified by `agent_id`. Each agent belongs to exactly one owner in v1 (no shared ownership, no ownership transfer). Agents have **no secret of their own** — every request authenticates with the owner's `api_key` plus the `agent_id` it is acting on; the server enforces that `agent_id` belongs to the `api_key`'s owner.
 
-`agent_id` is the attribution key stamped onto every record. Records carry no owner reference — auth is via `api_key`, and the server maps `api_key → agent → owner` internally.
+`agent_id` is the attribution key stamped onto every record. Records carry no owner reference — auth is via `api_key`, and the server maps `api_key → owner → set of agent_ids` internally.
 
 Deeper identity lifecycle (agent versions, ownership transfer, external identity import, BYOI signing) is deferred to v2.
 
 ---
 
-## 6. Agent Registration
+## 6. Owner & Agent Registration
 
 ### 6.1 Purpose
 
-Registration creates an `agent_id`, issues an `api_key`, and (internally on the server) attaches the agent to an owner account identified by `owner_email`. The owner account is created on first use of a given email, or resolved if it already exists — no separate owner-setup step is required from the SDK consumer.
+Registration is two-stage:
 
-### 6.2 What Registration Produces
+1. **Owner registration** (out-of-band) — done once per partner organization through the Stair AI website or BD onboarding flow, **not via the SDK**. Issues the `api_key` and provisions the anchor wallet (custodial-generated or BYOW-supplied). Both are owner-level: shared by every agent the owner subsequently creates. The wallet is stored as owner metadata in v1; the v2 anchoring pipeline (§10, §11) is what actually uses it to sign on-chain transactions.
+2. **Agent registration** (via SDK) — repeated as the owner adds more agents. Authenticated by the owner's `api_key`. Returns an `agent_id`. No additional secret is issued.
+
+Splitting these stages keeps secrets and wallet provisioning out of partner agent code, where they would otherwise be checked in or leak through retries. The SDK only ever sees the already-issued `api_key`.
+
+### 6.2 What Each Stage Produces
+
+**Owner registration (out-of-band, via website / BD):**
 
 | Artifact | Notes |
 |---|---|
-| `agent_id` | Stable string, unique per registration |
-| `api_key` | Authentication secret for this agent; shown once at registration |
-| Anchor wallet address | Custodial: generated by Stair AI. BYOW: provided by partner. |
-| Optional metadata | Display name, description, website, tags |
+| `api_key` | Authentication secret for the owner; shown once at registration; rotated via the website / admin tooling |
+| `anchor_wallet_address` | Custodial: generated by Stair AI. BYOW: the address the owner supplied during onboarding. Single wallet per owner; collected at v1 registration, used by the v2 anchoring pipeline. |
+| Optional metadata | Display name, website, contact email |
 
-### 6.3 Registration Flow
+**Agent registration (via SDK):**
+
+| Artifact | Notes |
+|---|---|
+| `agent_id` | Server-assigned UUID v4; the canonical handle; belongs to the owner identified by the `api_key` used to create it |
+| Optional metadata | Display name (`name`), description, website, tags. `name` is human-readable and mutable; never used as a runtime identifier. |
+
+### 6.3 Owner Registration (out-of-band)
+
+Owner registration happens **outside the SDK** — through the Stair AI website self-serve flow or via a BD onboarding conversation. It is a one-time setup per partner organization and produces:
+
+- The owner's `api_key` (shown once; partner stores it as a secret)
+- The owner's `anchor_wallet_address` (custodial: generated by Stair AI; BYOW: supplied by the partner during onboarding)
+- Optional metadata (display name, website, contact email)
+
+The wallet mode (custodial or BYOW; see §11) is chosen during this onboarding and applies to every agent the owner subsequently registers. The wallet itself is collected and stored at v1 registration; it is not used to sign anything until the v2 anchoring pipeline ships.
+
+The corresponding HTTP endpoints (`POST /v1/owners`, `PATCH /v1/owners/me`, `POST /v1/owners/me/rotate-key` — see §8) are exposed on the Trace Service for the website / admin tooling to call. They are **not** part of the SDK surface — partners do not invoke them programmatically from agent code.
+
+### 6.4 Agent Registration
+
+Authenticated by the owner's `api_key`. Returns an `agent_id`; no new secret is issued — the same `api_key` is reused with the new `agent_id`:
 
 ```typescript
-const { agent_id, api_key, anchor_wallet_address } = await LedgerClient.register({
+const { agent_id } = await LedgerClient.registerAgent({
+  apiKey: process.env.STAIRAI_API_KEY,      // Owner-level api_key from §6.3
   name: "deep_field",                       // Partner-chosen; unique within the owner's scope
-  owner_email: "colin@stairai.com",         // Identifies the owner account; created on first use
-  wallet: { mode: "custodial" },            // Or { mode: "byow", address: "0x..." } — see §11
   metadata: {
     description: "Multi-step football match predictor",
     tags: ["sports", "prediction"],
@@ -415,27 +446,18 @@ const { agent_id, api_key, anchor_wallet_address } = await LedgerClient.register
 });
 ```
 
-If an owner account with `owner_email` already exists, the new agent is attached to it; otherwise a new owner account is created server-side. The caller does not see an owner identifier — the server tracks the mapping internally.
+After registration the partner initializes `LedgerClient` with the owner's `api_key` plus the new `agent_id` as in §7.1. Adding more agents is just additional `registerAgent` calls — no further owner setup, no new api_key, no new wallet.
 
-After registration the partner initializes `LedgerClient` with the returned credentials as in §7.1.
+### 6.5 Idempotency
 
-### 6.4 Idempotency
-
-Registration is idempotent on `(owner_email, name)` — repeating the call returns the existing `agent_id` without creating a new agent. `api_key` is **not** re-disclosed on repeat calls — key rotation uses a separate endpoint.
-
-### 6.5 Registration API
-
-| Endpoint | Purpose |
-|---|---|
-| `POST /v1/agents` | Register a new agent (creating or resolving the owner from `owner_email`); returns `agent_id`, `api_key`, `anchor_wallet_address` |
-| `GET  /v1/agents/:agent_id` | Fetch agent metadata (public fields only) |
-| `PATCH /v1/agents/:agent_id` | Update agent metadata (requires `api_key`) |
-| `POST /v1/agents/:agent_id/rotate-key` | Issue a new `api_key`; invalidate previous |
+- **Owner registration** is idempotent on `email` — the website flow returns the existing owner without creating a new one. `api_key` is **not** re-disclosed on repeat calls; rotation uses a separate admin endpoint.
+- **Agent registration** is idempotent on `(owner, name)` — repeating the SDK call returns the existing `agent_id`.
 
 ### 6.6 v1 Limitations
 
-- One active `api_key` per agent
-- No owner-level API (owner grouping is internal; owner-scoped views deferred to v2)
+- One active `api_key` per owner
+- One anchor wallet per owner (no per-agent wallets)
+- No owner-scoped listing endpoints (e.g. "list all my agents") in v1; deferred to v2
 - No version management (all records submitted under same `agent_id` regardless of internal model changes)
 - No ownership transfer (an agent cannot be moved to a different owner)
 - No shared ownership (an agent belongs to exactly one owner)
@@ -449,14 +471,30 @@ Comprehensive identity and org management → v2.
 
 ### 7.1 Client Initialization
 
+`agent_id` is a server-assigned UUID. The agent's human-readable `name` (chosen by the partner at registration) is *metadata only* — it is mutable, scoped to the owner, and never appears on records. Code paths inside the SDK use `agent_id` exclusively; this avoids a hidden name-resolution round trip on every client construction and prevents a rename from silently redirecting which agent your code submits as.
+
+The recommended workflow:
+
+**1. First time — capture `agent_id` at registration (§6.4) and persist it:**
+
+```typescript
+const { agent_id } = await LedgerClient.registerAgent({
+  apiKey: process.env.STAIRAI_API_KEY,
+  name: "deep_field",
+  metadata: { description: "Multi-step football match predictor" },
+});
+// Store agent_id in your secret manager / env var / config — alongside the api_key.
+```
+
+**2. Subsequent runs — construct the client with the persisted `agent_id`:**
+
 ```typescript
 import { LedgerClient } from "@stairai/ledger-sdk";
 
 const client = new LedgerClient({
-  apiKey: process.env.STAIRAI_API_KEY,
-  agentId: "deep_field_v1",
+  apiKey: process.env.STAIRAI_API_KEY,        // Owner-level api_key (issued out-of-band per §6.3)
+  agentId: process.env.STAIRAI_AGENT_ID,      // UUID from §6.4
   environment: "production",
-  wallet: { mode: "custodial" },  // or { mode: "byow", ... }  — see Section 11
 
   // Optional: default ModelInvocation applied to every submitted record.
   // Any record may override by setting its own model_invocation.
@@ -466,6 +504,20 @@ const client = new LedgerClient({
   },
 });
 ```
+
+**3. Resolution helper — for partners who only have the name on hand** (e.g. dev shells, ops scripts, environments where the UUID wasn't persisted):
+
+```typescript
+const agentId = await LedgerClient.resolveAgentId({
+  apiKey: process.env.STAIRAI_API_KEY,
+  name: "deep_field",
+});
+const client = new LedgerClient({ apiKey: process.env.STAIRAI_API_KEY, agentId, ... });
+```
+
+`resolveAgentId` is a thin wrapper over `GET /v1/agents?name=...` — best practice is to call it once at startup (or in a one-time bootstrap script) and cache the result, not on every request.
+
+The wallet mode is established at owner registration (§6.3) and applies to every agent under the owner — it does not need to be passed at client init.
 
 ### 7.2 Submission
 
@@ -489,18 +541,16 @@ await session.submit({ behavior: "Acting", /* ... */ });
 
 ### 7.3 Retry
 
-In-memory only. Exponential backoff (500ms, 1s, 2s by default, configurable). Same `client_record_id` on retry → server returns original ack with `is_duplicate: true`. No persistent local sink in v1.
+In-memory only. Exponential backoff (500ms, 1s, 2s by default, configurable). Same `record_id` on retry → server returns original ack with `is_duplicate: true`. No persistent local sink in v1.
 
 ### 7.4 Response Shapes
 
 ```typescript
 interface RecordAck {
-  record_id: string;
-  client_record_id: string;
+  record_id: string;             // The same UUID the SDK generated and submitted; echoed back
   session_id: string;
-  server_ts_utc: number;         // Epoch ms
-  is_duplicate: boolean;
-  chain_anchor_triggered: boolean;
+  server_ts_utc: number;         // Epoch ms — authoritative timestamp for trust purposes
+  is_duplicate: boolean;         // true if (agent_id, record_id) was already on file
 }
 
 interface BatchAck {
@@ -509,7 +559,7 @@ interface BatchAck {
 }
 
 interface RecordError {
-  client_record_id: string;
+  record_id: string;             // Identifies which submitted record failed
   code: string;
   message: string;
 }
@@ -519,14 +569,28 @@ interface RecordError {
 
 ## 8. Trace Service API
 
-**Control plane (agent lifecycle — see Section 6):**
+**Control plane (owner & agent lifecycle — see Section 6):**
+
+Owner endpoints are reached only by the Stair AI website / admin tooling — they are not invoked from the SDK. Agent endpoints are SDK-facing.
+
+*Backend / website only — not exposed via SDK:*
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/agents` | Register new agent (creating or resolving the owner from `owner_email`); returns credentials |
-| `GET  /v1/agents/:agent_id` | Fetch agent metadata |
-| `PATCH /v1/agents/:agent_id` | Update agent metadata |
-| `POST /v1/agents/:agent_id/rotate-key` | Rotate API key |
+| `POST /v1/owners` | Register a new owner (or resolve existing by email); returns `api_key` and `anchor_wallet_address` |
+| `PATCH /v1/owners/me` | Update owner metadata (auth: `api_key`) |
+| `POST /v1/owners/me/rotate-key` | Issue a new `api_key`; invalidate previous (auth: current `api_key`) |
+
+`/v1/owners/me` resolves to the owner identified by the `api_key`, so neither the website nor partners ever need to pass `owner_id`.
+
+*SDK-facing:*
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /v1/agents` | Register a new agent under the calling owner (auth: `api_key`); returns `agent_id` (UUID v4) |
+| `GET  /v1/agents?name=...` | Resolve the calling owner's agent by `name`; returns `agent_id` and metadata. Backs `LedgerClient.resolveAgentId` (§7.1). |
+| `GET  /v1/agents/:agent_id` | Fetch agent metadata (public fields only) |
+| `PATCH /v1/agents/:agent_id` | Update agent metadata (auth: owner's `api_key`) |
 
 **Data plane (record submission & retrieval):**
 
@@ -538,15 +602,15 @@ interface RecordError {
 | `GET  /v1/sessions/:id?agent_id=...` | Fetch all records in a session |
 | `GET  /v1/traces/:agent_id` | Paginated trace for an agent |
 
-Idempotency: dedup on `(agent_id, client_record_id)`. Duplicate → original ack returned.
+Idempotency: dedup on `(agent_id, record_id)`. Duplicate → original ack returned with `is_duplicate: true`.
 
 ---
 
 ## 9. Validation Rules
 
-**Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object.
+**Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `record_id` is a valid UUID v4, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object.
 
-**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, client_record_id)` unique, ≤1 `Acting` per session, `parent_record_id` (when set) resolves to an existing record under the same `agent_id`, `server_ts_utc` and `record_id` server-assigned, batch ≤50.
+**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, record_id)` unique (duplicate → return original ack with `is_duplicate: true`), ≤1 `Acting` per session, `parent_record_id` (when set) resolves to an existing record under the same `agent_id`, `server_ts_utc` server-assigned, batch ≤50.
 
 **Intentional non-rules:** no "first record must be Observing," no session lifecycle, no session timeout, no enforced hierarchy shape (traces may be flat or nested).
 
@@ -554,33 +618,52 @@ Idempotency: dedup on `(agent_id, client_record_id)`. Duplicate → original ack
 
 ## 10. Trace Service Architecture
 
+### 10.1 v1 — Server-Only
+
 ```
-Agent ──HTTP──▶ Trace Service ──▶ Walrus DA (blob)
-                              └─▶ SUI Trace Ledger (anchor)
+Agent ──HTTP──▶ Trace Service ──▶ Persistent Store (records, sessions, owners)
 ```
 
 **On `POST /v1/records`:**
-1. Auth & validate
-2. Dedup check (return original if match)
-3. Assign `record_id`, stamp `server_ts_utc`, persist
-4. Return ack immediately
-5. Background: trigger anchoring (if `Acting`) or reflection anchor (if `Reflecting`); enqueue for Trust Tier 2
+1. Auth & validate (api_key ↔ agent_id, schema_version, behavior-specific rules)
+2. Dedup check on `(agent_id, record_id)` (return original ack with `is_duplicate: true` on match)
+3. Stamp `server_ts_utc`, persist
+4. Return ack
+5. Background: enqueue for Trust Tier 2 analysis
 
-**Anchoring on `Acting`:** collect session records with `server_ts_utc ≤ Acting.server_ts_utc` → compute Merkle root → upload bundle to Walrus → submit `(agent_id, session_id, merkle_root, blob_id)` to SUI. Post-anchor records (except `Reflecting`) are stored with `post_anchor: true`, excluded from the Merkle tree.
+No chain interaction. No Walrus, no SUI. The wallet collected at owner registration sits idle in the owners table until v2.
 
-**Reflecting** anchors as a separate, linked commitment.
+### 10.2 v2 — Anchoring Pipeline (preview)
+
+v2 adds chain anchoring as a **separate backend pipeline** that runs alongside the v1 record-ingestion path, not inside it:
+
+```
+Trace Service ──▶ Persistent Store
+                      │
+                      ▼
+               Anchoring Pipeline ──▶ Walrus DA (blob)
+                                  └─▶ SUI Trace Ledger (anchor)
+```
+
+The pipeline reads completed sessions from the store, computes Merkle roots, uploads bundles to Walrus, and submits anchor transactions to SUI signed with the owner's wallet (custodial: signed by Stair AI's KMS; BYOW: signed by the partner via the SDK's `signer` callback). Record submission stays synchronous and unaffected; anchoring is asynchronous and recoverable independently.
+
+A separate SDK component (also v2) lets partners read anchor state — `merkle_root`, `walrus_blob_id`, `sui_tx_id`, `anchored_at_utc` — directly from chain to verify a session was anchored without trusting the Trace Service.
+
+**Anchoring trigger (v2):** the pipeline anchors a session when its terminal `Acting` record has been persisted. `Reflecting` records anchor as a separate, linked commitment after the original anchor. Records that arrive after a session has been anchored are stored with `post_anchor: true` and excluded from that session's Merkle tree (they would form their own anchor on a subsequent eligible event).
 
 ---
 
 ## 11. Wallet Integration
 
+> **What is v1 vs v2 in this section.** Wallet *provisioning* — collecting custodial vs BYOW choice, generating or recording the address — happens at v1 owner registration. Wallet *use* — actually signing on-chain anchor transactions — is part of the v2 anchoring pipeline (§10.2). The BYOW signer callback shape defined here is part of the v1 SDK API for forward compatibility, but in v1 it is never invoked because no anchor transactions are produced.
+
 ### 11.1 Two Modes
 
-Partners choose one mode at client initialization:
+Partners choose one mode at **owner registration** (§6.3). The choice is owner-level — every agent under the owner uses the same anchor wallet.
 
 | Mode | Wallet ownership | Signing | Gas |
 |---|---|---|---|
-| **Custodial** (default) | Stair AI creates and holds a SUI wallet for the agent | Stair AI signs anchor txs | Stair AI pays |
+| **Custodial** (default) | Stair AI creates and holds a single SUI wallet per owner | Stair AI signs anchor txs | Stair AI pays |
 | **BYOW** (bring your own wallet) | Partner owns the SUI wallet | Partner signs via SDK hook; Stair AI service submits | Partner pays |
 
 Both modes produce identical trace records and anchors on-chain. The difference is only in *who owns the key that signs the anchor*.
@@ -595,7 +678,7 @@ const client = new LedgerClient({
 });
 ```
 
-- Stair AI provisions a SUI wallet per `agent_id` on first use
+- Stair AI provisions a SUI wallet per **owner** at owner registration; all of the owner's agents share it
 - Wallet key is held in Stair AI's KMS (HSM-backed)
 - All anchor txs signed and submitted by Stair AI
 - Partner has no on-chain exposure and no gas management
@@ -630,7 +713,7 @@ The `anchor_author_address` is surfaced in `GET /v1/sessions/:id` so consumers c
 
 ### 11.5 Migration Path
 
-A partner can switch from custodial to BYOW for future sessions. Historical sessions remain anchored under whichever mode was active at the time. There is no re-anchoring of historical sessions in v1.
+A partner can switch the owner's wallet mode (custodial ↔ BYOW) for future sessions. Because the wallet is owner-level, the switch applies to every agent under that owner from that point on. Historical sessions remain anchored under whichever mode was active at the time; there is no re-anchoring in v1.
 
 ### 11.6 Out of Scope for v1
 
