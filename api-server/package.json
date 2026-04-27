@@ -1,0 +1,36 @@
+{
+  "name": "reasoning-ledger-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch --onSuccess \"node dist/index.js\"",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
+  },
+  "keywords": [],
+  "type": "module",
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@orpc/client": "^1.14.0",
+    "@orpc/openapi": "^1.14.0",
+    "@orpc/server": "^1.14.0",
+    "@orpc/zod": "^1.14.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.61.0",
+    "tsup": "^8.5.0",
+    "typescript": "^6.0.3",
+    "ultracite": "7.6.2",
+    "vitest": "^4.1.5"
+  }
+}

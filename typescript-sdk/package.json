@@ -1,0 +1,40 @@
+{
+  "devDependencies": {
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.61.0",
+    "typescript": "^6.0.3",
+    "ultracite": "7.6.2",
+    "vitest": "^4.1.5"
+  },
+  "name": "reasoning-ledger-sdk",
+  "scripts": {
+    "build": "tsc",
+    "dev": "vitest",
+    "test": "vitest run",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "ci": "pnpm build && pnpm check && pnpm test"
+  },
+  "type": "module",
+  "version": "0.1.0",
+  "description": "reasoning-ledger-sdk is a TypeScript SDK for interacting with the Reasoning Ledger.",
+  "keywords": [
+    "demo",
+    "typescript"
+  ],
+  "homepage": "https://github.com/StairAI/Reasoning-Ledger/",
+  "bugs": {
+    "url": "https://github.com/StairAI/Reasoning-Ledger/issues"
+  },
+  "author": "Arslan Ablikim <arslan.ablikim0@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StairAI/Reasoning-Ledger.git"
+  },
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts"
+}
