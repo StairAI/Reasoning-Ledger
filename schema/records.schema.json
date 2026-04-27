@@ -1,0 +1,555 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stairai.com/schemas/records.schema.json",
+  "title": "Reasoning Ledger Record Schemas",
+  "description": "Canonical record schemas for sections 4.1-4.8 of Reasoning_Ledger_SDK_Design_v1.",
+  "$defs": {
+    "BehaviorType": {
+      "type": "string",
+      "enum": [
+        "Observing",
+        "ToolCalling",
+        "Planning",
+        "Thinking",
+        "Acting",
+        "Reflecting",
+        "Other"
+      ]
+    },
+    "UuidV4": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "EpochMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ModelInvocation": {
+      "type": "object",
+      "required": [
+        "provider",
+        "model_name"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "type": "string"
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "finish_reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BaseRecord": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "agent_id",
+        "session_id",
+        "record_id",
+        "behavior",
+        "client_ts_utc"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "1.0"
+          ]
+        },
+        "agent_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "behavior": {
+          "$ref": "#/$defs/BehaviorType"
+        },
+        "client_ts_utc": {
+          "$ref": "#/$defs/EpochMs"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "maxItems": 32
+        },
+        "model_invocation": {
+          "$ref": "#/$defs/ModelInvocation"
+        },
+        "parent_record_id": {
+          "$ref": "#/$defs/UuidV4"
+        }
+      }
+    },
+    "ThinkingInput": {
+      "type": "object",
+      "required": [
+        "input_payload"
+      ],
+      "properties": {
+        "input_record_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "input_payload": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SignalReview": {
+      "type": "object",
+      "required": [
+        "note"
+      ],
+      "properties": {
+        "input_record_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlanningStep": {
+      "type": "object",
+      "required": [
+        "index",
+        "description"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObservingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "trigger_source",
+            "trigger_type",
+            "trigger_description",
+            "trigger_payload_summary"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Observing"
+            },
+            "trigger_source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trigger_type": {
+              "type": "string",
+              "enum": [
+                "signal_trigger",
+                "cron_trigger"
+              ]
+            },
+            "external_trigger_id": {
+              "type": "string"
+            },
+            "event_ts_utc": {
+              "$ref": "#/$defs/EpochMs"
+            },
+            "trigger_description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trigger_payload_summary": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ToolCallingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "tool_meta",
+            "description",
+            "input_payload",
+            "output_payload",
+            "success"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "ToolCalling"
+            },
+            "tool_meta": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_payload": true,
+            "output_payload": true,
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PlanningRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "goal",
+            "steps"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Planning"
+            },
+            "goal": {
+              "type": "string",
+              "minLength": 1
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlanningStep"
+              }
+            },
+            "contingencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ThinkingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "prompt",
+            "inputs",
+            "output_payload"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Thinking"
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1
+            },
+            "inputs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThinkingInput"
+              }
+            },
+            "output_payload": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ActingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "action_type",
+            "target_system",
+            "action_summary",
+            "parameters",
+            "dry_run",
+            "execution_status"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Acting"
+            },
+            "action_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_system": {
+              "type": "string",
+              "minLength": 1
+            },
+            "action_summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "parameters": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "dry_run": {
+              "type": "boolean"
+            },
+            "execution_id": {
+              "type": "string"
+            },
+            "execution_status": {
+              "type": "string",
+              "enum": [
+                "confirmed",
+                "failed",
+                "simulated",
+                "pending"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "target_system": {
+                    "const": "public-chain"
+                  },
+                  "execution_status": {
+                    "const": "confirmed"
+                  }
+                },
+                "required": [
+                  "target_system",
+                  "execution_status"
+                ]
+              },
+              "then": {
+                "required": [
+                  "execution_id"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ReflectingOutcome": {
+      "type": "object",
+      "required": [
+        "actual_result",
+        "expected_result"
+      ],
+      "properties": {
+        "actual_result": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_result": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pnl_delta": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReflectingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "reflected_on_acting_record_id",
+            "outcome",
+            "prediction_accuracy",
+            "post_mortem",
+            "signal_retrospective",
+            "adjustment"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Reflecting"
+            },
+            "reflected_on_acting_record_id": {
+              "$ref": "#/$defs/UuidV4"
+            },
+            "outcome": {
+              "$ref": "#/$defs/ReflectingOutcome"
+            },
+            "prediction_accuracy": {
+              "type": "string",
+              "enum": [
+                "correct",
+                "incorrect",
+                "partial"
+              ]
+            },
+            "post_mortem": {
+              "type": "string",
+              "minLength": 1
+            },
+            "signal_retrospective": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SignalReview"
+              }
+            },
+            "adjustment": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "OtherRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "label",
+            "data"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Other"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Record": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ObservingRecord"
+        },
+        {
+          "$ref": "#/$defs/ToolCallingRecord"
+        },
+        {
+          "$ref": "#/$defs/PlanningRecord"
+        },
+        {
+          "$ref": "#/$defs/ThinkingRecord"
+        },
+        {
+          "$ref": "#/$defs/ActingRecord"
+        },
+        {
+          "$ref": "#/$defs/ReflectingRecord"
+        },
+        {
+          "$ref": "#/$defs/OtherRecord"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "behavior",
+        "mapping": {
+          "Observing": "#/$defs/ObservingRecord",
+          "ToolCalling": "#/$defs/ToolCallingRecord",
+          "Planning": "#/$defs/PlanningRecord",
+          "Thinking": "#/$defs/ThinkingRecord",
+          "Acting": "#/$defs/ActingRecord",
+          "Reflecting": "#/$defs/ReflectingRecord",
+          "Other": "#/$defs/OtherRecord"
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/Record"
+}
