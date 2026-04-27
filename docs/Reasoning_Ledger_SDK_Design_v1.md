@@ -142,6 +142,8 @@ All timestamp fields in the schema use **epoch milliseconds (integer, 64-bit)** 
 
 **`schema_version`** makes each record self-describing. The SDK stamps it from a bundled constant (`"1.0"` in v0.1) without requiring partner code to set it. The server validates that the version is supported and rejects records with unknown versions. When the schema evolves, older SDKs continue to submit their known version, and the server accepts supported past versions until they are retired — giving partners a migration window rather than a breaking flag day.
 
+**Size limits.** Records and payloads are subject to size limits (per-record, per-batch, and per-field for free-text payloads). v0.1 ships with sketchy starter caps documented in §10; v1 will tighten them based on real telemetry. Records exceeding a cap are rejected client-side with `ValidationError` before any network call.
+
 ### 4.1 `Observing`
 
 ```typescript
@@ -382,10 +384,16 @@ The agent's human-readable `name` is for display, search, and resolution only �
 
 Identity in v1 has two levels:
 
-- **Owner** — an organization or account. Identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface. **The `api_key` and the anchor wallet address are owner-level** — issued once at owner registration and shared by every agent the owner creates. One owner can have many agents; billing, quotas, and agent-name idempotency are scoped to the owner. (The wallet is collected at owner registration but only used by the v2 anchoring pipeline — see §12.)
-- **Agent** — a reasoning-producing entity. Identified by `agent_id`. Each agent belongs to exactly one owner in v1 (no shared ownership, no ownership transfer). Agents have **no secret of their own** — every request authenticates with the owner's `api_key` plus the `agent_id` it is acting on; the server enforces that `agent_id` belongs to the `api_key`'s owner.
+- **Owner** — an organization or account. Identified externally by email; the server maintains an internal `owner_id` for indexing, but it is not part of the SDK or API surface. **The `api_key` is owner-level** — issued once at owner registration. The owner also holds a **default anchor wallet** (`owner_wallet_address`) created at owner registration. One owner can have many agents; billing, quotas, and agent-name idempotency are scoped to the owner.
+- **Agent** — a reasoning-producing entity. Identified by `agent_id`. Each agent belongs to exactly one owner in v1 (no shared ownership, no ownership transfer). Agents have **no secret of their own** — every request authenticates with the owner's `api_key` plus the `agent_id` it is acting on; the server enforces that `agent_id` belongs to the `api_key`'s owner. Each agent also gets its **own anchor wallet** (`agent_wallet_address`) created at agent registration; in v1 this is the wallet that signs anchor commitments for that agent's records, giving per-agent on-chain attestation.
 
-`agent_id` is the attribution key stamped onto every record. Records carry no owner reference — auth is via `api_key`, and the server maps `api_key → owner → set of agent_ids` internally.
+The wallet model has two tiers (see §12 for full mechanics):
+- **Owner default wallet** — the org's on-chain identity. Used for owner-level metadata, gas funding for the org's anchoring activity, and as a fallback when an agent's own wallet is unavailable.
+- **Per-agent wallet** — signs anchors for that specific agent's records. Allows scoring and trust-tier signals to be agent-attributed at the cryptographic layer.
+
+Wallet *mode* (custodial vs BYOW) is set once at owner registration and applies to both tiers — owner default and every agent under that owner inherit the same mode. Wallets are collected and stored in v0.1 but are not used to sign anything until the v1 anchoring pipeline ships.
+
+`agent_id` is the attribution key stamped onto every record. Records carry no owner or wallet reference — auth is via `api_key`, and the server maps `api_key → owner → set of agent_ids → per-agent wallets` internally.
 
 Deeper identity lifecycle (agent versions, ownership transfer, external identity import, BYOI signing) is deferred to v2.
 
@@ -397,10 +405,10 @@ Deeper identity lifecycle (agent versions, ownership transfer, external identity
 
 Registration is two-stage:
 
-1. **Owner registration** (out-of-band) — done once per partner organization through the Stair AI website or BD onboarding flow, **not via the SDK**. Issues the `api_key` and provisions the anchor wallet (custodial-generated or BYOW-supplied). Both are owner-level: shared by every agent the owner subsequently creates. The wallet is stored as owner metadata in v1; the v2 anchoring pipeline (§11, §12) is what actually uses it to sign on-chain transactions.
-2. **Agent registration** (via SDK) — repeated as the owner adds more agents. Authenticated by the owner's `api_key`. Returns an `agent_id`. No additional secret is issued.
+1. **Owner registration** (out-of-band) — done once per partner organization through the Stair AI website or BD onboarding flow, **not via the SDK**. Issues the `api_key`, provisions the **owner default wallet** (`owner_wallet_address`), and locks in the wallet *mode* (custodial or BYOW) for the entire owner. The mode and api_key are shared by every agent the owner subsequently creates.
+2. **Agent registration** (via SDK) — repeated as the owner adds more agents. Authenticated by the owner's `api_key`. Returns an `agent_id` and an **agent-specific anchor wallet** (`agent_wallet_address`) provisioned in the same mode the owner chose. No additional secret is issued.
 
-Splitting these stages keeps secrets and wallet provisioning out of partner agent code, where they would otherwise be checked in or leak through retries. The SDK only ever sees the already-issued `api_key`.
+Both wallets are collected and stored as metadata in v0.1; the v1 anchoring pipeline (§11.2, §12) is what actually signs on-chain transactions with them. Splitting these stages keeps secrets and owner-level wallet provisioning out of partner agent code, where they would otherwise be checked in or leak through retries. The SDK only ever sees the already-issued `api_key`.
 
 ### 6.2 What Each Stage Produces
 
@@ -409,7 +417,8 @@ Splitting these stages keeps secrets and wallet provisioning out of partner agen
 | Artifact | Notes |
 |---|---|
 | `api_key` | Authentication secret for the owner; shown once at registration; rotated via the website / admin tooling |
-| `anchor_wallet_address` | Custodial: generated by Stair AI. BYOW: the address the owner supplied during onboarding. Single wallet per owner; collected at v1 registration, used by the v2 anchoring pipeline. |
+| `owner_wallet_address` | The owner's default anchor wallet. Custodial: generated by Stair AI. BYOW: the address the owner supplied during onboarding. Single default per owner; serves as the org's on-chain identity and as a fallback when an agent does not have its own wallet. |
+| Wallet mode | Custodial or BYOW. Locked at owner registration; applies to the owner default wallet and to every agent wallet provisioned afterwards. |
 | Optional metadata | Display name, website, contact email |
 
 **Agent registration (via SDK):**
@@ -417,6 +426,7 @@ Splitting these stages keeps secrets and wallet provisioning out of partner agen
 | Artifact | Notes |
 |---|---|
 | `agent_id` | Server-assigned UUID v4; the canonical handle; belongs to the owner identified by the `api_key` used to create it |
+| `agent_wallet_address` | The agent's own anchor wallet, provisioned in the owner's wallet mode. Custodial: generated by Stair AI per agent. BYOW: supplied by the partner in the `wallet` field; if omitted, falls back to the owner's default wallet. |
 | Optional metadata | Display name (`name`), description, website, tags. `name` is human-readable and mutable; never used as a runtime identifier. |
 
 ### 6.3 Owner Registration (out-of-band)
@@ -424,19 +434,22 @@ Splitting these stages keeps secrets and wallet provisioning out of partner agen
 Owner registration happens **outside the SDK** — through the Stair AI website self-serve flow or via a BD onboarding conversation. It is a one-time setup per partner organization and produces:
 
 - The owner's `api_key` (shown once; partner stores it as a secret)
-- The owner's `anchor_wallet_address` (custodial: generated by Stair AI; BYOW: supplied by the partner during onboarding)
+- The owner's `owner_wallet_address` — the default wallet (custodial: generated by Stair AI; BYOW: supplied by the partner during onboarding)
+- The wallet *mode* (custodial or BYOW), which applies to all subsequent agent registrations under this owner
 - Optional metadata (display name, website, contact email)
 
-The wallet mode (custodial or BYOW; see §12) is chosen during this onboarding and applies to every agent the owner subsequently registers. The wallet itself is collected and stored at v1 registration; it is not used to sign anything until the v2 anchoring pipeline ships.
+The wallet mode chosen here is sticky — every agent created afterwards inherits it. Switching modes mid-life is not supported in v0.1 (see §12.5). Both the owner default wallet and every per-agent wallet are collected and stored at v0.1 registration; none are used to sign anything until the v1 anchoring pipeline ships.
 
 The corresponding HTTP endpoints (`POST /v1/owners`, `PATCH /v1/owners/me`, `POST /v1/owners/me/rotate-key` — see §9) are exposed on the Trace Service for the website / admin tooling to call. They are **not** part of the SDK surface — partners do not invoke them programmatically from agent code.
 
 ### 6.4 Agent Registration
 
-Authenticated by the owner's `api_key`. Returns an `agent_id`; no new secret is issued — the same `api_key` is reused with the new `agent_id`:
+Authenticated by the owner's `api_key`. Returns an `agent_id` and an `agent_wallet_address`; no new secret is issued — the same `api_key` is reused with the new `agent_id`. The agent's wallet is provisioned in whatever mode the owner picked at §6.3.
+
+**Custodial mode (Stair AI manages all wallets).** No wallet field needed; the server generates a fresh wallet for each agent automatically:
 
 ```typescript
-const { agent_id } = await LedgerClient.registerAgent({
+const { agent_id, agent_wallet_address } = await LedgerClient.registerAgent({
   apiKey: process.env.STAIRAI_API_KEY,      // Owner-level api_key from §6.3
   name: "deep_field",                       // Partner-chosen; unique within the owner's scope
   metadata: {
@@ -444,19 +457,37 @@ const { agent_id } = await LedgerClient.registerAgent({
     tags: ["sports", "prediction"],
   },
 });
+// agent_wallet_address is a fresh Stair-AI-managed address generated for this agent.
 ```
 
-After registration the partner initializes `LedgerClient` with the owner's `api_key` plus the new `agent_id` as in §8.1. Adding more agents is just additional `registerAgent` calls — no further owner setup, no new api_key, no new wallet.
+**BYOW mode (partner manages all wallets).** The partner may supply a per-agent wallet address; if omitted, the agent uses the owner default wallet:
+
+```typescript
+const { agent_id, agent_wallet_address } = await LedgerClient.registerAgent({
+  apiKey: process.env.STAIRAI_API_KEY,
+  name: "deep_field",
+  wallet: { address: "0xAGENT_SPECIFIC_SUI_ADDRESS" },   // Optional in BYOW mode
+  metadata: {
+    description: "Multi-step football match predictor",
+    tags: ["sports", "prediction"],
+  },
+});
+// If `wallet` is omitted in BYOW mode, agent_wallet_address echoes the owner default.
+```
+
+After registration the partner initializes `LedgerClient` with the owner's `api_key` plus the new `agent_id` as in §8.1. Adding more agents is just additional `registerAgent` calls — no further owner setup, no new api_key.
 
 ### 6.5 Idempotency
 
 - **Owner registration** is idempotent on `email` — the website flow returns the existing owner without creating a new one. `api_key` is **not** re-disclosed on repeat calls; rotation uses a separate admin endpoint.
-- **Agent registration** is idempotent on `(owner, name)` — repeating the SDK call returns the existing `agent_id`.
+- **Agent registration** is idempotent on `(owner, name)` — repeating the SDK call returns the existing `agent_id` and `agent_wallet_address`. A `wallet` argument in a repeat call is **ignored**; changing an agent's wallet goes through a separate update endpoint (deferred to v1).
 
 ### 6.6 v1 Limitations
 
 - One active `api_key` per owner
-- One anchor wallet per owner (no per-agent wallets)
+- One default wallet per owner; one wallet per agent (additional wallets per agent deferred to v2)
+- Wallet mode (custodial vs BYOW) is locked at owner registration and uniform across owner + agents
+- Agent wallet rotation/replacement deferred to v1
 - No owner-scoped listing endpoints (e.g. "list all my agents") in v1; deferred to v2
 - No version management (all records submitted under same `agent_id` regardless of internal model changes)
 - No ownership transfer (an agent cannot be moved to a different owner)
@@ -490,7 +521,7 @@ Anything not listed in this section is **internal** and may change without notic
 
 ### 7.2 `LedgerClient.registerAgent` (static)
 
-Register a new agent under an existing owner.
+Register a new agent under an existing owner. Provisions a per-agent anchor wallet in whatever mode the owner chose at registration (§6.3).
 
 ```
 registerAgent(opts) -> AgentRegistration
@@ -498,12 +529,22 @@ registerAgent(opts) -> AgentRegistration
 opts:
   api_key:    string                — owner-level api_key (issued out-of-band per §6.3)
   name:       string                — partner-chosen human-readable name; unique within owner
+  wallet?:    AgentWalletInput      — BYOW only; optional. Supplies a per-agent address.
+                                       In BYOW mode, if omitted, the agent inherits the owner's
+                                       default wallet. In custodial mode this field is ignored
+                                       (the server always generates a fresh per-agent wallet).
   metadata?:  AgentMetadata         — optional display fields (description, website, tags)
 
-returns: AgentRegistration          — { agent_id, name, created_at }   (see §7.9)
+AgentWalletInput:
+  address: string                   — partner-owned address recorded as the agent's anchor author
+  signer?: function(tx_bytes: bytes) -> bytes
+                                    — optional partner signer for v1 anchoring
+
+returns: AgentRegistration          — { agent_id, name, agent_wallet_address, created_at }
+                                       (see §7.9)
 ```
 
-**Idempotent** on `(owner, name)`. Repeating with the same `name` under the same `api_key` returns the existing agent without creating a new one.
+**Idempotent** on `(owner, name)`. Repeating with the same `name` under the same `api_key` returns the existing agent (including its `agent_wallet_address`) without creating a new one. A `wallet` argument in a repeat call is ignored.
 
 **Errors:** `AuthError`, `ValidationError`, `NetworkError`, `ServerError`.
 
@@ -712,9 +753,12 @@ RecordError:
   message:   string         — human-readable; for logs, not for branching
 
 AgentRegistration:
-  agent_id:    string       — UUID v4
-  name:        string
-  created_at:  number       — epoch ms
+  agent_id:               string    — UUID v4
+  name:                   string
+  agent_wallet_address:   string    — the agent's per-agent anchor wallet (custodial:
+                                       generated by Stair AI; BYOW: partner-supplied or
+                                       inherited from the owner's default wallet)
+  created_at:             number    — epoch ms
 ```
 
 ---
@@ -885,11 +929,36 @@ Idempotency: dedup on `(agent_id, record_id)`. Duplicate → original ack return
 
 ## 10. Validation Rules
 
-**Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `record_id` is a valid UUID v4, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object.
+### 10.1 Schema Rules
 
-**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, record_id)` unique (duplicate → return original ack with `is_duplicate: true`), ≤1 `Acting` per session, `parent_record_id` (when set) resolves to an existing record under the same `agent_id`, `server_ts_utc` server-assigned, batch ≤50.
+**Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `record_id` is a valid UUID v4, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object, all size limits in §10.2 respected.
+
+**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, record_id)` unique (duplicate → return original ack with `is_duplicate: true`), ≤1 `Acting` per session, `parent_record_id` (when set) resolves to an existing record under the same `agent_id`, `server_ts_utc` server-assigned, batch ≤50, all size limits in §10.2 respected (server re-checks).
 
 **Intentional non-rules:** no "first record must be Observing," no session lifecycle, no session timeout, no enforced hierarchy shape (traces may be flat or nested).
+
+### 10.2 Size Limits
+
+Sketchy starter caps for v0.1 — placeholders to be tightened in v1 based on real telemetry. Both SDK (client-side) and server enforce. Records exceeding any cap are rejected with `ValidationError` (code `validation_failed`, `details.field` and `details.limit_bytes` set).
+
+| Scope | Cap | Notes |
+|---|---|---|
+| Per-record total (JSON-encoded) | 64 KB | Across all fields combined; the dominant constraint for most records |
+| Per-batch total (JSON-encoded) | 1 MB | Sum of all records in a `submitBatch` call; with batch size of 50, this leaves ~20 KB average per record |
+| `notes` (BaseRecord) | 2 KB | Lightweight annotation; not for payload-shaped content |
+| `tags` (BaseRecord) | 32 entries, 64 chars each | Tags are facets, not free text |
+| `tool_meta` (ToolCalling) | 16 KB | Includes any nested ref-shape conventions |
+| `input_payload` (ToolCalling) | 16 KB | |
+| `output_payload` (ToolCalling) | 32 KB | Larger ceiling for outputs since responses are often the longer artifact |
+| `prompt` (Thinking) | 16 KB | |
+| `output_payload` (Thinking) | 32 KB | JSON-encoded reasoning result |
+| `parameters` (Acting, JSON-encoded) | 16 KB | |
+| `data` (Other, JSON-encoded) | 16 KB | |
+| `trigger_payload_summary` (Observing) | 4 KB | A summary, not the payload itself |
+
+A trace (the per-agent append-only log) has no fixed size cap in v0.1 — it grows freely. Per-session aggregate caps may be added in v1 once real distributions are observed.
+
+If a partner has a legitimate use case for payloads exceeding these caps (large model outputs, structured datasets), the v1 plan is to support out-of-band content addressing — the record carries a content hash + retrieval URI, and the bulk lives in object storage. v0.1 does not support this; partners must summarize in-line.
 
 ---
 
@@ -932,71 +1001,63 @@ A separate SDK component (also v2) lets partners read anchor state — `merkle_r
 
 ## 12. Wallet Integration
 
-> **What is v1 vs v2 in this section.** Wallet *provisioning* — collecting custodial vs BYOW choice, generating or recording the address — happens at v1 owner registration. Wallet *use* — actually signing on-chain anchor transactions — is part of the v2 anchoring pipeline (§11.2). The BYOW signer callback shape defined here is part of the v1 SDK API for forward compatibility, but in v1 it is never invoked because no anchor transactions are produced.
+> **What is v0.1 vs v1 in this section.** Wallet *provisioning* — collecting the custodial vs BYOW choice and generating or recording addresses — happens at v0.1 owner registration (owner default wallet) and at every v0.1 agent registration (per-agent wallet). Wallet *use* — actually signing on-chain anchor transactions — is part of the v1 anchoring pipeline (§11.2). The BYOW signer callback shape defined here is part of the v0.1 SDK API for forward compatibility, but in v0.1 it is never invoked because no anchor transactions are produced.
 
-### 12.1 Two Modes
+### 12.1 Two-Tier Wallet Hierarchy
 
-Partners choose one mode at **owner registration** (§6.3). The choice is owner-level — every agent under the owner uses the same anchor wallet.
+Each owner has **two tiers** of anchor wallet:
+
+- **Owner default wallet** (`owner_wallet_address`) — created at owner registration. The org's on-chain identity. Used for owner-level metadata, gas funding for the org's anchoring activity, and as a fallback when a specific agent does not have its own wallet.
+- **Per-agent wallet** (`agent_wallet_address`) — created at each agent registration. Signs anchor commitments for that specific agent's records. Gives per-agent on-chain attestation, so scoring and trust-tier signals can be cryptographically agent-attributed.
+
+In v1 anchoring, the default behavior is for the agent's own wallet to sign anchors for that agent's sessions. The owner default wallet steps in only when an agent has no per-agent wallet (BYOW with no override on registration), and for any owner-level on-chain operations.
+
+### 12.2 Two Modes
+
+Partners choose one mode at **owner registration** (§6.3). The choice is locked at the owner level — both the owner default wallet and every per-agent wallet under that owner are provisioned in the same mode.
 
 | Mode | Wallet ownership | Signing | Gas |
 |---|---|---|---|
-| **Custodial** (default) | Stair AI creates and holds a single SUI wallet per owner | Stair AI signs anchor txs | Stair AI pays |
-| **BYOW** (bring your own wallet) | Partner owns the SUI wallet | Partner signs via SDK hook; Stair AI service submits | Partner pays |
+| **Custodial** (default) | Stair AI creates and holds the SUI wallets — owner default + one per agent | Stair AI signs anchor txs | Stair AI pays |
+| **BYOW** (bring your own wallet) | Partner owns the SUI wallets — owner default supplied at owner registration; per-agent supplied at agent registration (or omitted to inherit owner default) | Partner signs via SDK hook; Stair AI service submits | Partner pays |
 
 Both modes produce identical trace records and anchors on-chain. The difference is only in *who owns the key that signs the anchor*.
 
-### 12.2 Custodial Mode (Zero Web3 Experience Required)
+### 12.3 Custodial Mode (Zero Web3 Experience Required)
 
-```typescript
-const client = new LedgerClient({
-  apiKey: process.env.STAIRAI_API_KEY,
-  agentId: "deep_field_v1",
-  wallet: { mode: "custodial" },
-});
-```
-
-- Stair AI provisions a SUI wallet per **owner** at owner registration; all of the owner's agents share it
-- Wallet key is held in Stair AI's KMS (HSM-backed)
+- Owner registration: Stair AI provisions the owner default wallet
+- Each agent registration: Stair AI provisions a fresh per-agent wallet
+- All wallet keys held in Stair AI's KMS (HSM-backed)
 - All anchor txs signed and submitted by Stair AI
 - Partner has no on-chain exposure and no gas management
 
-### 12.3 BYOW Mode
+In v1 anchoring, Stair AI signs each agent's session anchors with that agent's wallet — giving the on-chain record per-agent attestation even though the partner never touches a key.
 
-```typescript
-const client = new LedgerClient({
-  apiKey: process.env.STAIRAI_API_KEY,
-  agentId: "deep_field_v1",
-  wallet: {
-    mode: "byow",
-    address: "0xPARTNER_SUI_ADDRESS",
-    signer: async (txBytes) => partnerSigner.sign(txBytes),  // partner-provided
-  },
-});
-```
+### 12.4 BYOW Mode
 
-- Partner provides their SUI address and a signing callback
-- When the server is ready to anchor, it prepares the tx bytes and returns them to the SDK via a pending-signature channel
-- SDK invokes `signer(txBytes)` and returns the signature
-- Server submits the signed tx to SUI; partner's address is recorded as the anchor author
+- Owner registration: partner supplies the owner default address (and optional `signer` callback for v1)
+- Agent registration: partner may supply a per-agent address via the `wallet` field on `registerAgent` (§7.2). If omitted, the agent inherits the owner default wallet.
+- In v1, when an anchor is ready to sign, the server prepares the tx bytes for the wallet that should sign it (per-agent if set, owner default otherwise), pushes them to the SDK via a pending-signature channel, the SDK invokes the partner's `signer`, and the server submits the signed tx to SUI
 
-### 12.4 Server-Side Responsibilities
+The partner thus has flexibility: distinct per-agent wallets give each agent its own on-chain identity (preferred when agents will be scored or staked independently); reusing the owner default across agents is a degenerate case where every agent's anchor is co-signed by the same key.
+
+### 12.5 Server-Side Responsibilities
 
 In both modes the Trace Service:
 - Builds the anchor tx (Merkle root + Walrus blob ID + metadata)
+- Picks the signing wallet — agent's own if set, owner default otherwise
 - Submits to SUI after signing
-- Records `anchor_author_address` with each session anchor
+- Records `anchor_author_address` with each session anchor (matches the wallet that actually signed)
 
-The `anchor_author_address` is surfaced in `GET /v1/sessions/:id` so consumers can distinguish custodial anchors (Stair AI signer) from partner-signed anchors.
+The `anchor_author_address` is surfaced in `GET /v1/sessions/:id` so consumers can distinguish custodial anchors (Stair AI signer) from partner-signed anchors, and per-agent anchors from owner-default anchors.
 
-### 12.5 Migration Path
+### 12.6 Migration & Limitations
 
-A partner can switch the owner's wallet mode (custodial ↔ BYOW) for future sessions. Because the wallet is owner-level, the switch applies to every agent under that owner from that point on. Historical sessions remain anchored under whichever mode was active at the time; there is no re-anchoring in v1.
-
-### 12.6 Out of Scope for v1
-
+- The owner's wallet *mode* (custodial vs BYOW) is locked at owner registration; switching modes mid-life is not supported in v0.1.
+- Per-agent wallet *replacement* is not supported in v0.1; the agent's wallet is fixed at registration. Replacement / rotation deferred to v1.
 - Partner-signing at the **record** level (currently only anchor-level; records themselves are unsigned). Record-level BYOI signing → v2.
-- Wallet recovery / key rotation for custodial wallets. KMS-level recovery only in v1.
-- Multi-sig anchor authorization.
+- Wallet recovery / key rotation for custodial wallets — KMS-level recovery only in v1.
+- Multi-sig anchor authorization — deferred.
 
 ---
 
