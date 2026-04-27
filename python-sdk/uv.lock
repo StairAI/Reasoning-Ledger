@@ -102,7 +102,7 @@ wheels = [
 ]
 
 [[package]]
-name = "python-sdk"
+name = "reasoning-ledger-sdk"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

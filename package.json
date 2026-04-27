@@ -1,0 +1,13 @@
+{
+  "name": "reasoning-ledger-root",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "node scripts/codegen.mts",
+    "codegen:ts": "node scripts/codegen.mts --ts-only",
+    "codegen:py": "node scripts/codegen.mts --py-only"
+  },
+  "devDependencies": {
+    "json-schema-to-zod": "^2.6.0"
+  }
+}
