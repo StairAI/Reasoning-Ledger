@@ -99,7 +99,173 @@ Agent X's Trace
 
 ## 4. Record Schemas
 
-### 4.0 Common Base
+> Schema interfaces shown in §4.1–§4.8 below are *illustrative TypeScript-style summaries*. The **authoritative format is JSON Schema (Draft 2020-12)**, defined in §4.0 and authored at `schemas/records.schema.json`. Native bindings for TypeScript, Python, and Go are auto-generated from that file; the snippets in this section are kept as readable summaries, not hand-maintained source of truth.
+
+### 4.0 Canonical Schema Format
+
+The Reasoning Ledger ships SDKs in TypeScript (v0.1), Python (v0.1), and Go (v2). To keep the schema definitions identical across all three, every record type — `BaseRecord` and the 7 behavior records — is authored once in **JSON Schema 2020-12** and consumed by:
+
+- **Runtime validators** in each SDK and the server (Ajv for TS, `jsonschema` / `pydantic` for Python, `gojsonschema` for Go).
+- **Codegen** that emits idiomatic native bindings:
+  - TypeScript via `json-schema-to-typescript`
+  - Python via `datamodel-code-generator` (Pydantic v2 models)
+  - Go via `go-jsonschema` or `quicktype`
+- **OpenAPI 3.1** for the HTTP API (§9) — request and response bodies `$ref` into the same JSON Schema file, so the HTTP layer and the SDK types never drift.
+
+#### File location
+
+```
+schemas/records.schema.json    # canonical, hand-authored
+schemas/codegen/typescript/    # generated; checked in for grep-ability
+schemas/codegen/python/
+schemas/codegen/go/
+```
+
+The JSON Schema file is the single source of truth. Generated bindings are checked in alongside it for visibility, but treated as build artifacts — partner-facing repositories never edit them directly.
+
+#### Mapping rules
+
+| Concept | JSON Schema | TS binding | Python (Pydantic) | Go binding |
+|---|---|---|---|---|
+| Required field | listed in `required: [...]` | non-optional property | non-`Optional` field | exported field, not pointer |
+| Optional field | not listed in `required` | property with `?` | `Optional[T] = None` | pointer (`*T`) or `omitempty` tag |
+| List | `type: "array"`, `items: {...}` | `T[]` | `list[T]` | `[]T` |
+| Nested object | inline `properties` or `$ref` to named schema | nested interface or `$ref`'d type | nested model class | nested struct or named type |
+| Discriminated union | `oneOf: [...]` + `discriminator: { propertyName, mapping }` | discriminated union of literal types | `Annotated[Union[...], Field(discriminator=...)]` | interface + type assertions, or generic wrapper struct |
+| String enum | `enum: [v1, v2, ...]` or `const: v` | string-literal union | `Literal["v1", "v2"]` or `Enum` subclass | `type Foo string` + constants |
+| UUID v4 | `type: "string"`, `format: "uuid"` | `string` (with branding type alias) | `UUID` | `string` (or `uuid.UUID`) |
+| Epoch milliseconds | `type: "integer"`, `minimum: 0` | `number` | `int` | `int64` |
+| JSON-encoded string payload | `type: "string"`, description noting JSON | `string` | `str` | `string` |
+| Free-shape JSON object | `type: "object"`, `additionalProperties: true` | `Record<string, unknown>` | `dict[str, Any]` | `map[string]any` |
+| Field-level size cap | `maxLength: N` (string) or `maxItems: N` (array) | runtime validator enforces | runtime validator enforces | runtime validator enforces |
+
+#### Worked example: `BaseRecord`
+
+The illustrative TypeScript summary in §4.1 corresponds to this JSON Schema fragment:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stairai.com/schemas/records.schema.json",
+  "$defs": {
+    "BaseRecord": {
+      "type": "object",
+      "required": [
+        "schema_version", "agent_id", "session_id",
+        "record_id", "behavior", "client_ts_utc"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "examples": ["1.0"] },
+        "agent_id":       { "type": "string", "format": "uuid" },
+        "session_id":     { "type": "string", "minLength": 1 },
+        "record_id":      { "type": "string", "format": "uuid" },
+        "behavior": {
+          "type": "string",
+          "enum": ["Observing", "ToolCalling", "Planning",
+                   "Thinking", "Acting", "Reflecting", "Other"]
+        },
+        "client_ts_utc":  { "type": "integer", "minimum": 0 },
+        "notes":          { "type": "string", "maxLength": 2048 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 64 },
+          "maxItems": 32
+        },
+        "model_invocation":  { "$ref": "#/$defs/ModelInvocation" },
+        "parent_record_id":  { "type": "string", "format": "uuid" }
+      },
+      "additionalProperties": false
+    },
+
+    "ModelInvocation": {
+      "type": "object",
+      "required": ["provider", "model_name"],
+      "properties": {
+        "provider":       { "type": "string" },
+        "model_name":     { "type": "string" },
+        "model_version":  { "type": "string" },
+        "tokens_in":      { "type": "integer", "minimum": 0 },
+        "tokens_out":     { "type": "integer", "minimum": 0 },
+        "cost_usd":       { "type": "number", "minimum": 0 },
+        "temperature":    { "type": "number" },
+        "finish_reason":  { "type": "string" }
+      }
+    }
+  }
+}
+```
+
+#### Worked example: discriminated behavior union
+
+The 7 behavior records form a discriminated union over the `behavior` field. JSON Schema expresses this with `oneOf` + a discriminator:
+
+```json
+{
+  "Record": {
+    "oneOf": [
+      { "$ref": "#/$defs/ObservingRecord" },
+      { "$ref": "#/$defs/ToolCallingRecord" },
+      { "$ref": "#/$defs/PlanningRecord" },
+      { "$ref": "#/$defs/ThinkingRecord" },
+      { "$ref": "#/$defs/ActingRecord" },
+      { "$ref": "#/$defs/ReflectingRecord" },
+      { "$ref": "#/$defs/OtherRecord" }
+    ],
+    "discriminator": {
+      "propertyName": "behavior",
+      "mapping": {
+        "Observing":   "#/$defs/ObservingRecord",
+        "ToolCalling": "#/$defs/ToolCallingRecord",
+        "Planning":    "#/$defs/PlanningRecord",
+        "Thinking":    "#/$defs/ThinkingRecord",
+        "Acting":      "#/$defs/ActingRecord",
+        "Reflecting":  "#/$defs/ReflectingRecord",
+        "Other":       "#/$defs/OtherRecord"
+      }
+    }
+  }
+}
+```
+
+Each behavior record is its own `$defs` entry that uses `allOf` to compose `BaseRecord` with the behavior-specific fields:
+
+```json
+{
+  "ObservingRecord": {
+    "allOf": [
+      { "$ref": "#/$defs/BaseRecord" },
+      {
+        "type": "object",
+        "required": ["behavior", "trigger_source", "trigger_type",
+                     "trigger_description", "trigger_payload_summary"],
+        "properties": {
+          "behavior":               { "const": "Observing" },
+          "trigger_source":         { "type": "string" },
+          "trigger_type": {
+            "type": "string",
+            "enum": ["signal_trigger", "cron_trigger"]
+          },
+          "external_trigger_id":    { "type": "string" },
+          "event_ts_utc":           { "type": "integer", "minimum": 0 },
+          "trigger_description":    { "type": "string", "minLength": 1 },
+          "trigger_payload_summary":{ "type": "string", "maxLength": 4096 }
+        }
+      }
+    ]
+  }
+}
+```
+
+Free-shape fields (`tool_meta` on ToolCalling, `parameters` on Acting, `data` on Other) are typed as objects with open `additionalProperties`, which all three target languages model as a generic key-value map (`Record<string, unknown>` / `dict[str, Any]` / `map[string]any`). JSON-encoded string payloads (`output_payload`, `input_payload`) stay typed as `string` with a `maxLength` cap.
+
+#### Codegen contract
+
+- Each SDK ships with the canonical JSON Schema bundled (so partners can re-validate independently of network).
+- The SDK validator implementations are thin wrappers over the schema; behavior changes go through schema edits, never hand-edited language bindings.
+- Adding a new behavior or field is a JSON Schema edit followed by a regeneration step that updates all three language bindings; no parallel hand-edits across languages.
+- The `schema_version` field on `BaseRecord` carries the version of *this schema document*; bumping it follows the versioning policy in §10.
+
+### 4.1 Common Base
 
 ```typescript
 interface BaseRecord {
@@ -144,7 +310,7 @@ All timestamp fields in the schema use **epoch milliseconds (integer, 64-bit)** 
 
 **Size limits.** Records and payloads are subject to size limits (per-record, per-batch, and per-field for free-text payloads). v0.1 ships with sketchy starter caps documented in §10; v1 will tighten them based on real telemetry. Records exceeding a cap are rejected client-side with `ValidationError` before any network call.
 
-### 4.1 `Observing`
+### 4.2 `Observing`
 
 ```typescript
 interface ObservingRecord extends BaseRecord {
@@ -185,7 +351,7 @@ For `cron_trigger` — name the scheduled task and its configured parameters:
 
 **`external_trigger_id`** carries the trigger's native identifier inside `trigger_source` when available — Sportradar event UUID, webhook delivery ID, cron run ID, upstream request ID. Optional, but strongly recommended for signal triggers to enable downstream correlation and Tier 1 / Tier 2 verification.
 
-### 4.2 `ToolCalling`
+### 4.3 `ToolCalling`
 
 ```typescript
 interface ToolCallingRecord extends BaseRecord {
@@ -202,9 +368,9 @@ interface ToolCallingRecord extends BaseRecord {
 
 **Identity.** Tool calls are identified by the inherited `record_id` on `BaseRecord`. Other records (e.g. `ThinkingInput.input_record_id`) reference a tool call by that ID.
 
-**LLM invocations are not a tool call.** When a record is *produced via* an LLM — even if that LLM is "invoked" as a tool in the agent's code — use the `model_invocation` field on `BaseRecord` (§4.0) instead. Reserve `ToolCalling` for calls to external APIs, KBs, on-chain reads, local functions, and sub-agents.
+**LLM invocations are not a tool call.** When a record is *produced via* an LLM — even if that LLM is "invoked" as a tool in the agent's code — use the `model_invocation` field on `BaseRecord` (§4.1) instead. Reserve `ToolCalling` for calls to external APIs, KBs, on-chain reads, local functions, and sub-agents.
 
-**Cross-agent dependencies & nested calls.** Cross-agent reasoning dependencies are captured inside `tool_meta` by convention (see Suggested shapes). Hierarchical composition — e.g. a `ToolCalling` that occurred inside a `Thinking` step — is expressed with `parent_record_id` (§4.0).
+**Cross-agent dependencies & nested calls.** Cross-agent reasoning dependencies are captured inside `tool_meta` by convention (see Suggested shapes). Hierarchical composition — e.g. a `ToolCalling` that occurred inside a `Thinking` step — is expressed with `parent_record_id` (§4.1).
 
 **Suggested shapes for `tool_meta`.** Not enforced by v0.1 schema — use whatever makes sense. These are starting points agents should gravitate to, so scoring and UIs can rely on common keys.
 
@@ -256,7 +422,7 @@ interface ToolCallingRecord extends BaseRecord {
 }
 ```
 
-### 4.3 `Planning`
+### 4.4 `Planning`
 
 ```typescript
 interface PlanningRecord extends BaseRecord {
@@ -267,7 +433,7 @@ interface PlanningRecord extends BaseRecord {
 }
 ```
 
-### 4.4 `Thinking`
+### 4.5 `Thinking`
 
 ```typescript
 interface ThinkingRecord extends BaseRecord {
@@ -285,7 +451,7 @@ interface ThinkingInput {
 
 `prompt` carries the reasoning logic — the instructions, template, or system prompt that drove this step. `inputs` are the pieces of evidence fed into that logic; each can either reference another record (`input_record_id`) or carry its own payload, or both. `output_payload` is the structured result the reasoning produced, as a JSON-encoded string.
 
-### 4.5 `Acting`
+### 4.6 `Acting`
 
 ```typescript
 interface ActingRecord extends BaseRecord {
@@ -301,7 +467,7 @@ interface ActingRecord extends BaseRecord {
 }
 ```
 
-### 4.6 `Reflecting`
+### 4.7 `Reflecting`
 
 ```typescript
 interface ReflectingRecord extends BaseRecord {
@@ -326,7 +492,7 @@ interface SignalReview {
 
 **Edits triggered by reflection.** When a Reflecting record leads to a concrete change — modifying a config, adjusting a weight, editing a prompt template — emit the change as an `Acting` record in a *new session* whose entry record carries `parent_record_id` pointing at the Reflecting. This preserves the "≤1 Acting per session" rule, gives the edit its own audit trail (`parameters` capturing `target_resource`, `before`, `after`, `change_description`, and optionally a `reviewer` field to distinguish automated from human-approved edits), and makes the causal chain from underperforming outcome → reflection → strategy change queryable via `parent_record_id`. `Reflecting.adjustment` describes the recommendation; the edit-Acting's `parameters` describes the actual change — they can legitimately differ (e.g., reflection recommends a weight of 0.75, reviewer approves 0.70), and that divergence is itself useful audit information.
 
-### 4.7 `Other`
+### 4.8 `Other`
 
 Catch-all for behaviors outside the six typed categories — custom agent operations, environment-specific events, experimental behavior classes. `Other` records are persisted and retrievable, but do not satisfy scoring eligibility and do not contribute to process scores. Prefer a typed behavior when one fits.
 
@@ -712,7 +878,7 @@ LedgerClientConfig:
   endpoint?:                string                  — override the Trace Service base URL
   default_model_invocation?: ModelInvocation        — applied to every submitted record unless
                                                        the record sets its own model_invocation;
-                                                       see §4.0
+                                                       see §4.1
   retry?:                   RetryConfig
   http_transport?:          HttpTransport           — language-specific hook to override
                                                        network calls (for tests / instrumentation)
@@ -730,7 +896,7 @@ WalletConfig (tagged union):
 
 `WalletConfig` is **not** a field on `LedgerClientConfig` — wallet mode is established at owner registration (§6.3) and is not reconfigured at client construction. The type is exported for partners building owner-onboarding tooling and for the v2 anchoring SDK component.
 
-`ModelInvocation` is re-exported from §4.0; the shape is unchanged.
+`ModelInvocation` is re-exported from §4.1; the shape is unchanged.
 
 ---
 
