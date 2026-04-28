@@ -3,7 +3,7 @@
   "$id": "https://stair-ai.com/schemas/records.schema.json",
   "title": "Reasoning Ledger Record Schemas",
   "description": "Canonical record schemas for sections 4.1-4.8 of Reasoning_Ledger_SDK_Design_v1.",
-  "version": "0.2",
+  "version": "0.1",
   "$defs": {
     "BehaviorType": {
       "type": "string",
@@ -113,15 +113,8 @@
         "model_invocation": {
           "$ref": "#/$defs/ModelInvocation"
         },
-        "upstream_record_id": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/UuidV4" },
-          "maxItems": 32,
-          "description": "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted."
-        },
         "parent_record_id": {
-          "$ref": "#/$defs/UuidV4",
-          "description": "Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
+          "$ref": "#/$defs/UuidV4"
         }
       }
     },
@@ -140,17 +133,18 @@
       },
       "additionalProperties": false
     },
-    "ReflectingInput": {
+    "SignalReview": {
       "type": "object",
       "required": [
-        "input_payload"
+        "note"
       ],
       "properties": {
         "input_record_id": {
           "$ref": "#/$defs/UuidV4"
         },
-        "input_payload": {
-          "type": "string"
+        "note": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false
@@ -417,6 +411,27 @@
       ],
       "unevaluatedProperties": false
     },
+    "ReflectingOutcome": {
+      "type": "object",
+      "required": [
+        "actual_result",
+        "expected_result"
+      ],
+      "properties": {
+        "actual_result": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_result": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pnl_delta": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
     "ReflectingRecord": {
       "allOf": [
         {
@@ -426,20 +441,42 @@
           "type": "object",
           "required": [
             "behavior",
-            "inputs",
-            "output_payload"
+            "reflected_on_acting_record_id",
+            "outcome",
+            "prediction_accuracy",
+            "post_mortem",
+            "signal_retrospective",
+            "adjustment"
           ],
           "properties": {
             "behavior": {
               "const": "Reflecting"
             },
-            "inputs": {
+            "reflected_on_acting_record_id": {
+              "$ref": "#/$defs/UuidV4"
+            },
+            "outcome": {
+              "$ref": "#/$defs/ReflectingOutcome"
+            },
+            "prediction_accuracy": {
+              "type": "string",
+              "enum": [
+                "correct",
+                "incorrect",
+                "partial"
+              ]
+            },
+            "post_mortem": {
+              "type": "string",
+              "minLength": 1
+            },
+            "signal_retrospective": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/ReflectingInput"
+                "$ref": "#/$defs/SignalReview"
               }
             },
-            "output_payload": {
+            "adjustment": {
               "type": "string",
               "minLength": 1
             }
