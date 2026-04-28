@@ -26,10 +26,13 @@ export function verifyApiKey(rawKey: string, storedHash: string): boolean {
   // Node's crypto doesn't expose timingSafeEqual for strings, so convert to Buffers.
   const a = Buffer.from(candidateHash, "hex");
   const b = Buffer.from(storedHash, "hex");
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
   let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a[i]! ^ b[i]!;
+  for (let i = 0; i < a.length; i += 1) {
+    // oxlint-disable-next-line no-bitwise
+    diff |= a[i] ^ b[i];
   }
   return diff === 0;
 }

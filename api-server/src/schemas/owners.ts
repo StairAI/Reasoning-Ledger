@@ -5,20 +5,20 @@ import * as z from "zod";
 // ---------------------------------------------------------------------------
 
 export const RegisterOwnerInput = z.object({
+  contact_email: z.string().email().optional(),
+  display_name: z.string().optional(),
   email: z.string().email(),
-  wallet_mode: z.enum(["custodial", "byow"]).default("custodial"),
   /** Required when wallet_mode is "byow"; ignored in custodial mode. */
   owner_wallet_address: z.string().optional(),
-  display_name: z.string().optional(),
+  wallet_mode: z.enum(["custodial", "byow"]).default("custodial"),
   website: z.string().url().optional(),
-  contact_email: z.string().email().optional(),
 });
 export type RegisterOwnerInput = z.infer<typeof RegisterOwnerInput>;
 
 export const UpdateOwnerInput = z.object({
+  contact_email: z.string().email().optional(),
   display_name: z.string().optional(),
   website: z.string().url().optional(),
-  contact_email: z.string().email().optional(),
 });
 export type UpdateOwnerInput = z.infer<typeof UpdateOwnerInput>;
 
@@ -28,26 +28,26 @@ export type UpdateOwnerInput = z.infer<typeof UpdateOwnerInput>;
 
 /** Returned once at registration — raw api_key is never stored. */
 export const RegisterOwnerOutput = z.object({
-  owner_id: z.string().uuid(),
   api_key: z.string().optional(), // present only on first creation
-  wallet_mode: z.enum(["custodial", "byow"]),
-  owner_wallet_address: z.string(),
-  display_name: z.string().optional(),
-  website: z.string().optional(),
   contact_email: z.string().optional(),
-  created_at: z.number(), // epoch ms
+  created_at: z.number(),
+  display_name: z.string().optional(),
+  owner_id: z.string().uuid(),
+  owner_wallet_address: z.string(),
+  wallet_mode: z.enum(["custodial", "byow"]),
+  website: z.string().optional(), // epoch ms
 });
 export type RegisterOwnerOutput = z.infer<typeof RegisterOwnerOutput>;
 
 export const OwnerMetaOutput = z.object({
-  owner_id: z.string().uuid(),
-  wallet_mode: z.enum(["custodial", "byow"]),
-  owner_wallet_address: z.string(),
-  display_name: z.string().optional(),
-  website: z.string().optional(),
   contact_email: z.string().optional(),
   created_at: z.number(),
+  display_name: z.string().optional(),
+  owner_id: z.string().uuid(),
+  owner_wallet_address: z.string(),
   updated_at: z.number(),
+  wallet_mode: z.enum(["custodial", "byow"]),
+  website: z.string().optional(),
 });
 export type OwnerMetaOutput = z.infer<typeof OwnerMetaOutput>;
 

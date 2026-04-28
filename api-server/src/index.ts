@@ -8,23 +8,19 @@ import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { router } from "./router";
 
 const handler = new OpenAPIHandler(router, {
+  interceptors: [onError(console.error)],
   plugins: [
     new CORSPlugin(),
     new OpenAPIReferencePlugin({
       schemaConverters: [new ZodToJsonSchemaConverter()],
       specGenerateOptions: {
         info: {
-          title: "Reasoning Ledger API",
-          version: "0.1.0",
           description:
             "Trace Service API for the Reasoning Ledger SDK — record submission, retrieval, and agent/owner lifecycle management.",
+          title: "Reasoning Ledger API",
+          version: "0.1.0",
         },
       },
-    }),
-  ],
-  interceptors: [
-    onError((error) => {
-      console.error(error);
     }),
   ],
 });

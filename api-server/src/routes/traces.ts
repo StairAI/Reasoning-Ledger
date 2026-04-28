@@ -19,19 +19,25 @@ function reconstructRecord(row: {
   payload: unknown;
 }): Record<string, unknown> {
   const base: Record<string, unknown> = {
-    record_id: row.record_id,
     agent_id: row.agent_id,
-    session_id: row.session_id,
-    schema_version: row.schema_version,
     behavior: row.behavior,
     client_ts_utc: Number(row.client_ts_utc),
+    record_id: row.record_id,
+    schema_version: row.schema_version,
     server_ts_utc: Number(row.server_ts_utc),
+    session_id: row.session_id,
     tags: row.tags,
     upstream_record_id: row.upstream_record_id,
   };
-  if (row.notes) base.notes = row.notes;
-  if (row.model_invocation) base.model_invocation = row.model_invocation;
-  if (row.parent_record_id) base.parent_record_id = row.parent_record_id;
+  if (row.notes) {
+    base.notes = row.notes;
+  }
+  if (row.model_invocation) {
+    base.model_invocation = row.model_invocation;
+  }
+  if (row.parent_record_id) {
+    base.parent_record_id = row.parent_record_id;
+  }
   return { ...base, ...(row.payload as Record<string, unknown>) };
 }
 
@@ -48,7 +54,7 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 
 export const getTrace = authed
-  .route({ path: "/v1/traces/{agent_id}", method: "GET" })
+  .route({ method: "GET", path: "/v1/traces/{agent_id}" })
   .input(
     z.object({
       agent_id: z.string().uuid(),
@@ -58,15 +64,15 @@ export const getTrace = authed
   )
   .output(
     z.object({
-      records: z.array(z.record(z.string(), z.unknown())),
       next_cursor: z.string().nullable(),
+      records: z.array(z.record(z.string(), z.unknown())),
     }),
   )
   .handler(async ({ input, context }) => {
     // Verify the agent belongs to the calling owner.
     const agent = await prisma.agent.findUnique({
-      where: { id: input.agent_id },
       select: { owner_id: true },
+      where: { id: input.agent_id },
     });
     if (!agent || agent.owner_id !== context.ownerId) {
       throw new ORPCError("NOT_FOUND", { message: "Agent not found" });
@@ -76,8 +82,8 @@ export const getTrace = authed
     let cursorTs: bigint | undefined;
     if (input.before) {
       const cursor = await prisma.traceRecord.findUnique({
+        select: { agent_id: true, server_ts_utc: true },
         where: { record_id: input.before },
-        select: { server_ts_utc: true, agent_id: true },
       });
       if (!cursor || cursor.agent_id !== input.agent_id) {
         throw new ORPCError("BAD_REQUEST", {
@@ -89,21 +95,21 @@ export const getTrace = authed
 
     // Fetch limit+1 rows so we can detect whether there's a next page.
     const rows = await prisma.traceRecord.findMany({
+      orderBy: { server_ts_utc: "desc" },
+      take: input.limit + 1,
       where: {
         agent_id: input.agent_id,
         ...(cursorTs !== undefined && { server_ts_utc: { lt: cursorTs } }),
       },
-      orderBy: { server_ts_utc: "desc" },
-      take: input.limit + 1,
     });
 
     const hasMore = rows.length > input.limit;
     const page = hasMore ? rows.slice(0, input.limit) : rows;
-    const nextCursor = hasMore ? (page[page.length - 1]?.record_id ?? null) : null;
+    const nextCursor = hasMore ? (page.at(-1)?.record_id ?? null) : null;
 
     return {
-      records: page.map(reconstructRecord),
       next_cursor: nextCursor,
+      records: page.map(reconstructRecord),
     };
   });
 

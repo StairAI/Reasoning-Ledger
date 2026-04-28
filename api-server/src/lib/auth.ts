@@ -2,10 +2,10 @@ import { ORPCError, os } from "@orpc/server";
 import { prisma } from "#/lib/prisma";
 import { hashApiKey } from "#/lib/crypto";
 
-export type AuthContext = {
+export interface AuthContext {
   ownerId: string;
   walletMode: "custodial" | "byow";
-};
+}
 
 /**
  * Base procedure builder with HTTP headers in context (injected by the HTTP handler).
@@ -30,8 +30,8 @@ export const authed = base.use(async ({ context, next }) => {
 
   const hash = hashApiKey(raw);
   const owner = await prisma.owner.findUnique({
-    where: { api_key_hash: hash },
     select: { id: true, wallet_mode: true },
+    where: { api_key_hash: hash },
   });
 
   if (!owner) {

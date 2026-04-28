@@ -24,16 +24,16 @@ const MAX_BATCH_SIZE = 50;
 // ---------------------------------------------------------------------------
 
 const RecordAck = z.object({
-  record_id: z.string(),
-  session_id: z.string(),
-  server_ts_utc: z.number(),
   is_duplicate: z.boolean(),
+  record_id: z.string(),
+  server_ts_utc: z.number(),
+  session_id: z.string(),
 });
 
 const RecordError = z.object({
-  record_id: z.string(),
   code: z.string(),
   message: z.string(),
+  record_id: z.string(),
 });
 
 // ---------------------------------------------------------------------------
@@ -68,8 +68,8 @@ function extractPayload(record: z.infer<typeof LedgerRecord>): Record<string, un
  */
 async function assertAgentOwnership(agentId: string, ownerId: string) {
   const agent = await prisma.agent.findUnique({
-    where: { id: agentId },
     select: { id: true, owner_id: true },
+    where: { id: agentId },
   });
   if (!agent || agent.owner_id !== ownerId) {
     throw new ORPCError("UNAUTHORIZED", {
@@ -88,11 +88,13 @@ async function validateRecordRefs(
   parentId: string | undefined,
 ) {
   const allIds = [...new Set([...upstreamIds, ...(parentId ? [parentId] : [])])];
-  if (allIds.length === 0) return;
+  if (allIds.length === 0) {
+    return;
+  }
 
   const found = await prisma.traceRecord.findMany({
-    where: { record_id: { in: allIds }, agent_id: agentId },
     select: { record_id: true },
+    where: { agent_id: agentId, record_id: { in: allIds } },
   });
   const foundSet = new Set(found.map((r) => r.record_id));
 
@@ -123,42 +125,42 @@ async function persistRecord(
 
   // Dedup check on (agent_id, record_id).
   const existing = await prisma.traceRecord.findFirst({
-    where: { record_id: record.record_id, agent_id: agentId },
-    select: { record_id: true, session_id: true, server_ts_utc: true },
+    select: { record_id: true, server_ts_utc: true, session_id: true },
+    where: { agent_id: agentId, record_id: record.record_id },
   });
   if (existing) {
     return {
-      record_id: existing.record_id,
-      session_id: existing.session_id,
-      server_ts_utc: Number(existing.server_ts_utc),
       is_duplicate: true,
+      record_id: existing.record_id,
+      server_ts_utc: Number(existing.server_ts_utc),
+      session_id: existing.session_id,
     };
   }
 
   const created = await prisma.traceRecord.create({
     data: {
-      record_id: record.record_id,
       agent_id: agentId,
-      session_id: record.session_id,
-      schema_version: record.schema_version,
       behavior: record.behavior as BehaviorType,
       client_ts_utc: BigInt(record.client_ts_utc),
-      server_ts_utc: serverTs,
-      notes: record.notes,
-      tags: record.tags ?? [],
       model_invocation: (record.model_invocation as object) ?? null,
-      upstream_record_id: record.upstream_record_id ?? [],
+      notes: record.notes,
       parent_record_id: record.parent_record_id,
       payload: extractPayload(record) as object,
+      record_id: record.record_id,
+      schema_version: record.schema_version,
+      server_ts_utc: serverTs,
+      session_id: record.session_id,
+      tags: record.tags ?? [],
+      upstream_record_id: record.upstream_record_id ?? [],
     },
-    select: { record_id: true, session_id: true, server_ts_utc: true },
+    select: { record_id: true, server_ts_utc: true, session_id: true },
   });
 
   return {
-    record_id: created.record_id,
-    session_id: created.session_id,
-    server_ts_utc: Number(created.server_ts_utc),
     is_duplicate: false,
+    record_id: created.record_id,
+    server_ts_utc: Number(created.server_ts_utc),
+    session_id: created.session_id,
   };
 }
 
@@ -182,19 +184,25 @@ function reconstructRecord(row: {
   payload: unknown;
 }): Record<string, unknown> {
   const base: Record<string, unknown> = {
-    record_id: row.record_id,
     agent_id: row.agent_id,
-    session_id: row.session_id,
-    schema_version: row.schema_version,
     behavior: row.behavior,
     client_ts_utc: Number(row.client_ts_utc),
+    record_id: row.record_id,
+    schema_version: row.schema_version,
     server_ts_utc: Number(row.server_ts_utc),
+    session_id: row.session_id,
     tags: row.tags,
     upstream_record_id: row.upstream_record_id,
   };
-  if (row.notes) base.notes = row.notes;
-  if (row.model_invocation) base.model_invocation = row.model_invocation;
-  if (row.parent_record_id) base.parent_record_id = row.parent_record_id;
+  if (row.notes) {
+    base.notes = row.notes;
+  }
+  if (row.model_invocation) {
+    base.model_invocation = row.model_invocation;
+  }
+  if (row.parent_record_id) {
+    base.parent_record_id = row.parent_record_id;
+  }
   // Merge behaviour-specific payload fields.
   return { ...base, ...(row.payload as Record<string, unknown>) };
 }
@@ -217,11 +225,7 @@ async function validateRecord(
 
   await assertAgentOwnership(agentId, ownerId);
 
-  await validateRecordRefs(
-    agentId,
-    record.upstream_record_id ?? [],
-    record.parent_record_id,
-  );
+  await validateRecordRefs(agentId, record.upstream_record_id ?? [], record.parent_record_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -230,12 +234,12 @@ async function validateRecord(
 // ---------------------------------------------------------------------------
 
 export const submitRecord = authed
-  .route({ path: "/v1/records", method: "POST" })
+  .route({ method: "POST", path: "/v1/records" })
   .input(LedgerRecord)
   .output(RecordAck)
   .handler(async ({ input, context }) => {
     // Per-record size check.
-    const bytes = Buffer.byteLength(JSON.stringify(input), "utf8");
+    const bytes = Buffer.byteLength(JSON.stringify(input), "utf-8");
     if (bytes > MAX_RECORD_BYTES) {
       throw new ORPCError("BAD_REQUEST", {
         message: `Record exceeds 64 KB size limit (${bytes} bytes)`,
@@ -253,7 +257,7 @@ export const submitRecord = authed
 // ---------------------------------------------------------------------------
 
 export const submitBatch = authed
-  .route({ path: "/v1/records:batch", method: "POST" })
+  .route({ method: "POST", path: "/v1/records:batch" })
   .input(
     z.object({
       records: z.array(LedgerRecord).min(1).max(MAX_BATCH_SIZE),
@@ -267,7 +271,7 @@ export const submitBatch = authed
   )
   .handler(async ({ input, context }) => {
     // Batch-level size check.
-    const batchBytes = Buffer.byteLength(JSON.stringify(input.records), "utf8");
+    const batchBytes = Buffer.byteLength(JSON.stringify(input.records), "utf-8");
     if (batchBytes > MAX_BATCH_BYTES) {
       throw new ORPCError("BAD_REQUEST", {
         message: `Batch exceeds 1 MB size limit (${batchBytes} bytes)`,
@@ -275,16 +279,16 @@ export const submitBatch = authed
     }
 
     const batchId = crypto.randomUUID();
-    const results: Array<z.infer<typeof RecordAck> | z.infer<typeof RecordError>> = [];
+    const results: (z.infer<typeof RecordAck> | z.infer<typeof RecordError>)[] = [];
 
     for (const record of input.records) {
       // Per-record size check within batch.
-      const bytes = Buffer.byteLength(JSON.stringify(record), "utf8");
+      const bytes = Buffer.byteLength(JSON.stringify(record), "utf-8");
       if (bytes > MAX_RECORD_BYTES) {
         results.push({
-          record_id: record.record_id,
           code: "validation_failed",
           message: `Record exceeds 64 KB size limit (${bytes} bytes)`,
+          record_id: record.record_id,
         });
         continue;
       }
@@ -293,18 +297,18 @@ export const submitBatch = authed
         await validateRecord(record, context.ownerId, record.agent_id);
         const ack = await persistRecord(record, record.agent_id);
         results.push(ack);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
         const code =
-          err instanceof ORPCError
-            ? err.code === "UNAUTHORIZED"
+          error instanceof ORPCError
+            ? error.code === "UNAUTHORIZED"
               ? "auth_invalid"
               : "validation_failed"
             : "server_5xx";
         results.push({
-          record_id: record.record_id,
           code,
           message,
+          record_id: record.record_id,
         });
       }
     }
@@ -319,13 +323,13 @@ export const submitBatch = authed
 // ---------------------------------------------------------------------------
 
 export const getRecord = authed
-  .route({ path: "/v1/records/{record_id}", method: "GET" })
+  .route({ method: "GET", path: "/v1/records/{record_id}" })
   .input(z.object({ record_id: z.string().uuid() }))
   .output(z.record(z.string(), z.unknown()))
   .handler(async ({ input, context }) => {
     const row = await prisma.traceRecord.findUnique({
-      where: { record_id: input.record_id },
       include: { agent: { select: { owner_id: true } } },
+      where: { record_id: input.record_id },
     });
 
     if (!row || row.agent.owner_id !== context.ownerId) {
@@ -340,7 +344,7 @@ export const getRecord = authed
 // ---------------------------------------------------------------------------
 
 export const recordsRouter = {
-  submitRecord,
-  submitBatch,
   getRecord,
+  submitBatch,
+  submitRecord,
 };
