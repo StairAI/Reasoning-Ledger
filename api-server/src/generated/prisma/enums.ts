@@ -9,7 +9,22 @@
 * 🟢 You can import this file directly.
 */
 
+export const WalletMode = {
+  custodial: 'custodial',
+  byow: 'byow'
+} as const
+
+export type WalletMode = (typeof WalletMode)[keyof typeof WalletMode]
 
 
-// This file is empty because there are no enums in the schema.
-export {}
+export const BehaviorType = {
+  Observing: 'Observing',
+  ToolCalling: 'ToolCalling',
+  Planning: 'Planning',
+  Thinking: 'Thinking',
+  Acting: 'Acting',
+  Reflecting: 'Reflecting',
+  Other: 'Other'
+} as const
+
+export type BehaviorType = (typeof BehaviorType)[keyof typeof BehaviorType]
