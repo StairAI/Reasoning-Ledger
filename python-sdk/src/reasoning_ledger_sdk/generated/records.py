@@ -20,6 +20,10 @@ class BehaviorType(StrEnum):
     Other = "Other"
 
 
+class UuidV4(RootModel[UUID]):
+    root: UUID
+
+
 class ModelInvocation(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -48,7 +52,19 @@ class BaseRecord(BaseModel):
     notes: Annotated[str | None, Field(max_length=2048)] = None
     tags: Annotated[list[Tag] | None, Field(max_length=32)] = None
     model_invocation: ModelInvocation | None = None
-    parent_record_id: UUID | None = None
+    upstream_record_id: Annotated[
+        list[UUID] | None,
+        Field(
+            description="DAG dependency / trace sequence. Records this one builds on. May be empty/omitted.",
+            max_length=32,
+        ),
+    ] = None
+    parent_record_id: Annotated[
+        UUID | None,
+        Field(
+            description="Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
+        ),
+    ] = None
 
 
 class ThinkingInput(BaseModel):
@@ -59,12 +75,8 @@ class ThinkingInput(BaseModel):
     input_payload: str
 
 
-class SignalReview(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    input_record_id: UUID | None = None
-    note: Annotated[str, Field(min_length=1)]
+class ReflectingInput(ThinkingInput):
+    pass
 
 
 class DependsOnItem(RootModel[int]):
@@ -151,32 +163,13 @@ class ActingRecord(BaseRecord):
     execution_status: ExecutionStatus
 
 
-class ReflectingOutcome(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    actual_result: Annotated[str, Field(min_length=1)]
-    expected_result: Annotated[str, Field(min_length=1)]
-    pnl_delta: float | None = None
-
-
-class PredictionAccuracy(StrEnum):
-    correct = "correct"
-    incorrect = "incorrect"
-    partial = "partial"
-
-
 class ReflectingRecord(BaseRecord):
     model_config = ConfigDict(
         extra="forbid",
     )
     behavior: Literal["Reflecting"]
-    reflected_on_acting_record_id: UUID
-    outcome: ReflectingOutcome
-    prediction_accuracy: PredictionAccuracy
-    post_mortem: Annotated[str, Field(min_length=1)]
-    signal_retrospective: list[SignalReview]
-    adjustment: Annotated[str, Field(min_length=1)]
+    inputs: list[ReflectingInput]
+    output_payload: Annotated[str, Field(min_length=1)]
 
 
 class OtherRecord(BaseRecord):
