@@ -2,46 +2,7 @@ import { ORPCError } from "@orpc/server";
 import * as z from "zod";
 import { prisma } from "#/lib/prisma";
 import { authed } from "#/lib/auth";
-
-// Re-export reconstructRecord from records to avoid duplication.
-// We inline the same logic here to keep the module self-contained.
-function reconstructRecord(row: {
-  record_id: string;
-  agent_id: string;
-  session_id: string;
-  schema_version: string;
-  behavior: string;
-  client_ts_utc: bigint;
-  server_ts_utc: bigint;
-  notes: string | null;
-  tags: string[];
-  model_invocation: unknown;
-  upstream_record_id: string[];
-  parent_record_id: string | null;
-  payload: unknown;
-}): Record<string, unknown> {
-  const base: Record<string, unknown> = {
-    agent_id: row.agent_id,
-    behavior: row.behavior,
-    client_ts_utc: Number(row.client_ts_utc),
-    record_id: row.record_id,
-    schema_version: row.schema_version,
-    server_ts_utc: Number(row.server_ts_utc),
-    session_id: row.session_id,
-    tags: row.tags,
-    upstream_record_id: row.upstream_record_id,
-  };
-  if (row.notes) {
-    base.notes = row.notes;
-  }
-  if (row.model_invocation) {
-    base.model_invocation = row.model_invocation;
-  }
-  if (row.parent_record_id) {
-    base.parent_record_id = row.parent_record_id;
-  }
-  return { ...base, ...(row.payload as Record<string, unknown>) };
-}
+import { reconstructRecord } from "#/lib/record";
 
 // ---------------------------------------------------------------------------
 // GET /v1/sessions/:session_id?agent_id=...
@@ -49,7 +10,16 @@ function reconstructRecord(row: {
 // ---------------------------------------------------------------------------
 
 export const getSession = authed
-  .route({ method: "GET", path: "/v1/sessions/{session_id}" })
+  .route({
+    description:
+      "Fetch every record submitted under a given `(agent_id, session_id)` pair, ordered by `server_ts_utc` ascending. " +
+      "Sessions have no server-side lifecycle — this is a filtered view of the agent's trace. " +
+      "Returns an empty `records` array when the session exists but contains no records.",
+    method: "GET",
+    path: "/v1/sessions/{session_id}",
+    summary: "Get session records",
+    tags: ["Sessions"],
+  })
   .input(
     z.object({
       agent_id: z.string().uuid(),

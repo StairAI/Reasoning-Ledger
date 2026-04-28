@@ -39,7 +39,18 @@ function ownerToMeta(owner: {
 // ---------------------------------------------------------------------------
 
 export const registerOwner = base
-  .route({ method: "POST", path: "/v1/owners" })
+  .route({
+    description:
+      "Register a new owner, or resolve the existing one when the e-mail is already on file (idempotent). " +
+      "The raw `api_key` is returned **only on the first call** — it is never stored and cannot be retrieved again. " +
+      "Wallet mode (`custodial` | `byow`) is locked at registration and applies to every agent created under this owner.",
+    method: "POST",
+    path: "/v1/owners",
+    // Public endpoint — no API key required.
+    spec: { security: [] },
+    summary: "Register owner",
+    tags: ["Owners"],
+  })
   .input(RegisterOwnerInput)
   .output(
     z.object({
@@ -101,7 +112,15 @@ export const registerOwner = base
 // ---------------------------------------------------------------------------
 
 export const updateOwner = authed
-  .route({ method: "PATCH", path: "/v1/owners/me" })
+  .route({
+    description:
+      "Update display metadata (`display_name`, `website`, `contact_email`) for the owner identified by the `X-API-Key` header. " +
+      "Only fields present in the request body are updated; omitted fields are left unchanged.",
+    method: "PATCH",
+    path: "/v1/owners/me",
+    summary: "Update owner metadata",
+    tags: ["Owners"],
+  })
   .input(UpdateOwnerInput)
   .output(
     z.object({
@@ -135,7 +154,15 @@ export const updateOwner = authed
 // ---------------------------------------------------------------------------
 
 export const rotateKey = authed
-  .route({ method: "POST", path: "/v1/owners/me/rotate-key" })
+  .route({
+    description:
+      "Issue a new `api_key` and immediately invalidate the previous one. " +
+      "The new raw key is returned once and never stored — store it securely before discarding the response.",
+    method: "POST",
+    path: "/v1/owners/me/rotate-key",
+    summary: "Rotate API key",
+    tags: ["Owners"],
+  })
   .input(z.object({}))
   .output(z.object({ api_key: z.string() }))
   .handler(async ({ context }) => {
