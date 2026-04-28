@@ -1,3 +1,5 @@
 packages:
   - 'api-server'
   - 'typescript-sdk'
+allowBuilds:
+  simple-git-hooks: true
