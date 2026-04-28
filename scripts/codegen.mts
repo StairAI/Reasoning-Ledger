@@ -92,13 +92,16 @@ function generateTsFile(): string {
           return s.$ref.replace("#/$defs/", "");
         }
 
-        // Emit z.discriminatedUnion when the JSON Schema discriminator is present
+        // Emit z.union for the behaviour discriminated union.
+        // z.discriminatedUnion requires ZodObject members; our members are
+        // z.intersection types (allOf composition), which Zod 4 does not
+        // accept as discriminable. z.union provides the same runtime
+        // validation with correct TypeScript inference.
         if (
           Array.isArray(s.oneOf) &&
           typeof s.discriminator === "object" &&
           s.discriminator !== null
         ) {
-          const disc = s.discriminator as { propertyName: string };
           const members = (s.oneOf as Array<{ $ref?: string }>)
             .map((m) =>
               typeof m.$ref === "string" && m.$ref.startsWith("#/$defs/")
@@ -107,7 +110,7 @@ function generateTsFile(): string {
             )
             .filter(Boolean)
             .join(", ");
-          return `z.discriminatedUnion(${JSON.stringify(disc.propertyName)}, [${members}])`;
+          return `z.union([${members}])`;
         }
       },
     });

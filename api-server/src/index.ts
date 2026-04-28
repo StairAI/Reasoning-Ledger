@@ -1,10 +1,11 @@
+import "dotenv/config";
 import { createServer } from "node:http";
 import { OpenAPIHandler } from "@orpc/openapi/node";
 import { CORSPlugin } from "@orpc/server/plugins";
 import { onError } from "@orpc/server";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { router } from "./planet";
+import { router } from "./router";
 
 const handler = new OpenAPIHandler(router, {
   plugins: [
@@ -13,8 +14,10 @@ const handler = new OpenAPIHandler(router, {
       schemaConverters: [new ZodToJsonSchemaConverter()],
       specGenerateOptions: {
         info: {
-          title: "ORPC Playground",
-          version: "1.0.0",
+          title: "Reasoning Ledger API",
+          version: "0.1.0",
+          description:
+            "Trace Service API for the Reasoning Ledger SDK — record submission, retrieval, and agent/owner lifecycle management.",
         },
       },
     }),
@@ -26,15 +29,18 @@ const handler = new OpenAPIHandler(router, {
   ],
 });
 
+const PORT = Number(process.env.PORT ?? 3000);
+const HOST = process.env.HOST ?? "127.0.0.1";
+
 const server = createServer(async (req, res) => {
   const result = await handler.handle(req, res, {
-    context: { headers: req.headers },
+    context: { headers: req.headers as Record<string, string | string[] | undefined> },
   });
 
   if (!result.matched) {
     res.statusCode = 404;
-    res.end("No procedure matched");
+    res.end(JSON.stringify({ error: "No procedure matched" }));
   }
 });
 
-server.listen(3000, "127.0.0.1", () => console.log("Listening on 127.0.0.1:3000"));
+server.listen(PORT, HOST, () => console.log(`Reasoning Ledger API listening on ${HOST}:${PORT}`));

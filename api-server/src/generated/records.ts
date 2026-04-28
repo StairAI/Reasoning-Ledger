@@ -47,5 +47,5 @@ export type ReflectingRecord = z.infer<typeof ReflectingRecord>;
 export const OtherRecord = z.intersection(BaseRecord, z.object({ "behavior": z.literal("Other"), "label": z.string().min(1), "data": z.record(z.string(), z.any()) }));
 export type OtherRecord = z.infer<typeof OtherRecord>;
 
-export const Record = z.discriminatedUnion("behavior", [ObservingRecord, ToolCallingRecord, PlanningRecord, ThinkingRecord, ActingRecord, ReflectingRecord, OtherRecord]);
+export const Record = z.union([ObservingRecord, ToolCallingRecord, PlanningRecord, ThinkingRecord, ActingRecord, ReflectingRecord, OtherRecord]);
 export type Record = z.infer<typeof Record>;
