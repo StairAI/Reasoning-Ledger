@@ -8,4 +8,7 @@
  *
  * 🟢 You can import this file directly.
  */
+export type * from './models/Owner'
+export type * from './models/Agent'
+export type * from './models/TraceRecord'
 export type * from './commonInputTypes'

@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +8,115 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum WalletMode {
+  custodial
+  byow
+}
+
+enum BehaviorType {
+  Observing
+  ToolCalling
+  Planning
+  Thinking
+  Acting
+  Reflecting
+  Other
+}
+
+// ---------------------------------------------------------------------------
+// Owner — one per partner organisation
+// Registered out-of-band (website / BD flow); not via the SDK.
+// ---------------------------------------------------------------------------
+
+model Owner {
+  id                   String     @id @default(uuid())
+  email                String     @unique
+  /// SHA-256 hex digest of the raw api_key. Never store the raw key.
+  api_key_hash         String     @unique
+  wallet_mode          WalletMode
+  owner_wallet_address String
+  display_name         String?
+  website              String?
+  contact_email        String?
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+
+  agents Agent[]
+
+  @@map("owners")
+}
+
+// ---------------------------------------------------------------------------
+// Agent — one reasoning-producing entity under an owner
+// Registered via SDK (POST /v1/agents).
+// ---------------------------------------------------------------------------
+
+model Agent {
+  id                   String   @id @default(uuid())
+  owner_id             String
+  owner                Owner    @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  /// Human-readable name; unique within owner; mutable metadata only — never on records.
+  name                 String
+  agent_wallet_address String
+  description          String?
+  website              String?
+  tags                 String[]
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  records TraceRecord[]
+
+  /// Idempotency key for agent registration: same (owner, name) → same agent.
+  @@unique([owner_id, name])
+  @@index([owner_id])
+  @@map("agents")
+}
+
+// ---------------------------------------------------------------------------
+// TraceRecord — atomic unit of submission; one behaviour step.
+// record_id is SDK-generated UUID v4 and doubles as the idempotency key.
+// ---------------------------------------------------------------------------
+
+model TraceRecord {
+  /// SDK-generated UUID v4; idempotency key on (agent_id, record_id).
+  record_id          String       @id
+  agent_id           String
+  agent              Agent        @relation(fields: [agent_id], references: [id], onDelete: Cascade)
+  session_id         String
+
+  schema_version     String
+  behavior           BehaviorType
+
+  /// Client-reported epoch milliseconds; preserved across retries.
+  client_ts_utc      BigInt
+  /// Server-stamped epoch milliseconds on receipt; authoritative for trust purposes.
+  server_ts_utc      BigInt
+
+  /// Optional free-text annotation (≤2 048 chars, enforced at app layer).
+  notes              String?
+  /// Optional facet tags (≤32 entries × 64 chars each, enforced at app layer).
+  tags               String[]
+
+  /// Optional LLM invocation metadata (ModelInvocation object).
+  model_invocation   Json?
+
+  /// DAG dependency edges — UUIDs of records this one builds on. May be empty.
+  upstream_record_id String[]
+  /// Sub-thread containment: UUID of the parent record that spawned this sub-thread.
+  parent_record_id   String?
+
+  /// Behaviour-specific fields stored as JSONB (everything beyond BaseRecord).
+  payload            Json
+
+  created_at         DateTime @default(now())
+
+  @@index([agent_id, session_id])
+  @@index([agent_id, server_ts_utc(sort: Desc)])
+  @@map("trace_records")
 }

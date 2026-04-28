@@ -51,7 +51,9 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
-
+  Owner: 'Owner',
+  Agent: 'Agent',
+  TraceRecord: 'TraceRecord'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -68,4 +70,103 @@ export const TransactionIsolationLevel = runtime.makeStrictEnum({
 } as const)
 
 export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof typeof TransactionIsolationLevel]
+
+
+export const OwnerScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  api_key_hash: 'api_key_hash',
+  wallet_mode: 'wallet_mode',
+  owner_wallet_address: 'owner_wallet_address',
+  display_name: 'display_name',
+  website: 'website',
+  contact_email: 'contact_email',
+  created_at: 'created_at',
+  updated_at: 'updated_at'
+} as const
+
+export type OwnerScalarFieldEnum = (typeof OwnerScalarFieldEnum)[keyof typeof OwnerScalarFieldEnum]
+
+
+export const AgentScalarFieldEnum = {
+  id: 'id',
+  owner_id: 'owner_id',
+  name: 'name',
+  agent_wallet_address: 'agent_wallet_address',
+  description: 'description',
+  website: 'website',
+  tags: 'tags',
+  created_at: 'created_at',
+  updated_at: 'updated_at'
+} as const
+
+export type AgentScalarFieldEnum = (typeof AgentScalarFieldEnum)[keyof typeof AgentScalarFieldEnum]
+
+
+export const TraceRecordScalarFieldEnum = {
+  record_id: 'record_id',
+  agent_id: 'agent_id',
+  session_id: 'session_id',
+  schema_version: 'schema_version',
+  behavior: 'behavior',
+  client_ts_utc: 'client_ts_utc',
+  server_ts_utc: 'server_ts_utc',
+  notes: 'notes',
+  tags: 'tags',
+  model_invocation: 'model_invocation',
+  upstream_record_id: 'upstream_record_id',
+  parent_record_id: 'parent_record_id',
+  payload: 'payload',
+  created_at: 'created_at'
+} as const
+
+export type TraceRecordScalarFieldEnum = (typeof TraceRecordScalarFieldEnum)[keyof typeof TraceRecordScalarFieldEnum]
+
+
+export const SortOrder = {
+  asc: 'asc',
+  desc: 'desc'
+} as const
+
+export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const NullableJsonNullValueInput = {
+  DbNull: DbNull,
+  JsonNull: JsonNull
+} as const
+
+export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
+export const QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
+} as const
+
+export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
+
+
+export const NullsOrder = {
+  first: 'first',
+  last: 'last'
+} as const
+
+export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 
