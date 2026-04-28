@@ -3,7 +3,7 @@ import * as z from "zod";
 import { prisma } from "#/lib/prisma";
 import { authed } from "#/lib/auth";
 import { Record as LedgerRecord } from "#/generated/records";
-import type { BehaviorType } from "#/generated/prisma";
+import type { BehaviorType } from "#/generated/prisma/enums";
 
 // ---------------------------------------------------------------------------
 // Supported schema versions (server rejects unknown versions per §10.1)
@@ -146,10 +146,10 @@ async function persistRecord(
       server_ts_utc: serverTs,
       notes: record.notes,
       tags: record.tags ?? [],
-      model_invocation: record.model_invocation ?? undefined,
+      model_invocation: (record.model_invocation as object) ?? null,
       upstream_record_id: record.upstream_record_id ?? [],
       parent_record_id: record.parent_record_id,
-      payload: extractPayload(record),
+      payload: extractPayload(record) as object,
     },
     select: { record_id: true, session_id: true, server_ts_utc: true },
   });
