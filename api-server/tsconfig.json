@@ -10,14 +10,19 @@
     "sourceMap": true,
     "incremental": true,
     "skipLibCheck": true,
+    "strict": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "esModuleInterop": true,
     "noFallthroughCasesInSwitch": false,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "#/*": ["./src/*"]
+    }
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["*.config.ts", "dist", "node_modules"]
+  "exclude": ["dist", "node_modules"]
 }
