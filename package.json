@@ -6,7 +6,8 @@
     "codegen": "node scripts/codegen.mts",
     "codegen:ts": "node scripts/codegen.mts --ts-only",
     "codegen:py": "node scripts/codegen.mts --py-only",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "fix": "cd api-server && pnpm fix && cd ../typescript-sdk && pnpm fix"
   },
   "devDependencies": {
     "json-schema-to-zod": "^2.6.0",

@@ -15,8 +15,8 @@ import { tracesRouter } from "#/routes/traces";
  *   - traces:  Data plane — paginated agent trace retrieval
  */
 export const router = {
-  owners: ownersRouter,
   agents: agentsRouter,
+  owners: ownersRouter,
   records: recordsRouter,
   sessions: sessionsRouter,
   traces: tracesRouter,

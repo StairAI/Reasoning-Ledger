@@ -4,10 +4,7 @@ import { prisma } from "#/lib/prisma";
 import { generateApiKey, hashApiKey } from "#/lib/crypto";
 import { generateWalletAddress } from "#/lib/wallet";
 import { authed, base } from "#/lib/auth";
-import {
-  RegisterOwnerInput,
-  UpdateOwnerInput,
-} from "#/schemas/owners";
+import { RegisterOwnerInput, UpdateOwnerInput } from "#/schemas/owners";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,14 +21,14 @@ function ownerToMeta(owner: {
   updated_at: Date;
 }) {
   return {
-    owner_id: owner.id,
-    wallet_mode: owner.wallet_mode as "custodial" | "byow",
-    owner_wallet_address: owner.owner_wallet_address,
-    display_name: owner.display_name ?? undefined,
-    website: owner.website ?? undefined,
     contact_email: owner.contact_email ?? undefined,
     created_at: owner.created_at.getTime(),
+    display_name: owner.display_name ?? undefined,
+    owner_id: owner.id,
+    owner_wallet_address: owner.owner_wallet_address,
     updated_at: owner.updated_at.getTime(),
+    wallet_mode: owner.wallet_mode as "custodial" | "byow",
+    website: owner.website ?? undefined,
   };
 }
 
@@ -42,18 +39,18 @@ function ownerToMeta(owner: {
 // ---------------------------------------------------------------------------
 
 export const registerOwner = base
-  .route({ path: "/v1/owners", method: "POST" })
+  .route({ method: "POST", path: "/v1/owners" })
   .input(RegisterOwnerInput)
   .output(
     z.object({
-      owner_id: z.string(),
       api_key: z.string().optional(),
-      wallet_mode: z.enum(["custodial", "byow"]),
-      owner_wallet_address: z.string(),
-      display_name: z.string().optional(),
-      website: z.string().optional(),
       contact_email: z.string().optional(),
       created_at: z.number(),
+      display_name: z.string().optional(),
+      owner_id: z.string(),
+      owner_wallet_address: z.string(),
+      wallet_mode: z.enum(["custodial", "byow"]),
+      website: z.string().optional(),
     }),
   )
   .handler(async ({ input }) => {
@@ -82,13 +79,13 @@ export const registerOwner = base
 
     const owner = await prisma.owner.create({
       data: {
-        email: input.email,
         api_key_hash: hashApiKey(rawKey),
-        wallet_mode: input.wallet_mode,
-        owner_wallet_address: walletAddress,
-        display_name: input.display_name,
-        website: input.website,
         contact_email: input.contact_email,
+        display_name: input.display_name,
+        email: input.email,
+        owner_wallet_address: walletAddress,
+        wallet_mode: input.wallet_mode,
+        website: input.website,
       },
     });
 
@@ -104,28 +101,28 @@ export const registerOwner = base
 // ---------------------------------------------------------------------------
 
 export const updateOwner = authed
-  .route({ path: "/v1/owners/me", method: "PATCH" })
+  .route({ method: "PATCH", path: "/v1/owners/me" })
   .input(UpdateOwnerInput)
   .output(
     z.object({
-      owner_id: z.string(),
-      wallet_mode: z.enum(["custodial", "byow"]),
-      owner_wallet_address: z.string(),
-      display_name: z.string().optional(),
-      website: z.string().optional(),
       contact_email: z.string().optional(),
       created_at: z.number(),
+      display_name: z.string().optional(),
+      owner_id: z.string(),
+      owner_wallet_address: z.string(),
       updated_at: z.number(),
+      wallet_mode: z.enum(["custodial", "byow"]),
+      website: z.string().optional(),
     }),
   )
   .handler(async ({ input, context }) => {
     const owner = await prisma.owner.update({
-      where: { id: context.ownerId },
       data: {
         ...(input.display_name !== undefined && { display_name: input.display_name }),
         ...(input.website !== undefined && { website: input.website }),
         ...(input.contact_email !== undefined && { contact_email: input.contact_email }),
       },
+      where: { id: context.ownerId },
     });
 
     return ownerToMeta(owner);
@@ -138,15 +135,15 @@ export const updateOwner = authed
 // ---------------------------------------------------------------------------
 
 export const rotateKey = authed
-  .route({ path: "/v1/owners/me/rotate-key", method: "POST" })
+  .route({ method: "POST", path: "/v1/owners/me/rotate-key" })
   .input(z.object({}))
   .output(z.object({ api_key: z.string() }))
   .handler(async ({ context }) => {
     const rawKey = generateApiKey();
 
     await prisma.owner.update({
-      where: { id: context.ownerId },
       data: { api_key_hash: hashApiKey(rawKey) },
+      where: { id: context.ownerId },
     });
 
     return { api_key: rawKey };
@@ -158,6 +155,6 @@ export const rotateKey = authed
 
 export const ownersRouter = {
   registerOwner,
-  updateOwner,
   rotateKey,
+  updateOwner,
 };

@@ -21,19 +21,25 @@ function reconstructRecord(row: {
   payload: unknown;
 }): Record<string, unknown> {
   const base: Record<string, unknown> = {
-    record_id: row.record_id,
     agent_id: row.agent_id,
-    session_id: row.session_id,
-    schema_version: row.schema_version,
     behavior: row.behavior,
     client_ts_utc: Number(row.client_ts_utc),
+    record_id: row.record_id,
+    schema_version: row.schema_version,
     server_ts_utc: Number(row.server_ts_utc),
+    session_id: row.session_id,
     tags: row.tags,
     upstream_record_id: row.upstream_record_id,
   };
-  if (row.notes) base.notes = row.notes;
-  if (row.model_invocation) base.model_invocation = row.model_invocation;
-  if (row.parent_record_id) base.parent_record_id = row.parent_record_id;
+  if (row.notes) {
+    base.notes = row.notes;
+  }
+  if (row.model_invocation) {
+    base.model_invocation = row.model_invocation;
+  }
+  if (row.parent_record_id) {
+    base.parent_record_id = row.parent_record_id;
+  }
   return { ...base, ...(row.payload as Record<string, unknown>) };
 }
 
@@ -43,37 +49,37 @@ function reconstructRecord(row: {
 // ---------------------------------------------------------------------------
 
 export const getSession = authed
-  .route({ path: "/v1/sessions/{session_id}", method: "GET" })
+  .route({ method: "GET", path: "/v1/sessions/{session_id}" })
   .input(
     z.object({
-      session_id: z.string().min(1),
       agent_id: z.string().uuid(),
+      session_id: z.string().min(1),
     }),
   )
   .output(
     z.object({
-      session_id: z.string(),
       records: z.array(z.record(z.string(), z.unknown())),
+      session_id: z.string(),
     }),
   )
   .handler(async ({ input, context }) => {
     // Verify the agent belongs to the calling owner.
     const agent = await prisma.agent.findUnique({
-      where: { id: input.agent_id },
       select: { owner_id: true },
+      where: { id: input.agent_id },
     });
     if (!agent || agent.owner_id !== context.ownerId) {
       throw new ORPCError("NOT_FOUND", { message: "Agent not found" });
     }
 
     const rows = await prisma.traceRecord.findMany({
-      where: { agent_id: input.agent_id, session_id: input.session_id },
       orderBy: { server_ts_utc: "asc" },
+      where: { agent_id: input.agent_id, session_id: input.session_id },
     });
 
     return {
-      session_id: input.session_id,
       records: rows.map(reconstructRecord),
+      session_id: input.session_id,
     };
   });
 

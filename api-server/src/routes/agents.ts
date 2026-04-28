@@ -17,9 +17,9 @@ function agentToRegistration(agent: {
 }) {
   return {
     agent_id: agent.id,
-    name: agent.name,
     agent_wallet_address: agent.agent_wallet_address,
     created_at: agent.created_at.getTime(),
+    name: agent.name,
   };
 }
 
@@ -35,13 +35,13 @@ function agentToMeta(agent: {
 }) {
   return {
     agent_id: agent.id,
-    name: agent.name,
     agent_wallet_address: agent.agent_wallet_address,
-    description: agent.description,
-    website: agent.website,
-    tags: agent.tags,
     created_at: agent.created_at.getTime(),
+    description: agent.description,
+    name: agent.name,
+    tags: agent.tags,
     updated_at: agent.updated_at.getTime(),
+    website: agent.website,
   };
 }
 
@@ -52,20 +52,20 @@ function agentToMeta(agent: {
 // ---------------------------------------------------------------------------
 
 export const registerAgent = authed
-  .route({ path: "/v1/agents", method: "POST" })
+  .route({ method: "POST", path: "/v1/agents" })
   .input(RegisterAgentInput)
   .output(
     z.object({
       agent_id: z.string(),
-      name: z.string(),
       agent_wallet_address: z.string(),
       created_at: z.number(),
+      name: z.string(),
     }),
   )
   .handler(async ({ input, context }) => {
     // Idempotency: (owner_id, name) is a unique constraint.
     const existing = await prisma.agent.findUnique({
-      where: { owner_id_name: { owner_id: context.ownerId, name: input.name } },
+      where: { owner_id_name: { name: input.name, owner_id: context.ownerId } },
     });
 
     if (existing) {
@@ -81,8 +81,8 @@ export const registerAgent = authed
       } else {
         // Fall back to the owner's default wallet address.
         const owner = await prisma.owner.findUniqueOrThrow({
-          where: { id: context.ownerId },
           select: { owner_wallet_address: true },
+          where: { id: context.ownerId },
         });
         walletAddress = owner.owner_wallet_address;
       }
@@ -93,12 +93,12 @@ export const registerAgent = authed
 
     const agent = await prisma.agent.create({
       data: {
-        owner_id: context.ownerId,
-        name: input.name,
         agent_wallet_address: walletAddress,
         description: input.description,
-        website: input.website,
+        name: input.name,
+        owner_id: context.ownerId,
         tags: input.tags ?? [],
+        website: input.website,
       },
     });
 
@@ -112,23 +112,23 @@ export const registerAgent = authed
 // ---------------------------------------------------------------------------
 
 export const resolveAgent = authed
-  .route({ path: "/v1/agents", method: "GET" })
+  .route({ method: "GET", path: "/v1/agents" })
   .input(z.object({ name: z.string().min(1) }))
   .output(
     z.object({
       agent_id: z.string(),
-      name: z.string(),
       agent_wallet_address: z.string(),
-      description: z.string().nullable(),
-      website: z.string().nullable(),
-      tags: z.array(z.string()),
       created_at: z.number(),
+      description: z.string().nullable(),
+      name: z.string(),
+      tags: z.array(z.string()),
       updated_at: z.number(),
+      website: z.string().nullable(),
     }),
   )
   .handler(async ({ input, context }) => {
     const agent = await prisma.agent.findUnique({
-      where: { owner_id_name: { owner_id: context.ownerId, name: input.name } },
+      where: { owner_id_name: { name: input.name, owner_id: context.ownerId } },
     });
 
     if (!agent) {
@@ -147,18 +147,18 @@ export const resolveAgent = authed
 // ---------------------------------------------------------------------------
 
 export const getAgent = authed
-  .route({ path: "/v1/agents/{agent_id}", method: "GET" })
+  .route({ method: "GET", path: "/v1/agents/{agent_id}" })
   .input(z.object({ agent_id: z.string().uuid() }))
   .output(
     z.object({
       agent_id: z.string(),
-      name: z.string(),
       agent_wallet_address: z.string(),
-      description: z.string().nullable(),
-      website: z.string().nullable(),
-      tags: z.array(z.string()),
       created_at: z.number(),
+      description: z.string().nullable(),
+      name: z.string(),
+      tags: z.array(z.string()),
       updated_at: z.number(),
+      website: z.string().nullable(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -181,18 +181,18 @@ export const getAgent = authed
 // ---------------------------------------------------------------------------
 
 export const updateAgent = authed
-  .route({ path: "/v1/agents/{agent_id}", method: "PATCH" })
+  .route({ method: "PATCH", path: "/v1/agents/{agent_id}" })
   .input(z.object({ agent_id: z.string().uuid() }).merge(UpdateAgentInput))
   .output(
     z.object({
       agent_id: z.string(),
-      name: z.string(),
       agent_wallet_address: z.string(),
-      description: z.string().nullable(),
-      website: z.string().nullable(),
-      tags: z.array(z.string()),
       created_at: z.number(),
+      description: z.string().nullable(),
+      name: z.string(),
+      tags: z.array(z.string()),
       updated_at: z.number(),
+      website: z.string().nullable(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -205,7 +205,7 @@ export const updateAgent = authed
     // If renaming, check uniqueness within owner.
     if (input.name && input.name !== existing.name) {
       const conflict = await prisma.agent.findUnique({
-        where: { owner_id_name: { owner_id: context.ownerId, name: input.name } },
+        where: { owner_id_name: { name: input.name, owner_id: context.ownerId } },
       });
       if (conflict) {
         throw new ORPCError("CONFLICT", {
@@ -215,13 +215,13 @@ export const updateAgent = authed
     }
 
     const agent = await prisma.agent.update({
-      where: { id: input.agent_id },
       data: {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.description !== undefined && { description: input.description }),
         ...(input.website !== undefined && { website: input.website }),
         ...(input.tags !== undefined && { tags: input.tags }),
       },
+      where: { id: input.agent_id },
     });
 
     return agentToMeta(agent);
@@ -232,8 +232,8 @@ export const updateAgent = authed
 // ---------------------------------------------------------------------------
 
 export const agentsRouter = {
+  getAgent,
   registerAgent,
   resolveAgent,
-  getAgent,
   updateAgent,
 };
