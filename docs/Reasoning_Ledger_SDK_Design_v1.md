@@ -89,7 +89,7 @@ Agent X's Trace
 | 2 | `Planning` | Composite | Goal decomposition |
 | 3 | `Thinking` | Composite | Analysis + option evaluation + decision (single arc) |
 | 4 | `Acting` | Composite | The terminal commitment that resolves the decision cycle |
-| 5 | `Reflecting` | Composite | Post-outcome analysis |
+| 5 | `Reflecting` | Composite | Signal- or schedule-triggered reasoning over prior behavior; typically produces a follow-up Planning record |
 | 6 | `ToolCalling` | Operational | Any external invocation: API, KB, sub-agent, on-chain read, local function |
 | 7 | `Other` | Operational | Catch-all for behaviors outside the defined taxonomy |
 
@@ -172,6 +172,10 @@ The illustrative TypeScript summary in §4.1 corresponds to this JSON Schema fra
           "maxItems": 32
         },
         "model_invocation":  { "$ref": "#/$defs/ModelInvocation" },
+        "upstream_record_id": {
+          "type": "array",
+          "items": { "type": "string", "format": "uuid" }
+        },
         "parent_record_id":  { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false
@@ -284,7 +288,10 @@ interface BaseRecord {
   // Cross-cutting execution context (optional; may be set by the SDK as a default at init)
   model_invocation?: ModelInvocation;
 
-  // Hierarchy (optional; expresses that this record sits under another record's scope)
+  // Trace DAG: upstream records this one builds on (optional; may be empty/omitted)
+  upstream_record_id?: string[];
+
+  // Sub-thread / sub-process scoping (optional; single parent if set)
   parent_record_id?: string;
 }
 
@@ -304,7 +311,11 @@ All timestamp fields in the schema use **epoch milliseconds (integer, 64-bit)** 
 
 **`model_invocation`** captures the LLM call that produced this record, when applicable. Because LLM invocation is cross-cutting — it can back any cognitive behavior (Planning, Thinking, Reflecting) as well as operational ones — it lives on `BaseRecord` rather than as a dedicated behavior type. SDK clients may set a default `ModelInvocation` at initialization that is applied to every submitted record unless overridden on the record itself (see §8.1).
 
-**`parent_record_id`** expresses that this record sits under another record's scope — e.g. a `ToolCalling` that occurred inside a `Thinking` step's execution. Data-flow edges (one record's output feeds another's reasoning) continue to be captured structurally — e.g. `ThinkingInput.input_record_id` references the record whose payload this input corresponds to. An agent is free to emit flat traces (no parent) or nested traces.
+**`upstream_record_id`** declares the records this one builds on in the trace DAG. It is a list because a single record can depend on several upstreams (e.g. a `Planning` step that consumes both an `Observing` trigger and a prior `Reflecting`). Set it to express trace sequence and dependency. May be omitted or empty for records that have no upstream context (e.g. the first `Observing` of a session).
+
+**`parent_record_id`** is narrower: it marks that this record was produced inside a *sub-thread* or *sub-process* spawned by another record. The sub-process's result returns to the parent, and **records outside the sub-thread do not list internal sub-thread records as upstream** — the sub-thread is a closed scope whose external surface is the parent's eventual output. Use `upstream_record_id` for ordinary "this depends on that" edges in the public DAG; use `parent_record_id` only for true containment.
+
+The two fields are independent: a record may set neither, either, or both. Data-flow edges at the field level (e.g. `ThinkingInput.input_record_id` referencing the record whose payload an input came from) continue to be captured structurally inside each behavior's payload, and are not a substitute for `upstream_record_id`.
 
 **`schema_version`** makes each record self-describing. The SDK stamps it from a bundled constant (`"1.0"` in v0.1) without requiring partner code to set it. The server validates that the version is supported and rejects records with unknown versions. When the schema evolves, older SDKs continue to submit their known version, and the server accepts supported past versions until they are retired — giving partners a migration window rather than a breaking flag day.
 
@@ -370,7 +381,7 @@ interface ToolCallingRecord extends BaseRecord {
 
 **LLM invocations are not a tool call.** When a record is *produced via* an LLM — even if that LLM is "invoked" as a tool in the agent's code — use the `model_invocation` field on `BaseRecord` (§4.1) instead. Reserve `ToolCalling` for calls to external APIs, KBs, on-chain reads, local functions, and sub-agents.
 
-**Cross-agent dependencies & nested calls.** Cross-agent reasoning dependencies are captured inside `tool_meta` by convention (see Suggested shapes). Hierarchical composition — e.g. a `ToolCalling` that occurred inside a `Thinking` step — is expressed with `parent_record_id` (§4.1).
+**Cross-agent dependencies & nested calls.** Cross-agent reasoning dependencies are captured inside `tool_meta` by convention (see Suggested shapes). Plain DAG dependency — e.g. a `ToolCalling` whose result feeds a downstream `Thinking` step — is expressed with `upstream_record_id` (§4.1). True containment — e.g. a `ToolCalling` that occurred *inside* a `Thinking` step's execution as part of a private sub-thread — is expressed with `parent_record_id` (§4.1).
 
 **Suggested shapes for `tool_meta`.** Not enforced by v0.1 schema — use whatever makes sense. These are starting points agents should gravitate to, so scoring and UIs can rely on common keys.
 
@@ -472,25 +483,23 @@ interface ActingRecord extends BaseRecord {
 ```typescript
 interface ReflectingRecord extends BaseRecord {
   behavior: "Reflecting";
-  reflected_on_acting_record_id: string;
-  outcome: {
-    actual_result: string;
-    expected_result: string;
-    pnl_delta?: number;
-  };
-  prediction_accuracy: "correct" | "incorrect" | "partial";
-  post_mortem: string;
-  signal_retrospective: SignalReview[];
-  adjustment: string;
+  inputs: ReflectingInput[];                   // Evidence: prior Acting records under review, score readouts, observations
+  output_payload: string;                      // JSON-encoded reasoning result
 }
 
-interface SignalReview {
-  input_record_id?: string;      // References an input record considered in the original Thinking
-  note: string;                  // Retrospective commentary on how this input should have been weighed
+interface ReflectingInput {
+  input_record_id?: string;                    // Optional reference to another record
+  input_payload: string;                       // JSON-encoded payload of this input
 }
 ```
 
-**Edits triggered by reflection.** When a Reflecting record leads to a concrete change — modifying a config, adjusting a weight, editing a prompt template — emit the change as an `Acting` record in a *new session* whose entry record carries `parent_record_id` pointing at the Reflecting. This preserves the "≤1 Acting per session" rule, gives the edit its own audit trail (`parameters` capturing `target_resource`, `before`, `after`, `change_description`, and optionally a `reviewer` field to distinguish automated from human-approved edits), and makes the causal chain from underperforming outcome → reflection → strategy change queryable via `parent_record_id`. `Reflecting.adjustment` describes the recommendation; the edit-Acting's `parameters` describes the actual change — they can legitimately differ (e.g., reflection recommends a weight of 0.75, reviewer approves 0.70), and that divergence is itself useful audit information.
+**Shape mirrors `Thinking` minus `prompt`.** Reflecting carries `inputs` + `output_payload` — it is a reasoning step whose subject is the agent's own prior behavior or state. Unlike `Thinking`, there is no `prompt` field: the reasoning template is implicit in the trigger context (the signal handler or the scheduled reflection routine) rather than declared per-record, and the LLM call itself, if any, is captured by `model_invocation` on `BaseRecord`. Acting records under review are just inputs like any other evidence; queries such as "what reflections cover Acting X?" are answered by filtering `inputs[*].input_record_id`, not by a dedicated field. The Thinking-vs-Reflecting distinction is semantic (what is being reasoned about), not structural.
+
+**Triggering.** Reflecting is invoked either by an external signal (drawdown breach, partner alert, monitor-fired alarm, …) or on a schedule (daily 00:00 reflection, weekly review, …). Both are captured upstream as an `Observing` record; the Reflecting cites it via `upstream_record_id` or includes it as one of its `inputs`. There is no dedicated trigger field on the record itself.
+
+**Outcome and accuracy live in the scoring module, not on the record.** Whether prior actions turned out well, and whether predictions were correct, are computed by the scoring module from the agent's record history. Readers query the agent's score; they do not read it off a Reflecting record. Reflecting may *cite* a score readout via `input_record_id` / `input_payload`, but it does not author one.
+
+**Reflection → Planning → Acting.** When a reflection produces a concrete change of strategy, configuration, or weights, the agent emits a follow-up `Planning` record whose `upstream_record_id` includes the Reflecting. That Planning may then drive an `Acting` record in a new session, also chained via `upstream_record_id`. The full causal chain — Observing (trigger) → Reflecting → Planning → Acting (commit) — is expressed entirely through existing fields; no Reflecting-specific "adjustment" string is needed.
 
 ### 4.8 `Other`
 
@@ -531,7 +540,7 @@ Trust relies on `server_ts_utc`. `client_ts_utc` is the timestamp the client att
 | `Planning` | When the plan was finalized |
 | `Thinking` | When the reasoning concluded and the decision was made |
 | `Acting` | When the action was committed (internal side; external execution timestamp comes from `execution_id`) |
-| `Reflecting` | When the post-mortem was written |
+| `Reflecting` | When the reflection step concluded |
 
 ### 5.2 Identifiers
 
@@ -854,7 +863,7 @@ Standalone functions, exported alongside the classes. They take no `LedgerClient
 
 #### `newRecordId() -> string`
 
-Generate a fresh UUID v4 suitable for use as a `record_id`. Use when constructing a parent-child pair where the child's `parent_record_id` must reference an as-yet-unsubmitted parent. The SDK calls this internally when `record_id` is not supplied to `submit`.
+Generate a fresh UUID v4 suitable for use as a `record_id`. Use when constructing dependency edges where a child needs to reference an as-yet-unsubmitted record — either via `upstream_record_id` (DAG dependency) or `parent_record_id` (sub-thread containment). The SDK calls this internally when `record_id` is not supplied to `submit`.
 
 #### `nowEpochMs() -> number`
 
@@ -862,7 +871,7 @@ Returns the current time as an integer epoch-millisecond. The SDK uses this prim
 
 #### `isValidRecordId(value: string) -> boolean`
 
-True iff `value` is a syntactically valid UUID v4. Useful for validating record IDs read from external systems before passing them to `parent_record_id` or `input_record_id`.
+True iff `value` is a syntactically valid UUID v4. Useful for validating record IDs read from external systems before passing them to `upstream_record_id`, `parent_record_id`, or `input_record_id`.
 
 This helper group is the home for any future small utilities of the same shape — record-id parsing, schema-version comparison, etc. Partners should expect the list to grow over time without breaking changes.
 
@@ -1099,7 +1108,7 @@ Idempotency: dedup on `(agent_id, record_id)`. Duplicate → original ack return
 
 **Client-side (hard errors):** valid `behavior`, non-empty `schema_version`, non-empty `session_id`, `record_id` is a valid UUID v4, `client_ts_utc` positive integer (epoch ms), `ToolCallingRecord.tool_meta` must be a JSON-serializable object, `Thinking.prompt` and `Thinking.output_payload` non-empty strings, `Acting.execution_id` present when target is public-chain + confirmed, `OtherRecord.data` must be a JSON-serializable object, all size limits in §10.2 respected.
 
-**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, record_id)` unique (duplicate → return original ack with `is_duplicate: true`), ≤1 `Acting` per session, `parent_record_id` (when set) resolves to an existing record under the same `agent_id`, `server_ts_utc` server-assigned, batch ≤50, all size limits in §10.2 respected (server re-checks).
+**Server-side:** API key ↔ `agent_id` match, `schema_version` must be a supported version, `(agent_id, record_id)` unique (duplicate → return original ack with `is_duplicate: true`), ≤1 `Acting` per session, `parent_record_id` (when set) and every entry in `upstream_record_id` (when set) resolve to an existing record under the same `agent_id`, `server_ts_utc` server-assigned, batch ≤50, all size limits in §10.2 respected (server re-checks).
 
 **Intentional non-rules:** no "first record must be Observing," no session lifecycle, no session timeout, no enforced hierarchy shape (traces may be flat or nested).
 
@@ -1231,7 +1240,7 @@ The `anchor_author_address` is surfaced in `GET /v1/sessions/:id` so consumers c
 
 ### v0.1 — Foundation
 
-- **Base record model:** `BaseRecord` with `record_id`, `session_id`, `agent_id`, `client_ts_utc`, `schema_version`, `model_invocation`, `parent_record_id`.
+- **Base record model:** `BaseRecord` with `record_id`, `session_id`, `agent_id`, `client_ts_utc`, `schema_version`, `model_invocation`, `upstream_record_id`, `parent_record_id`.
 - **Base behaviors:** 7 record types — Observing, ToolCalling, Planning, Thinking, Acting, Reflecting, Other.
 - **TypeScript SDK:** `LedgerClient`, `Session`, helper utilities, validation, retry, error hierarchy.
 - **Reasoning Ledger Server:** owner & agent control plane, record submission and retrieval, persistent store, no chain interaction.
