@@ -163,6 +163,43 @@ async function persistRecord(
 }
 
 /**
+ * Reconstruct a full record object from a DB row (columns + payload JSON).
+ * BigInt timestamps are converted to numbers for JSON serialization.
+ */
+function reconstructRecord(row: {
+  record_id: string;
+  agent_id: string;
+  session_id: string;
+  schema_version: string;
+  behavior: string;
+  client_ts_utc: bigint;
+  server_ts_utc: bigint;
+  notes: string | null;
+  tags: string[];
+  model_invocation: unknown;
+  upstream_record_id: string[];
+  parent_record_id: string | null;
+  payload: unknown;
+}): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    record_id: row.record_id,
+    agent_id: row.agent_id,
+    session_id: row.session_id,
+    schema_version: row.schema_version,
+    behavior: row.behavior,
+    client_ts_utc: Number(row.client_ts_utc),
+    server_ts_utc: Number(row.server_ts_utc),
+    tags: row.tags,
+    upstream_record_id: row.upstream_record_id,
+  };
+  if (row.notes) base.notes = row.notes;
+  if (row.model_invocation) base.model_invocation = row.model_invocation;
+  if (row.parent_record_id) base.parent_record_id = row.parent_record_id;
+  // Merge behaviour-specific payload fields.
+  return { ...base, ...(row.payload as Record<string, unknown>) };
+}
+
+/**
  * Full server-side validation for a single record:
  * schema_version, agent ownership, and DAG reference integrity.
  * Throws ORPCError on failure.
@@ -276,10 +313,34 @@ export const submitBatch = authed
   });
 
 // ---------------------------------------------------------------------------
-// Router group (submission only — retrieval added in Step 6)
+// GET /v1/records/:id
+// Fetch a single record by record_id.
+// Verifies the record's agent belongs to the calling owner.
 // ---------------------------------------------------------------------------
 
-export const recordsSubmitRouter = {
+export const getRecord = authed
+  .route({ path: "/v1/records/{record_id}", method: "GET" })
+  .input(z.object({ record_id: z.string().uuid() }))
+  .output(z.record(z.string(), z.unknown()))
+  .handler(async ({ input, context }) => {
+    const row = await prisma.traceRecord.findUnique({
+      where: { record_id: input.record_id },
+      include: { agent: { select: { owner_id: true } } },
+    });
+
+    if (!row || row.agent.owner_id !== context.ownerId) {
+      throw new ORPCError("NOT_FOUND", { message: "Record not found" });
+    }
+
+    return reconstructRecord(row);
+  });
+
+// ---------------------------------------------------------------------------
+// Router group
+// ---------------------------------------------------------------------------
+
+export const recordsRouter = {
   submitRecord,
   submitBatch,
+  getRecord,
 };
