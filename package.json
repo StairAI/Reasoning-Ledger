@@ -5,9 +5,14 @@
   "scripts": {
     "codegen": "node scripts/codegen.mts",
     "codegen:ts": "node scripts/codegen.mts --ts-only",
-    "codegen:py": "node scripts/codegen.mts --py-only"
+    "codegen:py": "node scripts/codegen.mts --py-only",
+    "prepare": "simple-git-hooks"
   },
   "devDependencies": {
-    "json-schema-to-zod": "^2.6.0"
+    "json-schema-to-zod": "^2.6.0",
+    "simple-git-hooks": "^2.13.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm codegen"
   }
 }
