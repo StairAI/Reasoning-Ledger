@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import * as z from "zod";
 import { prisma } from "#/lib/prisma";
 import { authed } from "#/lib/auth";
+import { reconstructRecord } from "#/lib/record";
 import { Record as LedgerRecord } from "#/generated/records";
 import type { BehaviorType } from "#/generated/prisma/enums";
 
@@ -165,49 +166,6 @@ async function persistRecord(
 }
 
 /**
- * Reconstruct a full record object from a DB row (columns + payload JSON).
- * BigInt timestamps are converted to numbers for JSON serialization.
- */
-function reconstructRecord(row: {
-  record_id: string;
-  agent_id: string;
-  session_id: string;
-  schema_version: string;
-  behavior: string;
-  client_ts_utc: bigint;
-  server_ts_utc: bigint;
-  notes: string | null;
-  tags: string[];
-  model_invocation: unknown;
-  upstream_record_id: string[];
-  parent_record_id: string | null;
-  payload: unknown;
-}): Record<string, unknown> {
-  const base: Record<string, unknown> = {
-    agent_id: row.agent_id,
-    behavior: row.behavior,
-    client_ts_utc: Number(row.client_ts_utc),
-    record_id: row.record_id,
-    schema_version: row.schema_version,
-    server_ts_utc: Number(row.server_ts_utc),
-    session_id: row.session_id,
-    tags: row.tags,
-    upstream_record_id: row.upstream_record_id,
-  };
-  if (row.notes) {
-    base.notes = row.notes;
-  }
-  if (row.model_invocation) {
-    base.model_invocation = row.model_invocation;
-  }
-  if (row.parent_record_id) {
-    base.parent_record_id = row.parent_record_id;
-  }
-  // Merge behaviour-specific payload fields.
-  return { ...base, ...(row.payload as Record<string, unknown>) };
-}
-
-/**
  * Full server-side validation for a single record:
  * schema_version, agent ownership, and DAG reference integrity.
  * Throws ORPCError on failure.
@@ -234,7 +192,18 @@ async function validateRecord(
 // ---------------------------------------------------------------------------
 
 export const submitRecord = authed
-  .route({ method: "POST", path: "/v1/records" })
+  .route({
+    description:
+      "Submit a single reasoning record. " +
+      "The server validates `schema_version`, verifies that `agent_id` belongs to the calling owner, " +
+      "checks that any `upstream_record_id` and `parent_record_id` references resolve to existing records under the same agent, " +
+      "stamps `server_ts_utc` on receipt, and persists the record. " +
+      "Submission is idempotent on `(agent_id, record_id)`: a duplicate returns the original ack with `is_duplicate: true` without creating a second row.",
+    method: "POST",
+    path: "/v1/records",
+    summary: "Submit record",
+    tags: ["Records"],
+  })
   .input(LedgerRecord)
   .output(RecordAck)
   .handler(async ({ input, context }) => {
@@ -257,7 +226,17 @@ export const submitRecord = authed
 // ---------------------------------------------------------------------------
 
 export const submitBatch = authed
-  .route({ method: "POST", path: "/v1/records:batch" })
+  .route({
+    description:
+      "Submit up to 50 reasoning records in a single request. " +
+      "Per-record failures are isolated: one invalid or conflicting record does not abort the rest. " +
+      "Inspect `results[]` — each entry is either a `RecordAck` (success) or a `RecordError` (failure), in the same order as the submitted batch. " +
+      "Batch-level failures (auth error, batch too large, total payload > 1 MB) raise immediately and no records are persisted.",
+    method: "POST",
+    path: "/v1/records:batch",
+    summary: "Submit batch of records",
+    tags: ["Records"],
+  })
   .input(
     z.object({
       records: z.array(LedgerRecord).min(1).max(MAX_BATCH_SIZE),
@@ -323,7 +302,15 @@ export const submitBatch = authed
 // ---------------------------------------------------------------------------
 
 export const getRecord = authed
-  .route({ method: "GET", path: "/v1/records/{record_id}" })
+  .route({
+    description:
+      "Fetch a single reasoning record by `record_id`. " +
+      "The record's agent must belong to the calling owner — records belonging to other owners return 404.",
+    method: "GET",
+    path: "/v1/records/{record_id}",
+    summary: "Get record",
+    tags: ["Records"],
+  })
   .input(z.object({ record_id: z.string().uuid() }))
   .output(z.record(z.string(), z.unknown()))
   .handler(async ({ input, context }) => {

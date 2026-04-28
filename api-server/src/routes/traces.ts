@@ -2,44 +2,7 @@ import { ORPCError } from "@orpc/server";
 import * as z from "zod";
 import { prisma } from "#/lib/prisma";
 import { authed } from "#/lib/auth";
-
-function reconstructRecord(row: {
-  record_id: string;
-  agent_id: string;
-  session_id: string;
-  schema_version: string;
-  behavior: string;
-  client_ts_utc: bigint;
-  server_ts_utc: bigint;
-  notes: string | null;
-  tags: string[];
-  model_invocation: unknown;
-  upstream_record_id: string[];
-  parent_record_id: string | null;
-  payload: unknown;
-}): Record<string, unknown> {
-  const base: Record<string, unknown> = {
-    agent_id: row.agent_id,
-    behavior: row.behavior,
-    client_ts_utc: Number(row.client_ts_utc),
-    record_id: row.record_id,
-    schema_version: row.schema_version,
-    server_ts_utc: Number(row.server_ts_utc),
-    session_id: row.session_id,
-    tags: row.tags,
-    upstream_record_id: row.upstream_record_id,
-  };
-  if (row.notes) {
-    base.notes = row.notes;
-  }
-  if (row.model_invocation) {
-    base.model_invocation = row.model_invocation;
-  }
-  if (row.parent_record_id) {
-    base.parent_record_id = row.parent_record_id;
-  }
-  return { ...base, ...(row.payload as Record<string, unknown>) };
-}
+import { reconstructRecord } from "#/lib/record";
 
 // ---------------------------------------------------------------------------
 // GET /v1/traces/:agent_id
@@ -54,7 +17,17 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 
 export const getTrace = authed
-  .route({ method: "GET", path: "/v1/traces/{agent_id}" })
+  .route({
+    description:
+      "Paginated read of an agent's full trace, ordered by `server_ts_utc` descending (newest first). " +
+      "Uses cursor-based pagination: pass the `next_cursor` from a previous response as the `before` parameter to fetch the next page. " +
+      "`limit` defaults to 100 and is capped at 500. " +
+      "`next_cursor` is `null` when there are no more pages.",
+    method: "GET",
+    path: "/v1/traces/{agent_id}",
+    summary: "Get agent trace",
+    tags: ["Traces"],
+  })
   .input(
     z.object({
       agent_id: z.string().uuid(),

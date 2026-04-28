@@ -52,7 +52,17 @@ function agentToMeta(agent: {
 // ---------------------------------------------------------------------------
 
 export const registerAgent = authed
-  .route({ method: "POST", path: "/v1/agents" })
+  .route({
+    description:
+      "Register a new agent under the calling owner, or return the existing one when `name` is already taken by this owner (idempotent on `(owner, name)`). " +
+      "A per-agent anchor wallet is provisioned automatically: custodial owners receive a Stair AI-managed address; " +
+      "BYOW owners may supply a `wallet.address`, otherwise the agent inherits the owner's default wallet. " +
+      "A `wallet` argument on a repeat call is ignored.",
+    method: "POST",
+    path: "/v1/agents",
+    summary: "Register agent",
+    tags: ["Agents"],
+  })
   .input(RegisterAgentInput)
   .output(
     z.object({
@@ -112,7 +122,15 @@ export const registerAgent = authed
 // ---------------------------------------------------------------------------
 
 export const resolveAgent = authed
-  .route({ method: "GET", path: "/v1/agents" })
+  .route({
+    description:
+      "Resolve an agent by human-readable `name` within the calling owner's scope. " +
+      "Backs `LedgerClient.resolveAgentId()`. Best practice: call once at startup and cache the result; `agent_id` (UUID) is the runtime identifier for all subsequent operations.",
+    method: "GET",
+    path: "/v1/agents",
+    summary: "Resolve agent by name",
+    tags: ["Agents"],
+  })
   .input(z.object({ name: z.string().min(1) }))
   .output(
     z.object({
@@ -147,7 +165,15 @@ export const resolveAgent = authed
 // ---------------------------------------------------------------------------
 
 export const getAgent = authed
-  .route({ method: "GET", path: "/v1/agents/{agent_id}" })
+  .route({
+    description:
+      "Fetch public metadata for a specific agent. " +
+      "The agent must belong to the owner identified by the `X-API-Key` header — agents owned by other owners return 404.",
+    method: "GET",
+    path: "/v1/agents/{agent_id}",
+    summary: "Get agent",
+    tags: ["Agents"],
+  })
   .input(z.object({ agent_id: z.string().uuid() }))
   .output(
     z.object({
@@ -181,7 +207,17 @@ export const getAgent = authed
 // ---------------------------------------------------------------------------
 
 export const updateAgent = authed
-  .route({ method: "PATCH", path: "/v1/agents/{agent_id}" })
+  .route({
+    description:
+      "Update mutable metadata (`name`, `description`, `website`, `tags`) for an agent. " +
+      "Only fields present in the request body are updated. " +
+      "Renaming is subject to uniqueness within the owner's scope — a conflict returns 409. " +
+      "`agent_wallet_address` is immutable after registration.",
+    method: "PATCH",
+    path: "/v1/agents/{agent_id}",
+    summary: "Update agent",
+    tags: ["Agents"],
+  })
   .input(z.object({ agent_id: z.string().uuid() }).merge(UpdateAgentInput))
   .output(
     z.object({
