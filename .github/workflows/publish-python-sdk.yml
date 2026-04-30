@@ -1,0 +1,27 @@
+name: Publish Python SDK to PyPI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for OIDC trusted publishing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build distribution
+        working-directory: python-sdk
+        run: uv build --wheel --sdist
+
+      - name: Publish to PyPI
+        working-directory: python-sdk
+        run: uv publish --trusted-publishing always
