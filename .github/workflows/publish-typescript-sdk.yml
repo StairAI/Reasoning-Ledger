@@ -1,0 +1,37 @@
+name: Publish TypeScript SDK to npm
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Build and publish to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+          cache-dependency-path: typescript-sdk/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: typescript-sdk
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: typescript-sdk
+        run: pnpm build
+
+      - name: Publish to npm
+        working-directory: typescript-sdk
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
