@@ -7,6 +7,9 @@ jobs:
   publish:
     name: Build and publish to npm
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC trusted publishing
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"   # npm 11.5.1+ (required for OIDC) ships with Node 24
           registry-url: "https://registry.npmjs.org"
           cache: "pnpm"
           cache-dependency-path: typescript-sdk/pnpm-lock.yaml
@@ -32,6 +35,4 @@ jobs:
 
       - name: Publish to npm
         working-directory: typescript-sdk
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
