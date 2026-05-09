@@ -11,7 +11,6 @@ This repository is the complete Reasoning Ledger platform:
 | [`python-sdk/`](./python-sdk/) | Python client library (`reasoning-ledger-sdk` on PyPI) |
 | [`schema/`](./schema/) | Canonical JSON Schema (Draft 2020-12) for all record types |
 | [`scripts/`](./scripts/) | Codegen script (`codegen.mts`) that generates native bindings from the schema |
-| [`docs/`](./docs/) | Design document (`Reasoning_Ledger_SDK_Design_v1.md`) |
 
 ---
 
@@ -62,8 +61,6 @@ Reasoning-Ledger/
 │  └─ records.schema.json   # Source of truth for all record types
 ├─ scripts/
 │  └─ codegen.mts           # Generates TS + Python bindings from schema
-├─ docs/
-│  └─ Reasoning_Ledger_SDK_Design_v1.md
 ├─ pnpm-workspace.yaml  # api-server + typescript-sdk are pnpm workspace members
 └─ .github/workflows/
    ├─ publish-typescript-sdk.yml
@@ -148,7 +145,6 @@ session.submit({
 - **TypeScript SDK** — [`typescript-sdk/README.md`](./typescript-sdk/README.md)
 - **Python SDK** — [`python-sdk/README.md`](./python-sdk/README.md)
 - **API Server** — [`api-server/README.md`](./api-server/README.md)
-- **Design document** — [`docs/Reasoning_Ledger_SDK_Design_v1.md`](./docs/Reasoning_Ledger_SDK_Design_v1.md)
 
 ---
 
