@@ -4,16 +4,16 @@ The Trace Service: the HTTP API that receives, stores, and serves reasoning reco
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| HTTP / RPC | [oRPC](https://orpc.io) 1.x with OpenAPI plugin |
-| ORM | Prisma 7 with `@prisma/adapter-pg` (direct `pg` pool, no PgBouncer) |
-| Database | PostgreSQL 14+ |
-| Validation | Zod 4 |
-| Runtime | Node.js 22+ (ESM) |
-| Build | tsup |
-| Tests | Vitest (integration tests against a live DB) |
-| Linting / formatting | oxlint + oxfmt via `ultracite` |
+| Layer                | Technology                                                          |
+| -------------------- | ------------------------------------------------------------------- |
+| HTTP / RPC           | [oRPC](https://orpc.io) 1.x with OpenAPI plugin                     |
+| ORM                  | Prisma 7 with `@prisma/adapter-pg` (direct `pg` pool, no PgBouncer) |
+| Database             | PostgreSQL 14+                                                      |
+| Validation           | Zod 4                                                               |
+| Runtime              | Node.js 22+ (ESM)                                                   |
+| Build                | tsup                                                                |
+| Tests                | Vitest (integration tests against a live DB)                        |
+| Linting / formatting | oxlint + oxfmt via `ultracite`                                      |
 
 ## Prerequisites
 
@@ -97,11 +97,11 @@ pnpm fix     # auto-fix lint + format issues
 
 The schema is defined in [`prisma/schema.prisma`](./prisma/schema.prisma). Key models:
 
-| Model | Table | Description |
-|---|---|---|
-| `Owner` | `owners` | One per partner org; holds `api_key_hash` (SHA-256 of raw key), wallet address, wallet mode |
-| `Agent` | `agents` | One per reasoning-producing entity; unique on `(owner_id, name)`; holds `agent_wallet_address` |
-| `TraceRecord` | `trace_records` | One per submitted record; `record_id` is SDK-generated UUID v4 and the idempotency key |
+| Model         | Table           | Description                                                                                    |
+| ------------- | --------------- | ---------------------------------------------------------------------------------------------- |
+| `Owner`       | `owners`        | One per partner org; holds `api_key_hash` (SHA-256 of raw key), wallet address, wallet mode    |
+| `Agent`       | `agents`        | One per reasoning-producing entity; unique on `(owner_id, name)`; holds `agent_wallet_address` |
+| `TraceRecord` | `trace_records` | One per submitted record; `record_id` is SDK-generated UUID v4 and the idempotency key         |
 
 `api_key` values are never stored raw — only the SHA-256 hex digest (`api_key_hash`) is persisted. The raw key is shown to the owner once at registration and is not recoverable server-side.
 
@@ -109,27 +109,27 @@ The schema is defined in [`prisma/schema.prisma`](./prisma/schema.prisma). Key m
 
 All routes are under `/v1`. Authentication uses the `Authorization: Bearer sl_<64 hex chars>` header.
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/v1/owners` | Register a new owner (out-of-band; not SDK surface) |
-| `PATCH` | `/v1/owners/me` | Update owner metadata |
-| `POST` | `/v1/owners/me/rotate-key` | Rotate the owner's API key |
-| `POST` | `/v1/agents` | Register a new agent (SDK: `registerAgent`) |
-| `GET` | `/v1/agents` | Look up an agent by name (SDK: `resolveAgentId`) |
-| `POST` | `/v1/records` | Submit a single record (SDK: `submit`) |
-| `POST` | `/v1/records/batch` | Submit up to 50 records (SDK: `submitBatch`) |
-| `GET` | `/v1/records/:record_id` | Fetch a single record (SDK: `getRecord`) |
-| `GET` | `/v1/sessions/:session_id` | Fetch all records in a session (SDK: `getSession`) |
-| `GET` | `/v1/traces` | Paginated agent trace (SDK: `getTrace`) |
+| Method  | Path                       | Description                                         |
+| ------- | -------------------------- | --------------------------------------------------- |
+| `POST`  | `/v1/owners`               | Register a new owner (out-of-band; not SDK surface) |
+| `PATCH` | `/v1/owners/me`            | Update owner metadata                               |
+| `POST`  | `/v1/owners/me/rotate-key` | Rotate the owner's API key                          |
+| `POST`  | `/v1/agents`               | Register a new agent (SDK: `registerAgent`)         |
+| `GET`   | `/v1/agents`               | Look up an agent by name (SDK: `resolveAgentId`)    |
+| `POST`  | `/v1/records`              | Submit a single record (SDK: `submit`)              |
+| `POST`  | `/v1/records/batch`        | Submit up to 50 records (SDK: `submitBatch`)        |
+| `GET`   | `/v1/records/:record_id`   | Fetch a single record (SDK: `getRecord`)            |
+| `GET`   | `/v1/sessions/:session_id` | Fetch all records in a session (SDK: `getSession`)  |
+| `GET`   | `/v1/traces`               | Paginated agent trace (SDK: `getTrace`)             |
 
 An OpenAPI 3.1 spec is served at `/openapi.json`.
 
 ## Environment variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | Yes | `postgres://` connection string |
-| `PORT` | No | HTTP port to listen on (default `3000`) |
+| Variable       | Required | Description                             |
+| -------------- | -------- | --------------------------------------- |
+| `DATABASE_URL` | Yes      | `postgres://` connection string         |
+| `PORT`         | No       | HTTP port to listen on (default `3000`) |
 
 ## License
 

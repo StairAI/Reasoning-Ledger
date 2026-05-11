@@ -145,7 +145,7 @@ if (generateTs) {
 // ---------------------------------------------------------------------------
 
 if (generatePy) {
-  const pyOutput = resolve(rootDir, "python-sdk/src/reasoning_ledger_sdk/generated/records.py");
+  const pyOutput = resolve(rootDir, "python-sdk/src/reasoning_ledger/generated/records.py");
   mkdirSync(dirname(pyOutput), { recursive: true });
 
   // Write an __init__.py so the package is importable

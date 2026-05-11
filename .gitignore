@@ -4,3 +4,13 @@ docs/
 .DS_Store
 # Claude Code session exports (timestamped at the repo root)
 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/

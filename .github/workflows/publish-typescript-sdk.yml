@@ -23,11 +23,10 @@ jobs:
           node-version: "24"   # npm 11.5.1+ (required for OIDC) ships with Node 24
           registry-url: "https://registry.npmjs.org"
           cache: "pnpm"
-          cache-dependency-path: typescript-sdk/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        working-directory: typescript-sdk
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter typescript-sdk...
 
       - name: Build
         working-directory: typescript-sdk

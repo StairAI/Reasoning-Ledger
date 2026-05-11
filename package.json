@@ -14,6 +14,6 @@
     "simple-git-hooks": "^2.13.1"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm codegen && pnpm fix && git add api-server/src/generated typescript-sdk/src/generated python-sdk/src/reasoning_ledger_sdk/generated"
+    "pre-commit": "pnpm codegen && pnpm fix && git add api-server/src/generated typescript-sdk/src/generated python-sdk/src/reasoning_ledger/generated"
   }
 }

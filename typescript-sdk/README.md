@@ -106,7 +106,7 @@ await session.submit({
 ```typescript
 const batchAck = await session.submitBatch([
   { behavior: "Thinking", prompt: "...", inputs: [], output_payload: "..." },
-  { behavior: "Acting",   action_type: "...", /* ... */ },
+  { behavior: "Acting", action_type: "..." /* ... */ },
 ]);
 
 for (const result of batchAck.results) {
@@ -124,26 +124,26 @@ Up to 50 records per batch. Per-record validation runs locally before the networ
 
 All seven behaviors extend `BaseRecord`. The `behavior` field is a discriminant; TypeScript narrows the union automatically.
 
-| Behavior | Required fields (beyond base) |
-|---|---|
-| `Observing` | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary` |
-| `Planning` | `goal`, `steps` |
-| `Thinking` | `prompt`, `inputs`, `output_payload` |
-| `Acting` | `action_type`, `target_system`, `action_summary`, `parameters`, `dry_run`, `execution_status` |
-| `Reflecting` | `inputs`, `output_payload` |
-| `ToolCalling` | `tool_meta`, `description`, `input_payload`, `output_payload`, `success` |
-| `Other` | `label`, `data` |
+| Behavior      | Required fields (beyond base)                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| `Observing`   | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary`            |
+| `Planning`    | `goal`, `steps`                                                                               |
+| `Thinking`    | `prompt`, `inputs`, `output_payload`                                                          |
+| `Acting`      | `action_type`, `target_system`, `action_summary`, `parameters`, `dry_run`, `execution_status` |
+| `Reflecting`  | `inputs`, `output_payload`                                                                    |
+| `ToolCalling` | `tool_meta`, `description`, `input_payload`, `output_payload`, `success`                      |
+| `Other`       | `label`, `data`                                                                               |
 
 ### Auto-filled fields
 
 The SDK fills these if you omit them:
 
-| Field | SDK default |
-|---|---|
-| `record_id` | Fresh UUID v4 |
-| `schema_version` | `"1.0"` (bundled constant) |
-| `client_ts_utc` | `Date.now()` (epoch ms) |
-| `agent_id` | From `LedgerClientConfig.agentId` |
+| Field            | SDK default                       |
+| ---------------- | --------------------------------- |
+| `record_id`      | Fresh UUID v4                     |
+| `schema_version` | `"1.0"` (bundled constant)        |
+| `client_ts_utc`  | `Date.now()` (epoch ms)           |
+| `agent_id`       | From `LedgerClientConfig.agentId` |
 
 ---
 
@@ -164,7 +164,9 @@ import {
 } from "reasoning-ledger-sdk";
 
 try {
-  await session.submit({ /* ... */ });
+  await session.submit({
+    /* ... */
+  });
 } catch (err) {
   if (err instanceof ValidationError) {
     // Local schema check failed — never reached the network
@@ -178,15 +180,15 @@ try {
 }
 ```
 
-| Class | `code` | When |
-|---|---|---|
-| `ValidationError` | `validation_failed` | Local schema check failed; record never sent |
-| `AuthError` | `auth_invalid` | API key rejected |
-| `RateLimitError` | `rate_limited` | Server rate-limited the request |
-| `NetworkError` | `network_failed` | Request never reached the server after retries |
-| `ServerError` | `server_5xx` | Non-retryable 5xx from server |
+| Class                      | `code`               | When                                           |
+| -------------------------- | -------------------- | ---------------------------------------------- |
+| `ValidationError`          | `validation_failed`  | Local schema check failed; record never sent   |
+| `AuthError`                | `auth_invalid`       | API key rejected                               |
+| `RateLimitError`           | `rate_limited`       | Server rate-limited the request                |
+| `NetworkError`             | `network_failed`     | Request never reached the server after retries |
+| `ServerError`              | `server_5xx`         | Non-retryable 5xx from server                  |
 | `IdempotencyConflictError` | `record_id_conflict` | Same `record_id` submitted with different body |
-| `NotFoundError` | `not_found` | Lookup target does not exist |
+| `NotFoundError`            | `not_found`          | Lookup target does not exist                   |
 
 ---
 
@@ -234,12 +236,13 @@ import type { HttpRequest, HttpResponse, HttpTransport } from "reasoning-ledger-
 const loggingTransport: HttpTransport = {
   async request(req: HttpRequest): Promise<HttpResponse> {
     console.log(req.method, req.url);
-    return fetch(req.url, { method: req.method, headers: req.headers, body: req.body })
-      .then(async (r) => ({
+    return fetch(req.url, { method: req.method, headers: req.headers, body: req.body }).then(
+      async (r) => ({
         status: r.status,
         headers: Object.fromEntries(r.headers),
         body: await r.text(),
-      }));
+      }),
+    );
   },
 };
 ```
@@ -268,7 +271,10 @@ opts: {
 Look up an `agent_id` by human-readable name.
 
 ```typescript
-opts: { apiKey: string; name: string }
+opts: {
+  apiKey: string;
+  name: string;
+}
 ```
 
 ### Instance methods
@@ -320,9 +326,9 @@ The bound `session_id` (read-only).
 ```typescript
 import { isValidRecordId, newRecordId, nowEpochMs } from "reasoning-ledger-sdk";
 
-newRecordId()              // → fresh UUID v4 string
-nowEpochMs()               // → current epoch milliseconds (integer)
-isValidRecordId("...")     // → boolean — is the string a valid UUID v4?
+newRecordId(); // → fresh UUID v4 string
+nowEpochMs(); // → current epoch milliseconds (integer)
+isValidRecordId("..."); // → boolean — is the string a valid UUID v4?
 ```
 
 Use `newRecordId()` when building dependency edges where a child needs to reference an as-yet-unsubmitted record via `upstream_record_id` or `parent_record_id`.
