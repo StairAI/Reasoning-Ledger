@@ -8,7 +8,7 @@ This repository is the complete Reasoning Ledger platform:
 |---|---|
 | [`api-server/`](./api-server/) | Trace Service — the HTTP API that receives, stores, and serves records |
 | [`typescript-sdk/`](./typescript-sdk/) | TypeScript/Node.js client library (`reasoning-ledger-sdk` on npm) |
-| [`python-sdk/`](./python-sdk/) | Python client library (`reasoning-ledger-sdk` on PyPI) |
+| [`python-sdk/`](./python-sdk/) | Python client library (`reasoning-ledger` on PyPI) |
 | [`schema/`](./schema/) | Canonical JSON Schema (Draft 2020-12) for all record types |
 | [`scripts/`](./scripts/) | Codegen script (`codegen.mts`) that generates native bindings from the schema |
 
@@ -56,7 +56,7 @@ session "cycle-001"
 Reasoning-Ledger/
 ├─ api-server/          # Trace Service (oRPC + Prisma + PostgreSQL)
 ├─ typescript-sdk/      # npm package: reasoning-ledger-sdk
-├─ python-sdk/          # PyPI package: reasoning-ledger-sdk
+├─ python-sdk/          # PyPI package: reasoning-ledger
 ├─ schema/
 │  └─ records.schema.json   # Source of truth for all record types
 ├─ scripts/
@@ -96,7 +96,7 @@ const { agent_id } = await LedgerClient.registerAgent({
 **Python**
 
 ```python
-from reasoning_ledger_sdk import LedgerClient, RegisterAgentOpts
+from reasoning_ledger import LedgerClient, RegisterAgentOpts
 
 reg = LedgerClient.register_agent(RegisterAgentOpts(
     api_key=os.environ["STAIRAI_API_KEY"],
@@ -122,7 +122,7 @@ await session.submit({
 
 ```python
 # Python
-from reasoning_ledger_sdk import LedgerClient, LedgerClientConfig
+from reasoning_ledger import LedgerClient, LedgerClientConfig
 
 client = LedgerClient(LedgerClientConfig(
     api_key="sl_...",
@@ -156,7 +156,7 @@ All record types are defined once in [`schema/records.schema.json`](./schema/rec
 pnpm tsx scripts/codegen.mts
 ```
 
-The pre-commit hook runs this automatically. Never edit the generated files (`src/generated/records.ts`, `src/reasoning_ledger_sdk/generated/records.py`) by hand.
+The pre-commit hook runs this automatically. Never edit the generated files (`src/generated/records.ts`, `src/reasoning_ledger/generated/records.py`) by hand.
 
 ---
 

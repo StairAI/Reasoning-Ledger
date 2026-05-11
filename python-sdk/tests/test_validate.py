@@ -1,8 +1,8 @@
 import pytest
 
-from reasoning_ledger_sdk.constants import SIZE_LIMITS
-from reasoning_ledger_sdk.errors import ValidationError
-from reasoning_ledger_sdk.validate import validate_batch, validate_record
+from reasoning_ledger.constants import SIZE_LIMITS
+from reasoning_ledger.errors import ValidationError
+from reasoning_ledger.validate import validate_batch, validate_record
 
 # ---------------------------------------------------------------------------
 # Shared minimal valid record builders

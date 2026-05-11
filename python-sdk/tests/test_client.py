@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from reasoning_ledger_sdk.client import LedgerClient
-from reasoning_ledger_sdk.errors import AuthError, ServerError, ValidationError
-from reasoning_ledger_sdk.types import (
+from reasoning_ledger.client import LedgerClient
+from reasoning_ledger.errors import AuthError, ServerError, ValidationError
+from reasoning_ledger.types import (
     AgentMetadata,
     AgentWalletInput,
     GetTraceOpts,
@@ -365,7 +365,7 @@ class TestRetry:
         assert len(transport.calls) == 1
 
     def test_retries_on_network_error(self) -> None:
-        from reasoning_ledger_sdk.errors import NetworkError as _NE
+        from reasoning_ledger.errors import NetworkError as _NE
 
         class FailOnceThenOkTransport:
             def __init__(self) -> None:

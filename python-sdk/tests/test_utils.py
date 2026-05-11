@@ -1,6 +1,6 @@
 import pytest
 
-from reasoning_ledger_sdk.utils import is_valid_record_id, new_record_id, now_epoch_ms
+from reasoning_ledger.utils import is_valid_record_id, new_record_id, now_epoch_ms
 
 # ---------------------------------------------------------------------------
 # new_record_id

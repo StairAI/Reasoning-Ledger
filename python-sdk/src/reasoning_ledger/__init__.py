@@ -1,5 +1,5 @@
 """
-reasoning-ledger-sdk — Python SDK for the Reasoning Ledger API.
+reasoning-ledger — Python SDK for the Reasoning Ledger API.
 """
 
 from .client import LedgerClient

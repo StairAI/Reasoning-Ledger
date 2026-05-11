@@ -4,13 +4,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from reasoning_ledger_sdk.client import LedgerClient
-from reasoning_ledger_sdk.types import (
+from reasoning_ledger.client import LedgerClient
+from reasoning_ledger.types import (
     HttpRequest,
     HttpResponse,
     LedgerClientConfig,
 )
-from reasoning_ledger_sdk.utils import is_valid_record_id
+from reasoning_ledger.utils import is_valid_record_id
 
 # ---------------------------------------------------------------------------
 # Mock transport (same pattern as test_client.py)

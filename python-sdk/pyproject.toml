@@ -1,8 +1,8 @@
 [project]
-name = "reasoning-ledger-sdk"
+name = "reasoning-ledger"
 version = "0.1.0"
 license = "MIT"
-description = "reasoning-ledger-sdk is a Python SDK for interacting with the Reasoning Ledger."
+description = "Python SDK for interacting with the Reasoning Ledger."
 readme = "README.md"
 authors = [
     { name = "Arslan Ablikim", email = "arslan.ablikim0@gmail.com" }
@@ -30,7 +30,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["src/reasoning_ledger_sdk/generated"]
+extend-exclude = ["src/reasoning_ledger/generated"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "RUF", "PERF", "S"]

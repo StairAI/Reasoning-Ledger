@@ -1,11 +1,11 @@
-# reasoning-ledger-sdk
+# reasoning-ledger
 
 Python SDK for the [Reasoning Ledger](https://github.com/StairAI/Reasoning-Ledger) — a tamper-evident audit trail for AI agent reasoning.
 
 ## Install
 
 ```sh
-pip install reasoning-ledger-sdk
+pip install reasoning-ledger
 ```
 
 Requires **Python 3.12+**. Dependencies: `pydantic>=2`, `httpx>=0.27`.
@@ -18,7 +18,7 @@ Agent registration is idempotent on `(owner, name)` — calling it again with th
 
 ```python
 import os
-from reasoning_ledger_sdk import LedgerClient, RegisterAgentOpts
+from reasoning_ledger import LedgerClient, RegisterAgentOpts
 
 reg = LedgerClient.register_agent(RegisterAgentOpts(
     api_key=os.environ["STAIRAI_API_KEY"],
@@ -32,7 +32,7 @@ agent_id = reg["agent_id"]
 If you already have an `agent_id` (e.g. stored in config), skip registration. To look up an agent ID by name at startup:
 
 ```python
-from reasoning_ledger_sdk import LedgerClient, ResolveAgentOpts
+from reasoning_ledger import LedgerClient, ResolveAgentOpts
 
 agent_id = LedgerClient.resolve_agent_id(ResolveAgentOpts(
     api_key=os.environ["STAIRAI_API_KEY"],
@@ -43,7 +43,7 @@ agent_id = LedgerClient.resolve_agent_id(ResolveAgentOpts(
 ### 2. Create a client
 
 ```python
-from reasoning_ledger_sdk import LedgerClient, LedgerClientConfig
+from reasoning_ledger import LedgerClient, LedgerClientConfig
 
 client = LedgerClient(LedgerClientConfig(
     api_key=os.environ["STAIRAI_API_KEY"],
@@ -150,7 +150,7 @@ The SDK fills these if you omit them:
 All errors inherit from `LedgerError` and carry a stable `code` string:
 
 ```python
-from reasoning_ledger_sdk import (
+from reasoning_ledger import (
     AuthError,
     IdempotencyConflictError,
     LedgerError,
@@ -188,7 +188,7 @@ except LedgerError as e:
 ## Configuration
 
 ```python
-from reasoning_ledger_sdk import LedgerClientConfig
+from reasoning_ledger import LedgerClientConfig
 
 config = LedgerClientConfig(
     api_key="sl_...",
@@ -221,7 +221,7 @@ config = LedgerClientConfig(
 Inject any object implementing the `HttpTransport` protocol to intercept or mock network calls:
 
 ```python
-from reasoning_ledger_sdk import HttpRequest, HttpResponse, HttpTransport
+from reasoning_ledger import HttpRequest, HttpResponse, HttpTransport
 
 class LoggingTransport:
     def request(self, req: HttpRequest) -> HttpResponse:
@@ -279,7 +279,7 @@ Fetch every record in a session, ordered by `server_ts_utc`.
 Paginated read of the agent's full trace.
 
 ```python
-from reasoning_ledger_sdk import GetTraceOpts
+from reasoning_ledger import GetTraceOpts
 
 page = client.get_trace(GetTraceOpts(before=cursor, limit=100))
 ```
@@ -305,7 +305,7 @@ The bound `session_id` (read-only property).
 ### Utility functions
 
 ```python
-from reasoning_ledger_sdk import is_valid_record_id, new_record_id, now_epoch_ms
+from reasoning_ledger import is_valid_record_id, new_record_id, now_epoch_ms
 
 new_record_id()              # → fresh UUID v4 string
 now_epoch_ms()               # → current epoch milliseconds (int)

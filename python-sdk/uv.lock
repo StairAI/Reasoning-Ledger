@@ -231,7 +231,7 @@ wheels = [
 ]
 
 [[package]]
-name = "reasoning-ledger-sdk"
+name = "reasoning-ledger"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
