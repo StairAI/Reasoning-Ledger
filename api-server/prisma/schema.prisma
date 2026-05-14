@@ -29,6 +29,11 @@ enum BehaviorType {
   Other
 }
 
+enum ProxyService {
+  sportmonks
+  polymarket
+}
+
 // ---------------------------------------------------------------------------
 // Owner — one per partner organisation
 // Registered out-of-band (website / BD flow); not via the SDK.
@@ -47,7 +52,8 @@ model Owner {
   created_at           DateTime   @default(now())
   updated_at           DateTime   @updatedAt
 
-  agents Agent[]
+  agents      Agent[]
+  proxy_keys  ProxyApiKey[]
 
   @@map("owners")
 }
@@ -119,4 +125,67 @@ model TraceRecord {
   @@index([agent_id, session_id])
   @@index([agent_id, server_ts_utc(sort: Desc)])
   @@map("trace_records")
+}
+
+// ---------------------------------------------------------------------------
+// ProxyApiKey — API keys for proxying requests to external services
+// Allows users to access Sportmonks/Polymarket APIs through our domain
+// ---------------------------------------------------------------------------
+
+model ProxyApiKey {
+  id                      String       @id @default(uuid())
+  owner_id                String
+  owner                   Owner        @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+
+  /// Service this key grants access to
+  service                 ProxyService
+
+  /// SHA-256 hash of the proxy API key (format: `sp_<64 hex chars>`)
+  proxy_key_hash          String       @unique
+
+  /// The upstream API key (encrypted with AES-256-GCM)
+  upstream_key_encrypted  String
+
+  /// Rate limiting / quota fields for billing
+  monthly_quota_requests  Int          @default(10000)
+  current_month_usage     Int          @default(0)
+  last_reset_at           DateTime     @default(now())
+
+  is_active               Boolean      @default(true)
+  created_at              DateTime     @default(now())
+  updated_at              DateTime     @updatedAt
+
+  usage_logs              ProxyUsageLog[]
+
+  /// Each owner can have at most one active key per service
+  @@unique([owner_id, service])
+  @@index([owner_id])
+  @@map("proxy_api_keys")
+}
+
+// ---------------------------------------------------------------------------
+// ProxyUsageLog — Request logs for metering and billing
+// ---------------------------------------------------------------------------
+
+model ProxyUsageLog {
+  id              String       @id @default(uuid())
+  proxy_key_id    String
+  proxy_key       ProxyApiKey  @relation(fields: [proxy_key_id], references: [id], onDelete: Cascade)
+
+  service         ProxyService
+  request_method  String       // GET, POST, etc.
+  request_path    String       // /sports/v3/football/matches
+
+  status_code     Int
+  response_bytes  Int          @default(0)
+  latency_ms      Int          @default(0)
+
+  /// Error message if status >= 400
+  error_message   String?
+
+  created_at      DateTime     @default(now())
+
+  @@index([proxy_key_id, created_at(sort: Desc)])
+  @@index([created_at(sort: Desc)])
+  @@map("proxy_usage_logs")
 }
