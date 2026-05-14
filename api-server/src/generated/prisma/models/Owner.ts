@@ -219,6 +219,7 @@ export type OwnerWhereInput = {
   created_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
   updated_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
   agents?: Prisma.AgentListRelationFilter;
+  proxy_keys?: Prisma.ProxyApiKeyListRelationFilter;
 };
 
 export type OwnerOrderByWithRelationInput = {
@@ -233,6 +234,7 @@ export type OwnerOrderByWithRelationInput = {
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
   agents?: Prisma.AgentOrderByRelationAggregateInput;
+  proxy_keys?: Prisma.ProxyApiKeyOrderByRelationAggregateInput;
 };
 
 export type OwnerWhereUniqueInput = Prisma.AtLeast<
@@ -251,6 +253,7 @@ export type OwnerWhereUniqueInput = Prisma.AtLeast<
     created_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
     updated_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
     agents?: Prisma.AgentListRelationFilter;
+    proxy_keys?: Prisma.ProxyApiKeyListRelationFilter;
   },
   "id" | "email" | "api_key_hash"
 >;
@@ -299,6 +302,7 @@ export type OwnerCreateInput = {
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+  proxy_keys?: Prisma.ProxyApiKeyCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateInput = {
@@ -313,6 +317,7 @@ export type OwnerUncheckedCreateInput = {
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+  proxy_keys?: Prisma.ProxyApiKeyUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUpdateInput = {
@@ -327,6 +332,7 @@ export type OwnerUpdateInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+  proxy_keys?: Prisma.ProxyApiKeyUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateInput = {
@@ -341,6 +347,7 @@ export type OwnerUncheckedUpdateInput = {
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
+  proxy_keys?: Prisma.ProxyApiKeyUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateManyInput = {
@@ -468,6 +475,32 @@ export type OwnerUpdateOneRequiredWithoutAgentsNestedInput = {
   >;
 };
 
+export type OwnerCreateNestedOneWithoutProxy_keysInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutProxy_keysInput,
+    Prisma.OwnerUncheckedCreateWithoutProxy_keysInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutProxy_keysInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+};
+
+export type OwnerUpdateOneRequiredWithoutProxy_keysNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutProxy_keysInput,
+    Prisma.OwnerUncheckedCreateWithoutProxy_keysInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutProxy_keysInput;
+  upsert?: Prisma.OwnerUpsertWithoutProxy_keysInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.OwnerUpdateToOneWithWhereWithoutProxy_keysInput,
+      Prisma.OwnerUpdateWithoutProxy_keysInput
+    >,
+    Prisma.OwnerUncheckedUpdateWithoutProxy_keysInput
+  >;
+};
+
 export type OwnerCreateWithoutAgentsInput = {
   id?: string;
   email: string;
@@ -479,6 +512,7 @@ export type OwnerCreateWithoutAgentsInput = {
   contact_email?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
+  proxy_keys?: Prisma.ProxyApiKeyCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutAgentsInput = {
@@ -492,6 +526,7 @@ export type OwnerUncheckedCreateWithoutAgentsInput = {
   contact_email?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
+  proxy_keys?: Prisma.ProxyApiKeyUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutAgentsInput = {
@@ -533,6 +568,7 @@ export type OwnerUpdateWithoutAgentsInput = {
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  proxy_keys?: Prisma.ProxyApiKeyUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutAgentsInput = {
@@ -546,6 +582,91 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  proxy_keys?: Prisma.ProxyApiKeyUncheckedUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerCreateWithoutProxy_keysInput = {
+  id?: string;
+  email: string;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address: string;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerUncheckedCreateWithoutProxy_keysInput = {
+  id?: string;
+  email: string;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address: string;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerCreateOrConnectWithoutProxy_keysInput = {
+  where: Prisma.OwnerWhereUniqueInput;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutProxy_keysInput,
+    Prisma.OwnerUncheckedCreateWithoutProxy_keysInput
+  >;
+};
+
+export type OwnerUpsertWithoutProxy_keysInput = {
+  update: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutProxy_keysInput,
+    Prisma.OwnerUncheckedUpdateWithoutProxy_keysInput
+  >;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutProxy_keysInput,
+    Prisma.OwnerUncheckedCreateWithoutProxy_keysInput
+  >;
+  where?: Prisma.OwnerWhereInput;
+};
+
+export type OwnerUpdateToOneWithWhereWithoutProxy_keysInput = {
+  where?: Prisma.OwnerWhereInput;
+  data: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutProxy_keysInput,
+    Prisma.OwnerUncheckedUpdateWithoutProxy_keysInput
+  >;
+};
+
+export type OwnerUpdateWithoutProxy_keysInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerUncheckedUpdateWithoutProxy_keysInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 /**
@@ -554,12 +675,14 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
 
 export type OwnerCountOutputType = {
   agents: number;
+  proxy_keys: number;
 };
 
 export type OwnerCountOutputTypeSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
   agents?: boolean | OwnerCountOutputTypeCountAgentsArgs;
+  proxy_keys?: boolean | OwnerCountOutputTypeCountProxy_keysArgs;
 };
 
 /**
@@ -583,6 +706,15 @@ export type OwnerCountOutputTypeCountAgentsArgs<
   where?: Prisma.AgentWhereInput;
 };
 
+/**
+ * OwnerCountOutputType without action
+ */
+export type OwnerCountOutputTypeCountProxy_keysArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.ProxyApiKeyWhereInput;
+};
+
 export type OwnerSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = runtime.Types.Extensions.GetSelect<
@@ -598,6 +730,7 @@ export type OwnerSelect<
     created_at?: boolean;
     updated_at?: boolean;
     agents?: boolean | Prisma.Owner$agentsArgs<ExtArgs>;
+    proxy_keys?: boolean | Prisma.Owner$proxy_keysArgs<ExtArgs>;
     _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
   },
   ExtArgs["result"]["owner"]
@@ -671,6 +804,7 @@ export type OwnerInclude<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
   agents?: boolean | Prisma.Owner$agentsArgs<ExtArgs>;
+  proxy_keys?: boolean | Prisma.Owner$proxy_keysArgs<ExtArgs>;
   _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
 };
 export type OwnerIncludeCreateManyAndReturn<
@@ -686,6 +820,7 @@ export type $OwnerPayload<
   name: "Owner";
   objects: {
     agents: Prisma.$AgentPayload<ExtArgs>[];
+    proxy_keys: Prisma.$ProxyApiKeyPayload<ExtArgs>[];
   };
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -1223,6 +1358,17 @@ export interface Prisma__OwnerClient<
       >
     | Null
   >;
+  proxy_keys<T extends Prisma.Owner$proxy_keysArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Owner$proxy_keysArgs<ExtArgs>>,
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$ProxyApiKeyPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >;
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1707,6 +1853,34 @@ export type Owner$agentsArgs<
   take?: number;
   skip?: number;
   distinct?: Prisma.AgentScalarFieldEnum | Prisma.AgentScalarFieldEnum[];
+};
+
+/**
+ * Owner.proxy_keys
+ */
+export type Owner$proxy_keysArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the ProxyApiKey
+   */
+  select?: Prisma.ProxyApiKeySelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the ProxyApiKey
+   */
+  omit?: Prisma.ProxyApiKeyOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProxyApiKeyInclude<ExtArgs> | null;
+  where?: Prisma.ProxyApiKeyWhereInput;
+  orderBy?:
+    | Prisma.ProxyApiKeyOrderByWithRelationInput
+    | Prisma.ProxyApiKeyOrderByWithRelationInput[];
+  cursor?: Prisma.ProxyApiKeyWhereUniqueInput;
+  take?: number;
+  skip?: number;
+  distinct?: Prisma.ProxyApiKeyScalarFieldEnum | Prisma.ProxyApiKeyScalarFieldEnum[];
 };
 
 /**

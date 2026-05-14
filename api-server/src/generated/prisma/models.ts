@@ -10,4 +10,6 @@
 export type * from "./models/Owner";
 export type * from "./models/Agent";
 export type * from "./models/TraceRecord";
+export type * from "./models/ProxyApiKey";
+export type * from "./models/ProxyUsageLog";
 export type * from "./commonInputTypes";

@@ -51,6 +51,8 @@ export const ModelName = {
   Owner: "Owner",
   Agent: "Agent",
   TraceRecord: "TraceRecord",
+  ProxyApiKey: "ProxyApiKey",
+  ProxyUsageLog: "ProxyUsageLog",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -117,6 +119,39 @@ export const TraceRecordScalarFieldEnum = {
 
 export type TraceRecordScalarFieldEnum =
   (typeof TraceRecordScalarFieldEnum)[keyof typeof TraceRecordScalarFieldEnum];
+
+export const ProxyApiKeyScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  service: "service",
+  proxy_key_hash: "proxy_key_hash",
+  upstream_key_encrypted: "upstream_key_encrypted",
+  monthly_quota_requests: "monthly_quota_requests",
+  current_month_usage: "current_month_usage",
+  last_reset_at: "last_reset_at",
+  is_active: "is_active",
+  created_at: "created_at",
+  updated_at: "updated_at",
+} as const;
+
+export type ProxyApiKeyScalarFieldEnum =
+  (typeof ProxyApiKeyScalarFieldEnum)[keyof typeof ProxyApiKeyScalarFieldEnum];
+
+export const ProxyUsageLogScalarFieldEnum = {
+  id: "id",
+  proxy_key_id: "proxy_key_id",
+  service: "service",
+  request_method: "request_method",
+  request_path: "request_path",
+  status_code: "status_code",
+  response_bytes: "response_bytes",
+  latency_ms: "latency_ms",
+  error_message: "error_message",
+  created_at: "created_at",
+} as const;
+
+export type ProxyUsageLogScalarFieldEnum =
+  (typeof ProxyUsageLogScalarFieldEnum)[keyof typeof ProxyUsageLogScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",

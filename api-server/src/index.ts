@@ -6,6 +6,7 @@ import { onError } from "@orpc/server";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { router } from "./routes";
+import { handleProxyRequest } from "./proxy/handler";
 
 const handler = new OpenAPIHandler(router, {
   interceptors: [onError(console.error)],
@@ -79,6 +80,12 @@ const server = createServer(async (req, res) => {
   });
 
   if (!result.matched) {
+    // Check if it's a proxy request
+    if (req.url?.startsWith("/proxy/")) {
+      await handleProxyRequest(req, res);
+      return;
+    }
+
     res.statusCode = 404;
     res.end(JSON.stringify({ error: "No procedure matched" }));
   }

@@ -26,3 +26,10 @@ export const BehaviorType = {
 } as const;
 
 export type BehaviorType = (typeof BehaviorType)[keyof typeof BehaviorType];
+
+export const ProxyService = {
+  sportmonks: "sportmonks",
+  polymarket: "polymarket",
+} as const;
+
+export type ProxyService = (typeof ProxyService)[keyof typeof ProxyService];

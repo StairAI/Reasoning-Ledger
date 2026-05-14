@@ -31,3 +31,13 @@ export type Agent = Prisma.AgentModel;
  *
  */
 export type TraceRecord = Prisma.TraceRecordModel;
+/**
+ * Model ProxyApiKey
+ *
+ */
+export type ProxyApiKey = Prisma.ProxyApiKeyModel;
+/**
+ * Model ProxyUsageLog
+ *
+ */
+export type ProxyUsageLog = Prisma.ProxyUsageLogModel;
