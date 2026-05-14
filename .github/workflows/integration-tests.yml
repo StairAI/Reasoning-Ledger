@@ -1,0 +1,90 @@
+name: Integration Tests (Staging)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'typescript-sdk/**'
+      - 'python-sdk/**'
+      - 'integration-tests/**'
+      - '.github/workflows/integration-tests.yml'
+  pull_request:
+    paths:
+      - 'typescript-sdk/**'
+      - 'python-sdk/**'
+      - 'integration-tests/**'
+      - '.github/workflows/integration-tests.yml'
+
+jobs:
+  integration-tests:
+    name: Integration Tests against staging-api.stair-ai.com
+    runs-on: ubuntu-latest
+    # Skip if the staging API key secret is not available (e.g., on forks)
+    if: vars.SKIP_INTEGRATION_TESTS != 'true' && (github.event_name == 'workflow_dispatch' || secrets.STAIRAI_STAGING_API_KEY != '')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------------
+      # TypeScript setup
+      # -------------------------------------------------------------------------
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: integration-tests/typescript/pnpm-lock.yaml
+
+      # -------------------------------------------------------------------------
+      # Python setup
+      # -------------------------------------------------------------------------
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # -------------------------------------------------------------------------
+      # Install dependencies
+      # -------------------------------------------------------------------------
+      - name: Install TypeScript integration test dependencies
+        working-directory: integration-tests/typescript
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python integration test dependencies
+        working-directory: integration-tests/python
+        run: uv sync
+
+      # -------------------------------------------------------------------------
+      # Run tests
+      # -------------------------------------------------------------------------
+      - name: Run TypeScript integration tests
+        working-directory: integration-tests/typescript
+        env:
+          STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
+          STAIRAI_STAGING_BASE_URL: https://staging-api.stair-ai.com
+        run: pnpm test
+
+      - name: Run Python integration tests
+        working-directory: integration-tests/python
+        env:
+          STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
+          STAIRAI_STAGING_BASE_URL: https://staging-api.stair-ai.com
+        run: uv run pytest -v
+
+      # -------------------------------------------------------------------------
+      # Summary
+      # -------------------------------------------------------------------------
+      - name: Integration tests passed
+        if: success()
+        run: |
+          echo "✅ All integration tests passed against staging-api.stair-ai.com"
+          echo "- TypeScript SDK lifecycle tests"
+          echo "- Python SDK lifecycle tests"
+          echo "- Cross-SDK synergy tests (both directions)"
