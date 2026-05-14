@@ -378,6 +378,8 @@ export const ModelName = {
   Owner: "Owner",
   Agent: "Agent",
   TraceRecord: "TraceRecord",
+  ProxyApiKey: "ProxyApiKey",
+  ProxyUsageLog: "ProxyUsageLog",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -397,7 +399,7 @@ export type TypeMap<
     omit: GlobalOmitOptions;
   };
   meta: {
-    modelProps: "owner" | "agent" | "traceRecord";
+    modelProps: "owner" | "agent" | "traceRecord" | "proxyApiKey" | "proxyUsageLog";
     txIsolationLevel: TransactionIsolationLevel;
   };
   model: {
@@ -623,6 +625,156 @@ export type TypeMap<
         };
       };
     };
+    ProxyApiKey: {
+      payload: Prisma.$ProxyApiKeyPayload<ExtArgs>;
+      fields: Prisma.ProxyApiKeyFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.ProxyApiKeyFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.ProxyApiKeyFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>;
+        };
+        findFirst: {
+          args: Prisma.ProxyApiKeyFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.ProxyApiKeyFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>;
+        };
+        findMany: {
+          args: Prisma.ProxyApiKeyFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>[];
+        };
+        create: {
+          args: Prisma.ProxyApiKeyCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>;
+        };
+        createMany: {
+          args: Prisma.ProxyApiKeyCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.ProxyApiKeyCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>[];
+        };
+        delete: {
+          args: Prisma.ProxyApiKeyDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>;
+        };
+        update: {
+          args: Prisma.ProxyApiKeyUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>;
+        };
+        deleteMany: {
+          args: Prisma.ProxyApiKeyDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.ProxyApiKeyUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.ProxyApiKeyUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>[];
+        };
+        upsert: {
+          args: Prisma.ProxyApiKeyUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyApiKeyPayload>;
+        };
+        aggregate: {
+          args: Prisma.ProxyApiKeyAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProxyApiKey>;
+        };
+        groupBy: {
+          args: Prisma.ProxyApiKeyGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ProxyApiKeyGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.ProxyApiKeyCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ProxyApiKeyCountAggregateOutputType> | number;
+        };
+      };
+    };
+    ProxyUsageLog: {
+      payload: Prisma.$ProxyUsageLogPayload<ExtArgs>;
+      fields: Prisma.ProxyUsageLogFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.ProxyUsageLogFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.ProxyUsageLogFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>;
+        };
+        findFirst: {
+          args: Prisma.ProxyUsageLogFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.ProxyUsageLogFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>;
+        };
+        findMany: {
+          args: Prisma.ProxyUsageLogFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>[];
+        };
+        create: {
+          args: Prisma.ProxyUsageLogCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>;
+        };
+        createMany: {
+          args: Prisma.ProxyUsageLogCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.ProxyUsageLogCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>[];
+        };
+        delete: {
+          args: Prisma.ProxyUsageLogDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>;
+        };
+        update: {
+          args: Prisma.ProxyUsageLogUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>;
+        };
+        deleteMany: {
+          args: Prisma.ProxyUsageLogDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.ProxyUsageLogUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.ProxyUsageLogUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>[];
+        };
+        upsert: {
+          args: Prisma.ProxyUsageLogUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProxyUsageLogPayload>;
+        };
+        aggregate: {
+          args: Prisma.ProxyUsageLogAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProxyUsageLog>;
+        };
+        groupBy: {
+          args: Prisma.ProxyUsageLogGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ProxyUsageLogGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.ProxyUsageLogCountArgs<ExtArgs>;
+          result:
+            | runtime.Types.Utils.Optional<Prisma.ProxyUsageLogCountAggregateOutputType>
+            | number;
+        };
+      };
+    };
   };
 } & {
   other: {
@@ -710,6 +862,39 @@ export const TraceRecordScalarFieldEnum = {
 
 export type TraceRecordScalarFieldEnum =
   (typeof TraceRecordScalarFieldEnum)[keyof typeof TraceRecordScalarFieldEnum];
+
+export const ProxyApiKeyScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  service: "service",
+  proxy_key_hash: "proxy_key_hash",
+  upstream_key_encrypted: "upstream_key_encrypted",
+  monthly_quota_requests: "monthly_quota_requests",
+  current_month_usage: "current_month_usage",
+  last_reset_at: "last_reset_at",
+  is_active: "is_active",
+  created_at: "created_at",
+  updated_at: "updated_at",
+} as const;
+
+export type ProxyApiKeyScalarFieldEnum =
+  (typeof ProxyApiKeyScalarFieldEnum)[keyof typeof ProxyApiKeyScalarFieldEnum];
+
+export const ProxyUsageLogScalarFieldEnum = {
+  id: "id",
+  proxy_key_id: "proxy_key_id",
+  service: "service",
+  request_method: "request_method",
+  request_path: "request_path",
+  status_code: "status_code",
+  response_bytes: "response_bytes",
+  latency_ms: "latency_ms",
+  error_message: "error_message",
+  created_at: "created_at",
+} as const;
+
+export type ProxyUsageLogScalarFieldEnum =
+  (typeof ProxyUsageLogScalarFieldEnum)[keyof typeof ProxyUsageLogScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",
@@ -831,6 +1016,22 @@ export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "J
 export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "QueryMode">;
 
 /**
+ * Reference to a field of type 'ProxyService'
+ */
+export type EnumProxyServiceFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "ProxyService"
+>;
+
+/**
+ * Reference to a field of type 'ProxyService[]'
+ */
+export type ListEnumProxyServiceFieldRefInput<$PrismaModel> = FieldRefInputType<
+  $PrismaModel,
+  "ProxyService[]"
+>;
+
+/**
  * Reference to a field of type 'Int'
  */
 export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "Int">;
@@ -839,6 +1040,11 @@ export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "In
  * Reference to a field of type 'Int[]'
  */
 export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "Int[]">;
+
+/**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "Boolean">;
 
 /**
  * Reference to a field of type 'Float'
@@ -971,6 +1177,8 @@ export type GlobalOmitConfig = {
   owner?: Prisma.OwnerOmit;
   agent?: Prisma.AgentOmit;
   traceRecord?: Prisma.TraceRecordOmit;
+  proxyApiKey?: Prisma.ProxyApiKeyOmit;
+  proxyUsageLog?: Prisma.ProxyUsageLogOmit;
 };
 
 /* Types for Logging */
