@@ -2,6 +2,7 @@ packages:
   - "api-server"
   - "typescript-sdk"
   - "integration-tests/typescript"
+  - "integration-tests/cross-sdk"
 allowBuilds:
   simple-git-hooks: true
   "@prisma/engines": true

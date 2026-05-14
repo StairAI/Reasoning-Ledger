@@ -52,16 +52,21 @@ def ts_writer_output() -> dict[str, object]:
     env["AGENT_NAME"] = f"it-xsdk-ts2py-{int(time.time() * 1000)}"
     env["SESSION_ID"] = f"xsdk-ts2py-{int(time.time() * 1000)}"
 
-    # Prefer bare `tsx`, fall back to `pnpm tsx <runner>` from the ts test dir
-    # so workspace resolution for reasoning-ledger-sdk works.
-    if shutil.which(TSX_BIN) is not None:
-        cmd = [TSX_BIN, str(RUNNER)]
-    else:
-        cmd = ["pnpm", "--dir", str(RUNNER.parent.parent.parent / "typescript"), "exec", "tsx", str(RUNNER)]
+    # Always use `pnpm tsx` from the ts test dir so workspace resolution for
+    # reasoning-ledger-sdk works. The bare `tsx` binary won't find workspace packages.
+    # Run from the typescript integration tests directory so node_modules resolution works.
+    ts_test_dir = RUNNER.parent.parent.parent / "typescript"
+    cmd = ["pnpm", "exec", "tsx", str(RUNNER)]
+
+    # Set NODE_PATH so Node.js can find the reasoning-ledger-sdk package installed
+    # in integration-tests/typescript/node_modules even though we're executing a file
+    # from integration-tests/cross-sdk/runners/
+    env["NODE_PATH"] = str(ts_test_dir / "node_modules")
 
     result = subprocess.run(  # noqa: S603
         cmd,
         env=env,
+        cwd=str(ts_test_dir),
         check=False,
         capture_output=True,
         text=True,
