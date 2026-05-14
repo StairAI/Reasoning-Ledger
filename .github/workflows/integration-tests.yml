@@ -62,10 +62,9 @@ jobs:
 
       # -------------------------------------------------------------------------
       # Run tests
+      # Tests skip internally when STAIRAI_STAGING_API_KEY is not set
       # -------------------------------------------------------------------------
       - name: Run TypeScript integration tests
-        # Skip if the staging API key secret is not available (e.g., on forks)
-        if: github.event_name == 'workflow_dispatch' || secrets.STAIRAI_STAGING_API_KEY != ''
         working-directory: integration-tests/typescript
         env:
           STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
@@ -73,7 +72,6 @@ jobs:
         run: pnpm test
 
       - name: Run Python integration tests
-        if: github.event_name == 'workflow_dispatch' || secrets.STAIRAI_STAGING_API_KEY != ''
         working-directory: integration-tests/python
         env:
           STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
