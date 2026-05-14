@@ -5,8 +5,8 @@
   "description": "Integration tests for the published reasoning-ledger-sdk against the staging API.",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "PYTHON=../python/.venv/bin/python vitest run",
+    "test:watch": "PYTHON=../python/.venv/bin/python vitest"
   },
   "dependencies": {
     "reasoning-ledger-sdk": "^0.1.0"
