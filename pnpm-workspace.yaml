@@ -1,6 +1,7 @@
 packages:
   - "api-server"
   - "typescript-sdk"
+  - "integration-tests/typescript"
 allowBuilds:
   simple-git-hooks: true
   "@prisma/engines": true

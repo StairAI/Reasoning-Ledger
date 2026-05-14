@@ -35,6 +35,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
 
       # -------------------------------------------------------------------------
       # Python setup
@@ -50,8 +52,7 @@ jobs:
       # -------------------------------------------------------------------------
       # Install dependencies
       # -------------------------------------------------------------------------
-      - name: Install TypeScript integration test dependencies
-        working-directory: integration-tests/typescript
+      - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install Python integration test dependencies
