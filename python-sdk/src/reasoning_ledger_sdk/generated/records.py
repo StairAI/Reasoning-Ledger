@@ -43,7 +43,7 @@ class Tag(RootModel[str]):
 
 
 class BaseRecord(BaseModel):
-    schema_version: Annotated[str, Field(examples=["1.0"], min_length=1)]
+    schema_version: Annotated[str, Field(examples=["0.2"], min_length=1)]
     agent_id: UUID
     session_id: Annotated[str, Field(min_length=1)]
     record_id: UUID

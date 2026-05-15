@@ -3,15 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "codegen": "node scripts/codegen.mts",
-    "codegen:ts": "node scripts/codegen.mts --ts-only",
-    "codegen:py": "node scripts/codegen.mts --py-only",
+    "codegen": "tsx scripts/codegen.mts",
+    "codegen:ts": "tsx scripts/codegen.mts --ts-only",
+    "codegen:py": "tsx scripts/codegen.mts --py-only",
     "prepare": "simple-git-hooks",
     "fix": "cd api-server && pnpm fix && cd ../typescript-sdk && pnpm fix"
   },
   "devDependencies": {
     "json-schema-to-zod": "^2.6.0",
-    "simple-git-hooks": "^2.13.1"
+    "simple-git-hooks": "^2.13.1",
+    "tsx": "^4.21.0"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm codegen && pnpm fix && git add api-server/src/generated typescript-sdk/src/generated python-sdk/src/reasoning_ledger_sdk/generated"

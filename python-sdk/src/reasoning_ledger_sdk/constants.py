@@ -2,7 +2,7 @@
 # Schema version — stamped on every submitted record.
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = "1.0"
+from .generated.version import SCHEMA_VERSION
 
 # ---------------------------------------------------------------------------
 # Base URLs per environment.

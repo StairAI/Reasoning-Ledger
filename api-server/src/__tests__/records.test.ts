@@ -49,11 +49,13 @@ describe("Records", () => {
       expect(second.server_ts_utc).toBe(first.server_ts_utc);
     });
 
-    it("rejects an unsupported schema_version", async () => {
+    it("accepts a non-latest schema_version as record metadata", async () => {
       const input = makeObservingInput(agentId, { schema_version: "99.9" });
-      await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
-        code: "BAD_REQUEST",
-      });
+      const ack = await call(submitRecord, input, ctx(owner.apiKey));
+      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+
+      expect(ack.record_id).toBe(input.record_id);
+      expect(stored["schema_version"]).toBe("99.9");
     });
 
     it("rejects a record for an agent owned by a different owner", async () => {
@@ -112,7 +114,7 @@ describe("Records", () => {
 
     it("isolates per-record failures — valid records still succeed", async () => {
       const good = makeObservingInput(agentId);
-      const bad = makeObservingInput(agentId, { schema_version: "99.9" });
+      const bad = makeObservingInput(agentId, { upstream_record_id: [crypto.randomUUID()] });
 
       const { results } = await call(submitBatch, { records: [good, bad] }, ctx(owner.apiKey));
 

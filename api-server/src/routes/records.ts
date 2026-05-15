@@ -7,12 +7,6 @@ import { Record as LedgerRecord } from "#/generated/records";
 import type { BehaviorType } from "#/generated/prisma/enums";
 
 // ---------------------------------------------------------------------------
-// Supported schema versions (server rejects unknown versions per §10.1)
-// ---------------------------------------------------------------------------
-
-const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0"]);
-
-// ---------------------------------------------------------------------------
 // Size limits (§10.2) — per-record total enforced in bytes
 // ---------------------------------------------------------------------------
 
@@ -167,7 +161,7 @@ async function persistRecord(
 
 /**
  * Full server-side validation for a single record:
- * schema_version, agent ownership, and DAG reference integrity.
+ * agent ownership and DAG reference integrity.
  * Throws ORPCError on failure.
  */
 async function validateRecord(
@@ -175,12 +169,6 @@ async function validateRecord(
   ownerId: string,
   agentId: string,
 ) {
-  if (!SUPPORTED_SCHEMA_VERSIONS.has(record.schema_version)) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: `Unsupported schema_version '${record.schema_version}'. Supported: ${[...SUPPORTED_SCHEMA_VERSIONS].join(", ")}`,
-    });
-  }
-
   await assertAgentOwnership(agentId, ownerId);
 
   await validateRecordRefs(agentId, record.upstream_record_id ?? [], record.parent_record_id);
@@ -195,7 +183,7 @@ export const submitRecord = authed
   .route({
     description:
       "Submit a single reasoning record. " +
-      "The server validates `schema_version`, verifies that `agent_id` belongs to the calling owner, " +
+      "The server validates record shape, verifies that `agent_id` belongs to the calling owner, " +
       "checks that any `upstream_record_id` and `parent_record_id` references resolve to existing records under the same agent, " +
       "stamps `server_ts_utc` on receipt, and persists the record. " +
       "Submission is idempotent on `(agent_id, record_id)`: a duplicate returns the original ack with `is_duplicate: true` without creating a second row.",

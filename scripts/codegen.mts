@@ -4,7 +4,10 @@
  * Reads schema/records.schema.json and generates:
  *   - typescript-sdk/src/generated/records.ts  (Zod schemas + inferred TS types)
  *   - api-server/src/generated/records.ts      (same)
- *   - python-sdk/src/python_sdk/generated/records.py  (Pydantic v2 models)
+ *   - typescript-sdk/src/generated/version.ts  (current schema version)
+ *   - api-server/src/generated/version.ts      (current schema version)
+ *   - python-sdk/src/reasoning_ledger_sdk/generated/records.py  (Pydantic v2 models)
+ *   - python-sdk/src/reasoning_ledger_sdk/generated/version.py  (current schema version)
  *
  * Usage:
  *   tsx scripts/codegen.mts            # generate all
@@ -12,7 +15,7 @@
  *   tsx scripts/codegen.mts --py-only  # Python only
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,8 +35,31 @@ const generatePy = !tsOnly;
 // ---------------------------------------------------------------------------
 const schemaPath = resolve(rootDir, "schema/records.schema.json");
 const schema = JSON.parse(readFileSync(schemaPath, "utf-8")) as {
+  version?: unknown;
   $defs: Record<string, unknown>;
 };
+
+if (typeof schema.version !== "string" || schema.version.length === 0) {
+  throw new Error("schema/records.schema.json must define a non-empty top-level version string");
+}
+
+const schemaVersion = schema.version;
+
+const baseRecord = schema.$defs.BaseRecord as
+  | {
+      properties?: {
+        schema_version?: {
+          examples?: unknown[];
+        };
+      };
+    }
+  | undefined;
+const schemaVersionExamples = baseRecord?.properties?.schema_version?.examples ?? [];
+if (!schemaVersionExamples.includes(schemaVersion)) {
+  throw new Error(
+    `BaseRecord.schema_version examples must include current schema version '${schemaVersion}'`,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // TypeScript / Zod generation (via json-schema-to-zod)
@@ -125,8 +151,18 @@ function generateTsFile(): string {
   return lines.join("\n");
 }
 
+function generateTsVersionFile(): string {
+  return [
+    "// Code generated from schema/records.schema.json — do not edit manually.",
+    "",
+    `export const SCHEMA_VERSION = ${JSON.stringify(schemaVersion)} as const;`,
+    "",
+  ].join("\n");
+}
+
 if (generateTs) {
   const tsContent = generateTsFile();
+  const tsVersionContent = generateTsVersionFile();
 
   const tsTargets = [
     resolve(rootDir, "typescript-sdk/src/generated/records.ts"),
@@ -138,6 +174,31 @@ if (generateTs) {
     writeFileSync(target, tsContent, "utf-8");
     console.log(`✓ Written ${target.replace(rootDir + "/", "")}`);
   }
+
+  const tsVersionTargets = [
+    resolve(rootDir, "typescript-sdk/src/generated/version.ts"),
+    resolve(rootDir, "api-server/src/generated/version.ts"),
+  ];
+
+  for (const target of tsVersionTargets) {
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, tsVersionContent, "utf-8");
+    console.log(`✓ Written ${target.replace(rootDir + "/", "")}`);
+  }
+
+  execFileSync(
+    resolve(
+      rootDir,
+      "typescript-sdk/node_modules/.bin",
+      process.platform === "win32" ? "oxfmt.cmd" : "oxfmt",
+    ),
+    [
+      "--disable-nested-config",
+      "--write",
+      ...[...tsTargets, ...tsVersionTargets].map((target) => target.replace(rootDir + "/", "")),
+    ],
+    { cwd: rootDir, stdio: "inherit" },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -146,19 +207,28 @@ if (generateTs) {
 
 if (generatePy) {
   const pyOutput = resolve(rootDir, "python-sdk/src/reasoning_ledger_sdk/generated/records.py");
+  const pyVersionOutput = resolve(rootDir, "python-sdk/src/reasoning_ledger_sdk/generated/version.py");
   mkdirSync(dirname(pyOutput), { recursive: true });
+
+  writeFileSync(
+    pyVersionOutput,
+    [
+      "# Code generated from schema/records.schema.json — do not edit manually.",
+      "",
+      `SCHEMA_VERSION = ${JSON.stringify(schemaVersion)}`,
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  console.log(`✓ Written ${pyVersionOutput.replace(rootDir + "/", "")}`);
 
   // Write an __init__.py so the package is importable
   const initPath = resolve(dirname(pyOutput), "__init__.py");
-  try {
-    writeFileSync(
-      initPath,
-      "# Generated package — do not edit manually.\nfrom .records import *\n",
-      { flag: "wx" }, // only create if not exists
-    );
-  } catch {
-    // already exists
-  }
+  writeFileSync(
+    initPath,
+    "# Generated package — do not edit manually.\nfrom .records import *\nfrom .version import SCHEMA_VERSION\n",
+    "utf-8",
+  );
 
   try {
     execSync("uv tool install datamodel-code-generator", { stdio: "inherit" });
