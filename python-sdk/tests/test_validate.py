@@ -15,7 +15,7 @@ def make_observing(**overrides: object) -> dict[str, object]:
         "behavior": "Observing",
         "client_ts_utc": 1_700_000_000_000,
         "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-        "schema_version": "1.0",
+        "schema_version": "0.2",
         "session_id": "session-001",
         "trigger_description": "User sent a message",
         "trigger_payload_summary": "Hello world",
@@ -35,7 +35,7 @@ def make_tool_calling(**overrides: object) -> dict[str, object]:
         "input_payload": {"city": "Paris"},
         "output_payload": {"temp": 20},
         "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-        "schema_version": "1.0",
+        "schema_version": "0.2",
         "session_id": "session-001",
         "success": True,
         "tool_meta": {"category": "external_api", "tool_id": "weather_api"},
@@ -53,7 +53,7 @@ def make_thinking(**overrides: object) -> dict[str, object]:
         "output_payload": "result",
         "prompt": "What should I do?",
         "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-        "schema_version": "1.0",
+        "schema_version": "0.2",
         "session_id": "session-001",
     }
     base.update(overrides)
@@ -71,7 +71,7 @@ def make_acting(**overrides: object) -> dict[str, object]:
         "execution_status": "confirmed",
         "parameters": {},
         "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-        "schema_version": "1.0",
+        "schema_version": "0.2",
         "session_id": "session-001",
         "target_system": "smtp",
     }
@@ -87,7 +87,7 @@ def make_other(**overrides: object) -> dict[str, object]:
         "data": {"key": "value"},
         "label": "file_edit",
         "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-        "schema_version": "1.0",
+        "schema_version": "0.2",
         "session_id": "session-001",
     }
     base.update(overrides)
@@ -123,7 +123,7 @@ class TestValidateRecordValid:
                 "client_ts_utc": 1_700_000_000_000,
                 "goal": "Win the match",
                 "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-                "schema_version": "1.0",
+                "schema_version": "0.2",
                 "session_id": "session-001",
                 "steps": [{"description": "Analyse data", "index": 0}],
             }
@@ -138,7 +138,7 @@ class TestValidateRecordValid:
                 "inputs": [],
                 "output_payload": "conclusion",
                 "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
-                "schema_version": "1.0",
+                "schema_version": "0.2",
                 "session_id": "session-001",
             }
         )
