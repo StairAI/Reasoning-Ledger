@@ -2,7 +2,7 @@
 // Schema version — bundled constant; stamped on every submitted record.
 // ---------------------------------------------------------------------------
 
-export const SCHEMA_VERSION = "1.0";
+export { SCHEMA_VERSION } from "./generated/version.js";
 
 // ---------------------------------------------------------------------------
 // Base URLs per environment.
