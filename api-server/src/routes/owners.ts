@@ -107,6 +107,42 @@ export const registerOwner = base
   });
 
 // ---------------------------------------------------------------------------
+// GET /v1/owners/me
+// Resolve the calling owner's identity and metadata from their API key.
+// ---------------------------------------------------------------------------
+
+export const getOwner = authed
+  .route({
+    description:
+      "Resolve the owner identified by the `X-API-Key` header. " +
+      "Returns owner metadata including `owner_id` and `wallet_mode`.",
+    method: "GET",
+    path: "/v1/owners/me",
+    summary: "Get owner",
+    tags: ["Owners"],
+  })
+  .input(z.object({}))
+  .output(
+    z.object({
+      contact_email: z.string().optional(),
+      created_at: z.number(),
+      display_name: z.string().optional(),
+      owner_id: z.string(),
+      owner_wallet_address: z.string(),
+      updated_at: z.number(),
+      wallet_mode: z.enum(["custodial", "byow"]),
+      website: z.string().optional(),
+    }),
+  )
+  .handler(async ({ context }) => {
+    const owner = await prisma.owner.findUniqueOrThrow({
+      where: { id: context.ownerId },
+    });
+
+    return ownerToMeta(owner);
+  });
+
+// ---------------------------------------------------------------------------
 // PATCH /v1/owners/me
 // Update the calling owner's display metadata.
 // ---------------------------------------------------------------------------
@@ -181,6 +217,7 @@ export const rotateKey = authed
 // ---------------------------------------------------------------------------
 
 export const ownersRouter = {
+  getOwner,
   registerOwner,
   rotateKey,
   updateOwner,

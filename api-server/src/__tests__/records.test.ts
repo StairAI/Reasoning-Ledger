@@ -56,6 +56,15 @@ describe("Records", () => {
       });
     });
 
+    it("accepts a historical schema_version that is still in the supported set", async () => {
+      const input = makeObservingInput(agentId, { schema_version: "0.1" });
+      const ack = await call(submitRecord, input, ctx(owner.apiKey));
+      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+
+      expect(ack.record_id).toBe(input.record_id);
+      expect(stored["schema_version"]).toBe("0.1");
+    });
+
     it("rejects a record for an agent owned by a different owner", async () => {
       const input = makeObservingInput(agentId); // agentId belongs to `owner`, not `ownerB`
       await expect(call(submitRecord, input, ctx(ownerB.apiKey))).rejects.toMatchObject({
@@ -112,7 +121,7 @@ describe("Records", () => {
 
     it("isolates per-record failures — valid records still succeed", async () => {
       const good = makeObservingInput(agentId);
-      const bad = makeObservingInput(agentId, { schema_version: "99.9" });
+      const bad = makeObservingInput(agentId, { upstream_record_id: [crypto.randomUUID()] });
 
       const { results } = await call(submitBatch, { records: [good, bad] }, ctx(owner.apiKey));
 

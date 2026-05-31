@@ -60,10 +60,30 @@ jobs:
         run: uv sync
 
       # -------------------------------------------------------------------------
+      # Health check — skip tests gracefully when staging is unreachable
+      # -------------------------------------------------------------------------
+      - name: Check staging API health
+        id: health
+        run: |
+          # Probe an authenticated endpoint with a dummy key.
+          # Healthy server: 401 (auth rejected). Broken DB: 500.
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://staging-api.stair-ai.com/v1/traces/00000000-0000-0000-0000-000000000000?limit=1" \
+            -H "X-API-Key: health_probe" \
+            --max-time 10) || STATUS=0
+          if [ "$STATUS" = "401" ]; then
+            echo "staging_up=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Staging API health probe returned HTTP $STATUS (expected 401) — skipping integration tests"
+            echo "staging_up=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # -------------------------------------------------------------------------
       # Run tests
       # Tests skip internally when STAIRAI_STAGING_API_KEY is not set
       # -------------------------------------------------------------------------
       - name: Run TypeScript integration tests
+        if: steps.health.outputs.staging_up == 'true'
         working-directory: integration-tests/typescript
         env:
           STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
@@ -71,6 +91,7 @@ jobs:
         run: pnpm test
 
       - name: Run Python integration tests
+        if: steps.health.outputs.staging_up == 'true'
         working-directory: integration-tests/python
         env:
           STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
@@ -81,9 +102,13 @@ jobs:
       # Summary
       # -------------------------------------------------------------------------
       - name: Integration tests passed
-        if: success()
+        if: steps.health.outputs.staging_up == 'true'
         run: |
           echo "✅ All integration tests passed against staging-api.stair-ai.com"
           echo "- TypeScript SDK lifecycle tests"
           echo "- Python SDK lifecycle tests"
           echo "- Cross-SDK synergy tests (both directions)"
+
+      - name: Integration tests skipped (staging unavailable)
+        if: steps.health.outputs.staging_up == 'false'
+        run: echo "⚠️ Staging API is unavailable — integration tests were skipped"

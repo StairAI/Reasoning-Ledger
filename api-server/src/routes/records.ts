@@ -4,13 +4,17 @@ import { prisma } from "#/lib/prisma";
 import { authed } from "#/lib/auth";
 import { reconstructRecord } from "#/lib/record";
 import { Record as LedgerRecord } from "#/generated/records";
+import { SUPPORTED_SCHEMA_VERSIONS } from "#/generated/version";
 import type { BehaviorType } from "#/generated/prisma/enums";
 
 // ---------------------------------------------------------------------------
-// Supported schema versions (server rejects unknown versions per §10.1)
+// Supported schema versions (§10.1) — sourced from generated/version.ts,
+// which lists the current live schema plus every snapshot in schema/history/.
+// Unknown versions are rejected so partner SDKs fail loudly on a mismatch,
+// while past versions stay valid through migrations.
 // ---------------------------------------------------------------------------
 
-const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0"]);
+const SUPPORTED_SCHEMA_VERSION_SET = new Set<string>(SUPPORTED_SCHEMA_VERSIONS);
 
 // ---------------------------------------------------------------------------
 // Size limits (§10.2) — per-record total enforced in bytes
@@ -175,9 +179,9 @@ async function validateRecord(
   ownerId: string,
   agentId: string,
 ) {
-  if (!SUPPORTED_SCHEMA_VERSIONS.has(record.schema_version)) {
+  if (!SUPPORTED_SCHEMA_VERSION_SET.has(record.schema_version)) {
     throw new ORPCError("BAD_REQUEST", {
-      message: `Unsupported schema_version '${record.schema_version}'. Supported: ${[...SUPPORTED_SCHEMA_VERSIONS].join(", ")}`,
+      message: `Unsupported schema_version '${record.schema_version}'. Supported: ${[...SUPPORTED_SCHEMA_VERSION_SET].join(", ")}`,
     });
   }
 
@@ -195,7 +199,7 @@ export const submitRecord = authed
   .route({
     description:
       "Submit a single reasoning record. " +
-      "The server validates `schema_version`, verifies that `agent_id` belongs to the calling owner, " +
+      "The server validates `schema_version` against the supported set (current live schema plus archived snapshots), verifies that `agent_id` belongs to the calling owner, " +
       "checks that any `upstream_record_id` and `parent_record_id` references resolve to existing records under the same agent, " +
       "stamps `server_ts_utc` on receipt, and persists the record. " +
       "Submission is idempotent on `(agent_id, record_id)`: a duplicate returns the original ack with `is_duplicate: true` without creating a second row.",
