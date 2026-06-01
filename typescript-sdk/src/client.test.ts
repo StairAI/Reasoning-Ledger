@@ -100,7 +100,7 @@ describe("LedgerClient.submit", () => {
 
     const body = JSON.parse(call?.body ?? "{}") as Record<string, unknown>;
     expect(body["agent_id"]).toBe(AGENT_ID);
-    expect(body["schema_version"]).toBe("0.2");
+    expect(body["schema_version"]).toBe("0.3");
     expectTypeOf(body["record_id"]).toBeString();
     expectTypeOf(body["client_ts_utc"]).toBeNumber();
   });

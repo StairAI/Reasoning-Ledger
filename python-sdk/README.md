@@ -139,7 +139,7 @@ The SDK fills these if you omit them:
 | Field | SDK default |
 |---|---|
 | `record_id` | Fresh UUID v4 |
-| `schema_version` | `"0.2"` (bundled constant) |
+| `schema_version` | `"0.3"` (bundled constant) |
 | `client_ts_utc` | Current epoch milliseconds |
 | `agent_id` | From `LedgerClientConfig.agent_id` |
 

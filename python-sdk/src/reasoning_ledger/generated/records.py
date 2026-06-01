@@ -36,6 +36,12 @@ class ModelInvocation(BaseModel):
     cost_usd: Annotated[float | None, Field(ge=0.0)] = None
     temperature: float | None = None
     finish_reason: str | None = None
+    internal_reasoning: Annotated[
+        str | None,
+        Field(
+            description="Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
+        ),
+    ] = None
 
 
 class Tag(RootModel[str]):
@@ -43,7 +49,7 @@ class Tag(RootModel[str]):
 
 
 class BaseRecord(BaseModel):
-    schema_version: Annotated[str, Field(examples=["0.2"], min_length=1)]
+    schema_version: Annotated[str, Field(examples=["0.3"], min_length=1)]
     agent_id: UUID
     session_id: Annotated[str, Field(min_length=1)]
     record_id: UUID

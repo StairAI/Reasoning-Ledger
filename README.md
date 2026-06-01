@@ -150,7 +150,7 @@ session.submit({
 
 ## Schema and codegen
 
-All record types are defined once in [`schema/records.schema.json`](./schema/records.schema.json) (JSON Schema Draft 2020-12). The codegen script regenerates TypeScript and Python bindings from that file:
+All record types are defined once in [`schema/records.schema.json`](./schema/records.schema.json) (JSON Schema Draft 2020-12). A field-by-field reference for every record type lives in [`schema/SCHEMA.md`](./schema/SCHEMA.md). The codegen script regenerates TypeScript and Python bindings from that file:
 
 ```sh
 pnpm tsx scripts/codegen.mts
