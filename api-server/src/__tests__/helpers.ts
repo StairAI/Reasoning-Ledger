@@ -33,7 +33,7 @@ export function makeObservingInput(agentId: string, overrides: Record<string, un
     behavior: "Observing" as const,
     client_ts_utc: Date.now(),
     record_id: crypto.randomUUID(),
-    schema_version: "0.2",
+    schema_version: "0.3",
     session_id: `sess-${crypto.randomUUID()}`,
     trigger_description: "Test trigger",
     trigger_payload_summary: "test payload",

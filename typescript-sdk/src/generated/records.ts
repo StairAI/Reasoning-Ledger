@@ -29,6 +29,12 @@ export const ModelInvocation = z
     cost_usd: z.number().gte(0).optional(),
     temperature: z.number().optional(),
     finish_reason: z.string().optional(),
+    internal_reasoning: z
+      .string()
+      .describe(
+        "Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step.",
+      )
+      .optional(),
   })
   .strict();
 export type ModelInvocation = z.infer<typeof ModelInvocation>;

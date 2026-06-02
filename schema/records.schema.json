@@ -3,7 +3,7 @@
   "$id": "https://stair-ai.com/schemas/records.schema.json",
   "title": "Reasoning Ledger Record Schemas",
   "description": "Canonical record schemas for sections 4.1-4.8 of Reasoning_Ledger_SDK_Design_v1.",
-  "version": "0.2",
+  "version": "0.3",
   "$defs": {
     "BehaviorType": {
       "type": "string",
@@ -60,6 +60,10 @@
         },
         "finish_reason": {
           "type": "string"
+        },
+        "internal_reasoning": {
+          "type": "string",
+          "description": "Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
         }
       },
       "additionalProperties": false
@@ -79,7 +83,7 @@
           "type": "string",
           "minLength": 1,
           "examples": [
-            "0.2"
+            "0.3"
           ]
         },
         "agent_id": {

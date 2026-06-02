@@ -60,27 +60,44 @@ jobs:
         run: uv sync
 
       # -------------------------------------------------------------------------
-      # Health check — skip tests gracefully when staging is unreachable
+      # Health check — skip tests gracefully when staging is unreachable or
+      # the API key is missing / invalid.
       # -------------------------------------------------------------------------
       - name: Check staging API health
         id: health
+        env:
+          STAIRAI_STAGING_API_KEY: ${{ secrets.STAIRAI_STAGING_API_KEY }}
         run: |
-          # Probe an authenticated endpoint with a dummy key.
-          # Healthy server: 401 (auth rejected). Broken DB: 500.
+          # Step 1: Probe with a dummy key — healthy server returns 401.
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             "https://staging-api.stair-ai.com/v1/traces/00000000-0000-0000-0000-000000000000?limit=1" \
             -H "X-API-Key: health_probe" \
             --max-time 10) || STATUS=0
-          if [ "$STATUS" = "401" ]; then
+          if [ "$STATUS" != "401" ]; then
+            echo "::warning::Staging API health probe returned HTTP $STATUS (expected 401) — skipping integration tests"
+            echo "staging_up=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Step 2: Validate the real API key. Missing or invalid key → skip.
+          if [ -z "$STAIRAI_STAGING_API_KEY" ]; then
+            echo "::warning::STAIRAI_STAGING_API_KEY secret is not set — skipping integration tests"
+            echo "staging_up=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KEY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://staging-api.stair-ai.com/v1/owners/me" \
+            -H "X-API-Key: $STAIRAI_STAGING_API_KEY" \
+            --max-time 10) || KEY_STATUS=0
+          if [ "$KEY_STATUS" = "200" ]; then
             echo "staging_up=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Staging API health probe returned HTTP $STATUS (expected 401) — skipping integration tests"
+            echo "::warning::STAIRAI_STAGING_API_KEY is invalid (got HTTP $KEY_STATUS) — skipping integration tests"
             echo "staging_up=false" >> "$GITHUB_OUTPUT"
           fi
 
       # -------------------------------------------------------------------------
       # Run tests
-      # Tests skip internally when STAIRAI_STAGING_API_KEY is not set
       # -------------------------------------------------------------------------
       - name: Run TypeScript integration tests
         if: steps.health.outputs.staging_up == 'true'
@@ -109,6 +126,6 @@ jobs:
           echo "- Python SDK lifecycle tests"
           echo "- Cross-SDK synergy tests (both directions)"
 
-      - name: Integration tests skipped (staging unavailable)
+      - name: Integration tests skipped (staging unavailable or key invalid)
         if: steps.health.outputs.staging_up == 'false'
-        run: echo "⚠️ Staging API is unavailable — integration tests were skipped"
+        run: echo "⚠️ Staging API is unavailable or API key is invalid — integration tests were skipped"

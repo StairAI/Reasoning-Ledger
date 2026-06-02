@@ -112,7 +112,7 @@ class TestSubmit:
 
         body = json.loads(call["body"] or "{}")
         assert body["agent_id"] == AGENT_ID
-        assert body["schema_version"] == "0.2"
+        assert body["schema_version"] == "0.3"
         assert isinstance(body["record_id"], str)
         assert isinstance(body["client_ts_utc"], int)
 
