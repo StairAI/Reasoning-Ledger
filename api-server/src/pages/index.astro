@@ -7,7 +7,7 @@ import { formatNumber } from "#/lib/trace";
 
 export const prerender = false;
 
-const client = createTraceClient(Astro.url.origin);
+const client = createTraceClient();
 
 let sessions: Awaited<ReturnType<typeof client.traces.listSessions>>["sessions"] = [];
 let loadError: string | null = null;

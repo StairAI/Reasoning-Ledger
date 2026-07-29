@@ -1,26 +1,30 @@
-import { createORPCClient } from "@orpc/client";
-import { OpenAPILink } from "@orpc/openapi-client/fetch";
-import type { JsonifiedClient } from "@orpc/openapi-client";
+import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
 import { router } from "#/routes";
 import type { Router } from "#/routes";
 
 /**
- * Typed oRPC client over the OpenAPI transport (`/v1`).
+ * Typed oRPC client for server-side (SSR) data fetching.
  *
- * Responses are JSON, so timestamps/BigInts arrive as their JSON forms — the
- * `JsonifiedClient` wrapper reflects that in the types.
+ * This is an IN-PROCESS client (`createRouterClient`): it invokes the router's
+ * handlers directly, with no HTTP round-trip. That deliberately avoids a
+ * server-to-self fetch — behind a reverse proxy (e.g. Coolify) the request's
+ * public origin round-trips out through the proxy and returns a non-JSON error
+ * page ("Cannot parse response body"), and a hardcoded loopback IP is fragile
+ * because dev and prod bind different interfaces (localhost/::1 vs 0.0.0.0).
  *
- * Intended for server-side use (Astro frontmatter / SSR): the read endpoints it
- * calls (`traces.*`, `records.getRecord`) are public, so no API key is attached.
- * If a call to an authed endpoint is ever needed here, pass an `X-API-Key`
- * header via the `headers` option below.
+ * The public HTTP API at `/v1` (OpenAPIHandler) is unchanged and still serves
+ * external SDK consumers; this is purely how our own pages read data.
+ *
+ * Only the public read endpoints (`traces.*`, `records.getRecord`) are used
+ * here, so an empty `headers` context is sufficient. Calling an authed
+ * procedure through this client would hit the auth middleware and require a
+ * real `X-API-Key` in the context headers.
  */
-export type TraceClient = JsonifiedClient<RouterClient<Router>>;
+export type TraceClient = RouterClient<Router>;
 
-export function createTraceClient(origin: string): TraceClient {
-  const link = new OpenAPILink(router, {
-    url: `${origin}/v1`,
+export function createTraceClient(): TraceClient {
+  return createRouterClient(router, {
+    context: { headers: {} },
   });
-  return createORPCClient(link);
 }

@@ -15,7 +15,7 @@ export const prerender = false;
 const agentId = decodeURIComponent(Astro.params.agent ?? "");
 const sessionId = decodeURIComponent(Astro.params.session ?? "");
 
-const client = createTraceClient(Astro.url.origin);
+const client = createTraceClient();
 
 let trace: Awaited<ReturnType<TraceClient["traces"]["getSession"]>> | null = null;
 let sessions: Awaited<ReturnType<TraceClient["traces"]["listSessions"]>>["sessions"] = [];
