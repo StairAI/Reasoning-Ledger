@@ -1,0 +1,15 @@
+# Build context is the repo root; keep heavy/host-only paths out of the image.
+**/node_modules
+**/dist
+**/.astro
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+.git
+.github
+.claude
+.vscode
+**/__pycache__
+**/.venv
+python-sdk
+*.log
