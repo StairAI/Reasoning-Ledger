@@ -16,7 +16,7 @@ export const getSession = authed
       "Sessions have no server-side lifecycle — this is a filtered view of the agent's trace. " +
       "Returns an empty `records` array when the session exists but contains no records.",
     method: "GET",
-    path: "/v1/sessions/{session_id}",
+    path: "/sessions/{session_id}",
     summary: "Get session records",
     tags: ["Sessions"],
   })

@@ -45,9 +45,11 @@ export const registerOwner = base
       "The raw `api_key` is returned **only on the first call** — it is never stored and cannot be retrieved again. " +
       "Wallet mode (`custodial` | `byow`) is locked at registration and applies to every agent created under this owner.",
     method: "POST",
-    path: "/v1/owners",
-    // Public endpoint — no API key required.
-    spec: { security: [] },
+    path: "/owners",
+    // Public endpoint — no API key required. Use the function form of `spec`
+    // so the generated operation (summary, tags, requestBody, …) is preserved;
+    // passing a plain object here would REPLACE the whole operation.
+    spec: (current) => ({ ...current, security: [] }),
     summary: "Register owner",
     tags: ["Owners"],
   })
@@ -117,7 +119,7 @@ export const getOwner = authed
       "Resolve the owner identified by the `X-API-Key` header. " +
       "Returns owner metadata including `owner_id` and `wallet_mode`.",
     method: "GET",
-    path: "/v1/owners/me",
+    path: "/owners/me",
     summary: "Get owner",
     tags: ["Owners"],
   })
@@ -153,7 +155,7 @@ export const updateOwner = authed
       "Update display metadata (`display_name`, `website`, `contact_email`) for the owner identified by the `X-API-Key` header. " +
       "Only fields present in the request body are updated; omitted fields are left unchanged.",
     method: "PATCH",
-    path: "/v1/owners/me",
+    path: "/owners/me",
     summary: "Update owner metadata",
     tags: ["Owners"],
   })
@@ -195,7 +197,7 @@ export const rotateKey = authed
       "Issue a new `api_key` and immediately invalidate the previous one. " +
       "The new raw key is returned once and never stored — store it securely before discarding the response.",
     method: "POST",
-    path: "/v1/owners/me/rotate-key",
+    path: "/owners/me/rotate-key",
     summary: "Rotate API key",
     tags: ["Owners"],
   })

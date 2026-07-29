@@ -59,7 +59,7 @@ export const registerAgent = authed
       "BYOW owners may supply a `wallet.address`, otherwise the agent inherits the owner's default wallet. " +
       "A `wallet` argument on a repeat call is ignored.",
     method: "POST",
-    path: "/v1/agents",
+    path: "/agents",
     summary: "Register agent",
     tags: ["Agents"],
   })
@@ -127,7 +127,7 @@ export const resolveAgent = authed
       "Resolve an agent by human-readable `name` within the calling owner's scope. " +
       "Backs `LedgerClient.resolveAgentId()`. Best practice: call once at startup and cache the result; `agent_id` (UUID) is the runtime identifier for all subsequent operations.",
     method: "GET",
-    path: "/v1/agents",
+    path: "/agents",
     summary: "Resolve agent by name",
     tags: ["Agents"],
   })
@@ -170,7 +170,7 @@ export const getAgent = authed
       "Fetch public metadata for a specific agent. " +
       "The agent must belong to the owner identified by the `X-API-Key` header — agents owned by other owners return 404.",
     method: "GET",
-    path: "/v1/agents/{agent_id}",
+    path: "/agents/{agent_id}",
     summary: "Get agent",
     tags: ["Agents"],
   })
@@ -214,7 +214,7 @@ export const updateAgent = authed
       "Renaming is subject to uniqueness within the owner's scope — a conflict returns 409. " +
       "`agent_wallet_address` is immutable after registration.",
     method: "PATCH",
-    path: "/v1/agents/{agent_id}",
+    path: "/agents/{agent_id}",
     summary: "Update agent",
     tags: ["Agents"],
   })

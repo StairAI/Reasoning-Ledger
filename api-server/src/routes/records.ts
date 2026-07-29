@@ -204,7 +204,7 @@ export const submitRecord = authed
       "stamps `server_ts_utc` on receipt, and persists the record. " +
       "Submission is idempotent on `(agent_id, record_id)`: a duplicate returns the original ack with `is_duplicate: true` without creating a second row.",
     method: "POST",
-    path: "/v1/records",
+    path: "/records",
     summary: "Submit record",
     tags: ["Records"],
   })
@@ -237,7 +237,7 @@ export const submitBatch = authed
       "Inspect `results[]` — each entry is either a `RecordAck` (success) or a `RecordError` (failure), in the same order as the submitted batch. " +
       "Batch-level failures (auth error, batch too large, total payload > 1 MB) raise immediately and no records are persisted.",
     method: "POST",
-    path: "/v1/records:batch",
+    path: "/records/batch",
     summary: "Submit batch of records",
     tags: ["Records"],
   })
@@ -311,7 +311,7 @@ export const getRecord = authed
       "Fetch a single reasoning record by `record_id`. " +
       "The record's agent must belong to the calling owner — records belonging to other owners return 404.",
     method: "GET",
-    path: "/v1/records/{record_id}",
+    path: "/records/{record_id}",
     summary: "Get record",
     tags: ["Records"],
   })

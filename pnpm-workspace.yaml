@@ -8,3 +8,7 @@ allowBuilds:
   "@prisma/engines": true
   esbuild: true
   prisma: true
+minimumReleaseAgeExclude:
+  - "@astrojs/internal-helpers@0.10.2"
+  - "@astrojs/markdown-satteri@0.3.5"
+  - astro@7.1.5

@@ -24,7 +24,7 @@ export const getTrace = authed
       "`limit` defaults to 100 and is capped at 500. " +
       "`next_cursor` is `null` when there are no more pages.",
     method: "GET",
-    path: "/v1/traces/{agent_id}",
+    path: "/traces/{agent_id}",
     summary: "Get agent trace",
     tags: ["Traces"],
   })

@@ -1,17 +1,13 @@
 {
   "name": "reasoning-ledger-server",
   "version": "1.0.0",
-  "description": "",
-  "keywords": [],
   "license": "MIT",
-  "author": "",
   "type": "module",
-  "main": "dist/index.js",
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch --onSuccess \"node dist/index.js\"",
-    "typecheck": "tsc --noEmit",
-    "start": "node dist/index.js",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
     "test": "vitest run",
     "check": "ultracite check",
     "fix": "ultracite fix"
@@ -23,8 +19,11 @@
     "@orpc/zod": "^1.14.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.1.5",
     "dotenv": "^17.4.2",
     "pg": "^8.20.0",
+    "tailwindcss": "^4.3.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -33,9 +32,11 @@
     "oxfmt": "^0.46.0",
     "oxlint": "^1.61.0",
     "prisma": "^7.8.0",
-    "tsup": "^8.5.0",
     "typescript": "^6.0.3",
     "ultracite": "7.6.2",
     "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
