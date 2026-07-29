@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import * as z from "zod";
 import { prisma } from "#/lib/prisma";
-import { authed } from "#/lib/auth";
+import { authed, base } from "#/lib/auth";
 import { reconstructRecord } from "#/lib/record";
 import { Record as LedgerRecord } from "#/generated/records";
 import { SUPPORTED_SCHEMA_VERSIONS } from "#/generated/version";
@@ -305,25 +305,25 @@ export const submitBatch = authed
 // Verifies the record's agent belongs to the calling owner.
 // ---------------------------------------------------------------------------
 
-export const getRecord = authed
+export const getRecord = base
   .route({
     description:
-      "Fetch a single reasoning record by `record_id`. " +
-      "The record's agent must belong to the calling owner — records belonging to other owners return 404.",
+      "Fetch a single reasoning record by `record_id`. Public read — no API key required.",
     method: "GET",
     path: "/records/{record_id}",
+    // Public read: keep the generated operation, only clear security.
+    spec: (current) => ({ ...current, security: [] }),
     summary: "Get record",
     tags: ["Records"],
   })
   .input(z.object({ record_id: z.string().uuid() }))
   .output(z.record(z.string(), z.unknown()))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const row = await prisma.traceRecord.findUnique({
-      include: { agent: { select: { owner_id: true } } },
       where: { record_id: input.record_id },
     });
 
-    if (!row || row.agent.owner_id !== context.ownerId) {
+    if (!row) {
       throw new ORPCError("NOT_FOUND", { message: "Record not found" });
     }
 
