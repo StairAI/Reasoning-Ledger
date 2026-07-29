@@ -1,0 +1,36 @@
+---
+import Icon from "./Icon.astro";
+import { behaviorMeta } from "#/lib/trace";
+
+interface Props {
+  behavior: string;
+  class?: string;
+}
+
+const { behavior, class: className = "" } = Astro.props;
+const meta = behaviorMeta(behavior);
+
+// Per-type accent — resolved to the `--tc` custom property so the `.type-badge`
+// class (in global.css) can theme it, and a `.selected` node card can flip it.
+const COLOR: Record<string, string> = {
+  acting: "#00b2a4",
+  observing: "#ebb447",
+  other: "#9a9a9a",
+  planning: "#7ee055",
+  reflecting: "#e06c7f",
+  thinking: "#bf80ff",
+  toolcalling: "#3c9add",
+};
+const c = COLOR[meta.token] ?? COLOR.other;
+---
+
+<span
+  class:list={[
+    "type-badge inline-flex items-center gap-1 h-5 px-1.5 rounded-full border text-[11px] leading-none whitespace-nowrap select-none",
+    className,
+  ]}
+  style={`--tc:${c}`}
+>
+  <Icon name={meta.icon} size={12} />
+  <span>{meta.label}</span>
+</span>

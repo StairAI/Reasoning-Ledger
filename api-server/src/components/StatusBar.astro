@@ -1,0 +1,81 @@
+---
+import Icon from "./Icon.astro";
+import { formatNumber } from "#/lib/trace";
+
+interface SessionOption {
+  agent_id: string;
+  session_id: string;
+  agent_name?: string;
+}
+
+interface Props {
+  label?: string;
+  sessionId: string;
+  stats: { records: number; tokens: number; llmCalls: number };
+  sessions?: SessionOption[];
+  /** The currently-open trace, used to mark the selected <option>. */
+  current?: { agent_id: string; session_id: string };
+}
+
+const {
+  label = "Single Session · Real Ledger Data",
+  sessionId,
+  stats,
+  sessions = [],
+  current,
+} = Astro.props;
+
+const hasPicker = sessions.length > 1;
+const optionValue = (s: SessionOption) => `${s.agent_id}::${s.session_id}`;
+const isCurrent = (s: SessionOption) =>
+  !!current && s.agent_id === current.agent_id && s.session_id === current.session_id;
+---
+
+<div class="flex flex-col gap-3">
+  <span class="font-sans text-[12px] text-ink/45">{label}</span>
+
+  <!-- session selector -->
+  <div
+    class="relative inline-flex h-9 w-fit max-w-[420px] items-center gap-2 rounded-lg border border-line bg-surface px-3 text-[12px] text-ink"
+  >
+    <Icon name="folder" size={14} class="shrink-0 text-ink/60" />
+    <span class="truncate">{sessionId}</span>
+    {
+      hasPicker && (
+        <>
+          <Icon name="chevron-down" size={14} class="shrink-0 text-ink/60" />
+          <select
+            class="absolute inset-0 cursor-pointer opacity-0"
+            data-session-picker
+            aria-label="Select trace"
+          >
+            {sessions.map((s) => (
+              <option value={optionValue(s)} selected={isCurrent(s)}>
+                {s.session_id}
+              </option>
+            ))}
+          </select>
+        </>
+      )
+    }
+  </div>
+
+  <!-- stats -->
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/60 px-2.5 py-1.5 text-[12px]">
+      <Icon name="database" size={14} class="text-ink/50" />
+      <span class="text-[#4db24d]">{formatNumber(stats.records)}</span>
+      <span class="text-ink/50">RECORDS</span>
+    </span>
+    <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/60 px-2.5 py-1.5 text-[12px]">
+      <Icon name="hash" size={14} class="text-ink/50" />
+      <span class="text-[#3c9add]">{formatNumber(stats.tokens)}</span>
+      <span class="text-ink/50">TOKENS</span>
+    </span>
+    <span class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface/60 px-2.5 py-1.5 text-[12px]">
+      <Icon name="cpu" size={14} class="text-ink/50" />
+      <span class="text-[#e06c7f]">{formatNumber(stats.llmCalls)}</span>
+      <span class="text-ink/50">LLM CALLS</span>
+    </span>
+  </div>
+</div>

@@ -1,0 +1,89 @@
+---
+import Icon from "./Icon.astro";
+import TypeBadge from "./TypeBadge.astro";
+import StatusTag from "./StatusTag.astro";
+import { behaviorMeta, cardView, formatClock } from '#/lib/trace';
+import type { TraceRecord } from '#/lib/trace';
+
+interface Props {
+  record: TraceRecord;
+}
+
+const { record } = Astro.props;
+const meta = behaviorMeta(record.behavior);
+const view = cardView(record);
+
+const COLOR: Record<string, string> = {
+  acting: "#00b2a4",
+  observing: "#ebb447",
+  other: "#9a9a9a",
+  planning: "#7ee055",
+  reflecting: "#e06c7f",
+  thinking: "#bf80ff",
+  toolcalling: "#3c9add",
+};
+const tc = COLOR[meta.token] ?? COLOR.other;
+---
+
+<button
+  type="button"
+  class="node-card absolute left-0 top-0 flex w-[264px] cursor-pointer flex-col gap-3 rounded-lg border bg-surface p-4 text-left"
+  style={`--tc:${tc}`}
+  data-node
+  data-record-id={record.record_id}
+  data-upstream={JSON.stringify(record.upstream_record_id ?? [])}
+  data-parent={record.parent_record_id ?? ""}
+>
+  <!-- header: type badge + timestamp -->
+  <div class="flex items-center justify-between gap-2">
+    <TypeBadge behavior={record.behavior} />
+    <span class="inline-flex items-center gap-1 text-[11px] text-ink/50">
+      <Icon name="clock" size={12} />
+      {formatClock(record.client_ts_utc)}
+    </span>
+  </div>
+
+  <!-- body: description -->
+  <p class="line-clamp-3 text-[12px] leading-[18px] text-ink/85">{view.description}</p>
+
+  <!-- model invocation (thinking / reflecting) -->
+  {
+    view.model && (
+      <div class="flex flex-col gap-1">
+        <span class="inline-flex items-center gap-1 text-[11px] text-ink/70">
+          <Icon name="zap" size={12} />
+          {view.model.name}
+        </span>
+        {view.model.tokens && (
+          <span class="w-fit rounded-sm border border-line bg-surface-2/60 px-1.5 py-0.5 text-[11px] text-ink/55">
+            {view.model.tokens}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  <!-- neutral chip (trigger / action type / steps) -->
+  {
+    view.chip && (
+      <span class="w-fit rounded-sm border border-line bg-surface-2/60 px-1.5 py-0.5 text-[11px] uppercase text-ink/70">
+        {view.chip}
+      </span>
+    )
+  }
+
+  <!-- footer: status + upstream marker -->
+  {
+    (view.status || view.upstream > 0) && (
+      <div class="flex items-center justify-between gap-2">
+        <span>{view.status && <StatusTag label={view.status.label} kind={view.status.kind} />}</span>
+        {view.upstream > 0 && (
+          <span class="inline-flex items-center gap-1 text-[11px] text-ink/45">
+            <Icon name="arrow-up" size={12} />
+            {view.upstream} UPSTREAM
+          </span>
+        )}
+      </div>
+    )
+  }
+</button>

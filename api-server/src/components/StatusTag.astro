@@ -1,0 +1,35 @@
+---
+import Icon from "./Icon.astro";
+import type { IconName } from "#/lib/trace";
+
+interface Props {
+  label: string;
+  kind?: "success" | "fail" | "reasoning" | "neutral";
+  class?: string;
+}
+
+const { label, kind = "neutral", class: className = "" } = Astro.props;
+
+const STYLES: Record<string, { color: string; icon: IconName | null }> = {
+  fail: { color: "#e06c7f", icon: "x-circle" },
+  neutral: { color: "#9a9a9a", icon: null },
+  reasoning: { color: "#e06c7f", icon: "sparkles" },
+  success: { color: "#4db24d", icon: "check-circle" },
+};
+const s = STYLES[kind] ?? STYLES.neutral;
+const style =
+  kind === "neutral"
+    ? "background-color:#26262699;border-color:#2a2a2a;color:#f5f0eb;"
+    : `background-color:color-mix(in srgb, ${s.color} 12%, transparent);border-color:color-mix(in srgb, ${s.color} 40%, transparent);color:${s.color};`;
+---
+
+<span
+  class:list={[
+    "inline-flex items-center gap-1 h-5 px-1.5 rounded-full border text-[11px] leading-none uppercase whitespace-nowrap",
+    className,
+  ]}
+  style={style}
+>
+  {s.icon && <Icon name={s.icon} size={12} />}
+  <span>{label}</span>
+</span>

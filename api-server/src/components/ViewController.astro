@@ -1,0 +1,30 @@
+---
+import Icon from "./Icon.astro";
+---
+
+<div class="flex w-8 flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink/70">
+  <button
+    type="button"
+    class="flex h-8 items-center justify-center transition-colors hover:bg-surface-2 hover:text-ink"
+    data-zoom="in"
+    aria-label="Zoom in"
+  >
+    <Icon name="plus" size={16} />
+  </button>
+  <button
+    type="button"
+    class="flex h-8 items-center justify-center border-y border-line text-[11px] transition-colors hover:bg-surface-2 hover:text-ink"
+    data-zoom="fit"
+    aria-label="Fit to view"
+  >
+    fit
+  </button>
+  <button
+    type="button"
+    class="flex h-8 items-center justify-center transition-colors hover:bg-surface-2 hover:text-ink"
+    data-zoom="out"
+    aria-label="Zoom out"
+  >
+    <Icon name="minus" size={16} />
+  </button>
+</div>

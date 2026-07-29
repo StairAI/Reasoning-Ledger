@@ -1,0 +1,22 @@
+---
+import Icon from "./Icon.astro";
+
+interface Props {
+  title: string;
+  backHref?: string;
+}
+
+const { title, backHref = "/" } = Astro.props;
+---
+
+<div class="flex items-center gap-4 text-[14px]">
+  <a
+    href={backHref}
+    class="inline-flex items-center gap-1.5 text-ink/60 transition-colors hover:text-ink"
+  >
+    <Icon name="arrow-left" size={16} />
+    <span class="font-sans">Back</span>
+  </a>
+  <span class="h-4 w-px bg-line-strong"></span>
+  <span class="font-sans font-medium text-ink">{title}</span>
+</div>

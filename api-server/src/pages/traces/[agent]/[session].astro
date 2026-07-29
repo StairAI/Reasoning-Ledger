@@ -1,0 +1,113 @@
+---
+import Layout from "#/layouts/Layout.astro";
+import GraphHeader from "#/components/GraphHeader.astro";
+import StatusBar from "#/components/StatusBar.astro";
+import Legend from "#/components/Legend.astro";
+import ViewController from "#/components/ViewController.astro";
+import NodeCard from "#/components/NodeCard.astro";
+import InspectorPanel from "#/components/InspectorPanel.astro";
+import { createTraceClient } from "#/lib/rpc";
+import type { TraceClient } from "#/lib/rpc";
+import type { TraceRecord } from "#/lib/trace";
+
+export const prerender = false;
+
+const agentId = decodeURIComponent(Astro.params.agent ?? "");
+const sessionId = decodeURIComponent(Astro.params.session ?? "");
+
+const client = createTraceClient(Astro.url.origin);
+
+let trace: Awaited<ReturnType<TraceClient["traces"]["getSession"]>> | null = null;
+let sessions: Awaited<ReturnType<TraceClient["traces"]["listSessions"]>>["sessions"] = [];
+let loadError: string | null = null;
+
+try {
+  trace = await client.traces.getSession({ agent_id: agentId, session_id: sessionId });
+  const list = await client.traces.listSessions({ limit: 200 });
+  ({ sessions } = list);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "Failed to load trace";
+}
+
+const records = (trace?.records ?? []) as unknown as TraceRecord[];
+---
+
+<Layout title={trace ? `Trace · ${trace.agent_name}` : "Trace not found"}>
+  {
+    loadError || !trace ? (
+      <main class="flex h-screen w-screen flex-col items-center justify-center gap-3">
+        <p class="text-[14px] text-ink/70">Trace not found</p>
+        <p class="max-w-[520px] break-words text-center text-[12px] text-ink/40">{loadError}</p>
+        <a href="/" class="text-[12px] text-[#7ee055] hover:underline">← Back to all traces</a>
+      </main>
+    ) : (
+      <main class="relative h-screen w-screen overflow-hidden">
+        {/* graph canvas */}
+        <div id="graph-viewport" class="absolute inset-0 cursor-grab overflow-hidden dot-grid">
+          <div id="graph-world" class="absolute left-0 top-0 origin-top-left will-change-transform">
+            <svg id="graph-edges" class="pointer-events-none absolute left-0 top-0 overflow-visible" />
+            {records.map((r) => (
+              <NodeCard record={r} />
+            ))}
+          </div>
+        </div>
+
+        {/* top-centre header */}
+        <header class="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
+          <div class="pointer-events-auto rounded-full border border-line bg-surface/70 px-5 py-2 backdrop-blur-sm">
+            <GraphHeader title="Reasoning Trace Graph" />
+          </div>
+        </header>
+
+        {/* status bar */}
+        <div class="absolute left-6 top-6 max-w-[440px]">
+          <StatusBar
+            sessionId={trace.session_id}
+            stats={{
+              records: trace.stats.record_count,
+              tokens: trace.stats.tokens,
+              llmCalls: trace.stats.llm_calls,
+            }}
+            sessions={sessions.map((s) => ({
+              agent_id: s.agent_id,
+              agent_name: s.agent_name,
+              session_id: s.session_id,
+            }))}
+            current={{ agent_id: trace.agent_id, session_id: trace.session_id }}
+          />
+        </div>
+
+        {/* legend */}
+        <div class="absolute bottom-6 left-6">
+          <Legend />
+        </div>
+
+        {/* zoom controls */}
+        <div class="absolute bottom-6 right-6">
+          <ViewController />
+        </div>
+
+        {/* inspector dock */}
+        <aside id="inspector-dock" class="absolute bottom-6 right-6 top-6 w-[320px]" hidden>
+          {records.map((r) => (
+            <InspectorPanel record={r} />
+          ))}
+        </aside>
+      </main>
+    )
+  }
+</Layout>
+
+<script>
+  import { initGraph } from "#/scripts/graph";
+  initGraph();
+
+  // Session picker → navigate to the chosen trace (value is "agentId::sessionId").
+  const picker = document.querySelector<HTMLSelectElement>("[data-session-picker]");
+  picker?.addEventListener("change", () => {
+    const [agent, session] = picker.value.split("::");
+    if (agent && session) {
+      window.location.href = `/traces/${encodeURIComponent(agent)}/${encodeURIComponent(session)}`;
+    }
+  });
+</script>

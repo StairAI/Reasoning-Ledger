@@ -23,13 +23,15 @@ import { tracesRouter } from "./traces";
  * Tags are declared per-procedure via .route({ tags }) so the Scalar/Swagger
  * UI renders them in labelled, collapsible sections.
  */
-const router = {
+export const router = {
   agents: agentsRouter,
   owners: ownersRouter,
   records: recordsRouter,
   sessions: sessionsRouter,
   traces: tracesRouter,
 };
+
+export type Router = typeof router;
 
 export const handler = new OpenAPIHandler(router, {
   interceptors: [onError(console.error)],

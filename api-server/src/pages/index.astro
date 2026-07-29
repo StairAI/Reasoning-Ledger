@@ -1,11 +1,117 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import Layout from "#/layouts/Layout.astro";
+import Icon from "#/components/Icon.astro";
+import TypeBadge from "#/components/TypeBadge.astro";
+import { createTraceClient } from "#/lib/rpc";
+import { formatNumber } from "#/lib/trace";
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+export const prerender = false;
+
+const client = createTraceClient(Astro.url.origin);
+
+let sessions: Awaited<ReturnType<typeof client.traces.listSessions>>["sessions"] = [];
+let loadError: string | null = null;
+try {
+  const list = await client.traces.listSessions({ limit: 200 });
+  ({ sessions } = list);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "Failed to load traces";
+}
+
+function formatDate(ms: number): string {
+  const d = new Date(ms);
+  return `${d.toISOString().slice(0, 10)} ${String(d.getUTCHours()).padStart(2, "0")}:${String(
+    d.getUTCMinutes(),
+  ).padStart(2, "0")}Z`;
+}
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Reasoning Ledger · Traces">
+  <div class="min-h-screen dot-grid">
+    <div class="mx-auto flex max-w-[960px] flex-col gap-8 px-6 py-16">
+      <!-- header -->
+      <header class="flex flex-col gap-2">
+        <div class="flex items-center gap-2 text-ink/50">
+          <Icon name="git-fork" size={16} />
+          <span class="font-sans text-[13px] uppercase tracking-wider">Reasoning Ledger</span>
+        </div>
+        <h1 class="font-sans text-[28px] font-medium text-ink">Reasoning Traces</h1>
+        <p class="text-[13px] text-ink/50">
+          {sessions.length}
+          {sessions.length === 1 ? "trace" : "traces"} · click a trace to open its reasoning digraph
+        </p>
+      </header>
+
+      {
+        loadError && (
+          <div class="rounded-lg border border-[#e06c7f]/40 bg-[#e06c7f]/10 p-4 text-[12px] text-[#e06c7f]">
+            {loadError}
+          </div>
+        )
+      }
+
+      {
+        !loadError && sessions.length === 0 && (
+          <div class="rounded-lg border border-line bg-surface/60 p-8 text-center text-[13px] text-ink/50">
+            No reasoning traces recorded yet.
+          </div>
+        )
+      }
+
+      <!-- trace list -->
+      <ul class="flex flex-col gap-3">
+        {
+          sessions.map((s) => (
+            <li>
+              <a
+                href={`/traces/${encodeURIComponent(s.agent_id)}/${encodeURIComponent(s.session_id)}`}
+                class="group flex flex-col gap-4 rounded-lg border border-line bg-surface/70 p-4 transition-colors hover:border-line-strong hover:bg-surface"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex min-w-0 flex-col gap-1.5">
+                    <span class="truncate font-sans text-[15px] font-medium text-ink">
+                      {s.agent_name}
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 truncate text-[12px] text-ink/50">
+                      <Icon name="folder" size={12} />
+                      {s.session_id}
+                    </span>
+                  </div>
+                  <span class="shrink-0 text-[12px] text-ink/40">{formatDate(s.last_ts)}</span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-1.5">
+                  {s.behaviors.map((b) => (
+                    <TypeBadge behavior={b} />
+                  ))}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                  <span class="inline-flex items-center gap-1.5 text-[12px]">
+                    <Icon name="database" size={13} class="text-ink/45" />
+                    <span class="text-[#4db24d]">{formatNumber(s.record_count)}</span>
+                    <span class="text-ink/45">RECORDS</span>
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 text-[12px]">
+                    <Icon name="hash" size={13} class="text-ink/45" />
+                    <span class="text-[#3c9add]">{formatNumber(s.tokens)}</span>
+                    <span class="text-ink/45">TOKENS</span>
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 text-[12px]">
+                    <Icon name="cpu" size={13} class="text-ink/45" />
+                    <span class="text-[#e06c7f]">{formatNumber(s.llm_calls)}</span>
+                    <span class="text-ink/45">LLM CALLS</span>
+                  </span>
+                  <span class="ml-auto inline-flex items-center gap-1 text-[12px] text-ink/40 transition-colors group-hover:text-ink/80">
+                    Open
+                    <Icon name="arrow-up" size={12} class="rotate-90" />
+                  </span>
+                </div>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
 </Layout>
