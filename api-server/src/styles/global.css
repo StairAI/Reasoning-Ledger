@@ -63,10 +63,17 @@ body {
 /* Node card + selection affordance for the digraph */
 .node-card {
   border-color: var(--color-line);
+  cursor: grab;
+  touch-action: none; /* let the pointer-drag handler own the gesture */
   transition:
     border-color 0.12s ease,
     box-shadow 0.12s ease,
     opacity 0.12s ease;
+}
+.node-card.dragging-node {
+  cursor: grabbing;
+  z-index: 20; /* keep the dragged card above its neighbours */
+  transition: none;
 }
 .node-card:hover {
   border-color: var(--color-line-strong);

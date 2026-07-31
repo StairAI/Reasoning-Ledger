@@ -4,18 +4,30 @@ import dagre from "@dagrejs/dagre";
  * Client-side controller for the reasoning-trace digraph.
  *
  * Node cards + inspector panels are rendered server-side; this module lays them
- * out with dagre, draws SVG edges, and wires pan/zoom + selection. Keeping the
- * markup in Astro means all styling stays in Tailwind — JS only positions and
- * toggles.
+ * out with dagre, draws SVG edges, and wires pan/zoom + selection + node drag.
+ * Keeping the markup in Astro means all styling stays in Tailwind — JS only
+ * positions and toggles.
  */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const DRAG_THRESHOLD = 3; // px of screen movement before a press becomes a drag
 
 interface NodePos {
   x: number; // center
   y: number; // center
   w: number;
   h: number;
+}
+
+interface Pt {
+  x: number;
+  y: number;
+}
+
+interface EdgeObj {
+  from: string;
+  to: string;
+  el: SVGPathElement;
 }
 
 export function initGraph() {
@@ -38,7 +50,7 @@ export function initGraph() {
 
   // --- layout ---------------------------------------------------------------
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ marginx: 40, marginy: 40, nodesep: 40, rankdir: "TB", ranksep: 72 });
+  g.setGraph({ marginx: 40, marginy: 40, nodesep: 48, rankdir: "TB", ranksep: 84 });
   g.setDefaultEdgeLabel(() => ({}));
 
   for (const c of cards) {
@@ -46,7 +58,7 @@ export function initGraph() {
     g.setNode(id, { height: c.offsetHeight, width: c.offsetWidth });
   }
 
-  const edges: [string, string][] = [];
+  const edgePairs: [string, string][] = [];
   for (const c of cards) {
     const id = c.dataset.recordId as string;
     const deps = new Set<string>();
@@ -63,7 +75,7 @@ export function initGraph() {
     for (const dep of deps) {
       if (byId.has(dep)) {
         g.setEdge(dep, id);
-        edges.push([dep, id]);
+        edgePairs.push([dep, id]);
       }
     }
   }
@@ -90,23 +102,65 @@ export function initGraph() {
   svg.setAttribute("viewBox", `0 0 ${worldW} ${worldH}`);
 
   // --- edges ----------------------------------------------------------------
-  for (const [from, to] of edges) {
+  // Smooth curve through a routed poly-line (dagre's points weave between nodes,
+  // so edges don't cut across cards).
+  function smoothPath(pts: Pt[]): string {
+    if (pts.length < 2) {
+      return "";
+    }
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2;
+      const my = (pts[i].y + pts[i + 1].y) / 2;
+      d += ` Q ${pts[i].x} ${pts[i].y} ${mx} ${my}`;
+    }
+    const last = pts.at(-1) as Pt;
+    return `${d} L ${last.x} ${last.y}`;
+  }
+
+  // Direct vertical S-curve between two node borders — used while dragging,
+  // when the pre-computed routing no longer matches the moved node.
+  function directPath(from: string, to: string): string {
     const a = pos.get(from);
     const b = pos.get(to);
     if (!(a && b)) {
-      continue;
+      return "";
     }
     const sx = a.x;
     const sy = a.y + a.h / 2;
     const tx = b.x;
     const ty = b.y - b.h / 2;
     const midY = (sy + ty) / 2;
-    const path = document.createElementNS(SVG_NS, "path");
-    path.setAttribute("d", `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`);
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "rgba(245,240,235,0.16)");
-    path.setAttribute("stroke-width", "1.5");
-    svg.append(path);
+    return `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`;
+  }
+
+  function routedPath(from: string, to: string): string {
+    const e = g.edge(from, to) as { points?: Pt[] } | undefined;
+    if (e?.points && e.points.length >= 2) {
+      return smoothPath(e.points);
+    }
+    return directPath(from, to);
+  }
+
+  const edgeObjs: EdgeObj[] = [];
+  const edgesByNode = new Map<string, EdgeObj[]>();
+  for (const [from, to] of edgePairs) {
+    if (!(pos.has(from) && pos.has(to))) {
+      continue;
+    }
+    const el = document.createElementNS(SVG_NS, "path");
+    el.setAttribute("d", routedPath(from, to));
+    el.setAttribute("fill", "none");
+    el.setAttribute("stroke", "rgba(245,240,235,0.16)");
+    el.setAttribute("stroke-width", "1.5");
+    svg.append(el);
+    const edge: EdgeObj = { el, from, to };
+    edgeObjs.push(edge);
+    for (const nodeId of [from, to]) {
+      const list = edgesByNode.get(nodeId) ?? [];
+      list.push(edge);
+      edgesByNode.set(nodeId, list);
+    }
   }
 
   // --- pan / zoom -----------------------------------------------------------
@@ -163,7 +217,7 @@ export function initGraph() {
   );
 
   // drag to pan (only when starting on the canvas background, not a card)
-  let dragging = false;
+  let panning = false;
   let sx = 0;
   let sy = 0;
   let ox = 0;
@@ -173,7 +227,7 @@ export function initGraph() {
     if (target.closest("[data-node]")) {
       return;
     }
-    dragging = true;
+    panning = true;
     sx = e.clientX;
     sy = e.clientY;
     ox = view.x;
@@ -182,19 +236,19 @@ export function initGraph() {
     viewport.style.cursor = "grabbing";
   });
   viewport.addEventListener("pointermove", (e) => {
-    if (!dragging) {
+    if (!panning) {
       return;
     }
     view.x = ox + (e.clientX - sx);
     view.y = oy + (e.clientY - sy);
     apply();
   });
-  const endDrag = () => {
-    dragging = false;
+  const endPan = () => {
+    panning = false;
     viewport.style.cursor = "";
   };
-  viewport.addEventListener("pointerup", endDrag);
-  viewport.addEventListener("pointercancel", endDrag);
+  viewport.addEventListener("pointerup", endPan);
+  viewport.addEventListener("pointercancel", endPan);
 
   for (const btn of document.querySelectorAll<HTMLElement>("[data-zoom]")) {
     btn.addEventListener("click", () => {
@@ -207,6 +261,77 @@ export function initGraph() {
         fit();
       }
     });
+  }
+
+  // --- node drag ------------------------------------------------------------
+  // A press that moves past the threshold is a drag (repositions the node and
+  // its edges); a press that doesn't is a click (selects the node).
+  for (const c of cards) {
+    let drag: { id: string; cx: number; cy: number; ox: number; oy: number; moved: boolean } | null =
+      null;
+
+    c.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) {
+        return;
+      }
+      const id = c.dataset.recordId;
+      const p = id ? pos.get(id) : undefined;
+      if (!(id && p)) {
+        return;
+      }
+      e.stopPropagation(); // don't let the viewport start a pan
+      drag = { cx: e.clientX, cy: e.clientY, id, moved: false, ox: p.x, oy: p.y };
+      try {
+        c.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture is best-effort */
+      }
+    });
+
+    c.addEventListener("pointermove", (e) => {
+      if (!drag) {
+        return;
+      }
+      const dx = e.clientX - drag.cx;
+      const dy = e.clientY - drag.cy;
+      if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) {
+        return;
+      }
+      drag.moved = true;
+      c.classList.add("dragging-node");
+      const p = pos.get(drag.id);
+      if (!p) {
+        return;
+      }
+      // screen delta → world delta (undo the zoom scale)
+      p.x = drag.ox + dx / view.scale;
+      p.y = drag.oy + dy / view.scale;
+      c.style.left = `${p.x - p.w / 2}px`;
+      c.style.top = `${p.y - p.h / 2}px`;
+      for (const ed of edgesByNode.get(drag.id) ?? []) {
+        ed.el.setAttribute("d", directPath(ed.from, ed.to));
+      }
+    });
+
+    const finishDrag = (e: PointerEvent) => {
+      if (!drag) {
+        return;
+      }
+      try {
+        c.releasePointerCapture?.(e.pointerId);
+      } catch {
+        /* nothing to release */
+      }
+      c.classList.remove("dragging-node");
+      const { id, moved } = drag;
+      drag = null;
+      e.stopPropagation();
+      if (!moved) {
+        select(id); // a plain click opens the inspector
+      }
+    };
+    c.addEventListener("pointerup", finishDrag);
+    c.addEventListener("pointercancel", finishDrag);
   }
 
   // --- selection + inspector ------------------------------------------------
@@ -254,16 +379,6 @@ export function initGraph() {
     if (dock) {
       dock.hidden = true;
     }
-  }
-
-  for (const c of cards) {
-    c.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const id = c.dataset.recordId;
-      if (id) {
-        select(id);
-      }
-    });
   }
 
   // click on empty canvas clears selection
