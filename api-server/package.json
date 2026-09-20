@@ -10,6 +10,10 @@
     "astro": "astro",
     "test": "vitest run",
     "check": "ultracite check",
+    "typecheck": "astro sync && tsc --noEmit",
+    "db:deploy": "node scripts/db-deploy.mts",
+    "delete-content": "node scripts/delete-content.mts",
+    "export-records": "node scripts/export-records.mts",
     "fix": "ultracite fix"
   },
   "dependencies": {

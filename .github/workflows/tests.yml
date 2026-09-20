@@ -1,0 +1,70 @@
+name: Tests
+
+# The same gate as `pnpm test:local` on a developer machine: static checks,
+# unit suites, then the integration suites against an api-server this job
+# builds and starts itself, on a throwaway database. Nothing here talks to a
+# deployed environment.
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch replaces a run still in flight.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Static checks, unit and integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # One throwaway database server per run, reachable only from this job.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The gate creates its own database, runtime role and content directory here.
+      RL_TEST_ADMIN_URL: postgresql://postgres@localhost:5432/postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Migrations, builds, the server, both SDKs' suites and the viewer smoke
+      # test all run inside the gate; it cleans up after itself.
+      - name: Run the test gate
+        run: pnpm test:local

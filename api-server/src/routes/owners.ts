@@ -4,6 +4,7 @@ import { prisma } from "#/lib/prisma";
 import { generateApiKey, hashApiKey } from "#/lib/crypto";
 import { generateWalletAddress } from "#/lib/wallet";
 import { authed, base } from "#/lib/auth";
+import { assertRegistrationAllowed } from "#/lib/registration";
 import { RegisterOwnerInput, UpdateOwnerInput } from "#/schemas/owners";
 
 // ---------------------------------------------------------------------------
@@ -13,7 +14,7 @@ import { RegisterOwnerInput, UpdateOwnerInput } from "#/schemas/owners";
 function ownerToMeta(owner: {
   id: string;
   wallet_mode: string;
-  owner_wallet_address: string;
+  owner_wallet_address: string | null;
   display_name: string | null;
   website: string | null;
   contact_email: string | null;
@@ -42,13 +43,14 @@ export const registerOwner = base
   .route({
     description:
       "Register a new owner, or resolve the existing one when the e-mail is already on file (idempotent). " +
+      "Private deployments allow this only with the administrator token (`X-Admin-Token`); a hosted instance may open it to self-service with a per-address rate limit. " +
       "The raw `api_key` is returned **only on the first call** — it is never stored and cannot be retrieved again. " +
       "Wallet mode (`custodial` | `byow`) is locked at registration and applies to every agent created under this owner.",
     method: "POST",
     path: "/owners",
-    // Public endpoint — no API key required. Use the function form of `spec`
-    // so the generated operation (summary, tags, requestBody, …) is preserved;
-    // passing a plain object here would REPLACE the whole operation.
+    // No owner API key: access is decided by assertRegistrationAllowed. Use the
+    // function form of `spec` so the generated operation (summary, tags,
+    // requestBody, …) is preserved; a plain object would REPLACE it.
     spec: (current) => ({ ...current, security: [] }),
     summary: "Register owner",
     tags: ["Owners"],
@@ -61,12 +63,14 @@ export const registerOwner = base
       created_at: z.number(),
       display_name: z.string().optional(),
       owner_id: z.string(),
-      owner_wallet_address: z.string(),
+      owner_wallet_address: z.string().nullable(),
       wallet_mode: z.enum(["custodial", "byow"]),
       website: z.string().optional(),
     }),
   )
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
+    assertRegistrationAllowed(context.headers);
+
     // Idempotency: if owner with this email already exists, return metadata.
     const existing = await prisma.owner.findUnique({
       where: { email: input.email },
@@ -130,7 +134,7 @@ export const getOwner = authed
       created_at: z.number(),
       display_name: z.string().optional(),
       owner_id: z.string(),
-      owner_wallet_address: z.string(),
+      owner_wallet_address: z.string().nullable(),
       updated_at: z.number(),
       wallet_mode: z.enum(["custodial", "byow"]),
       website: z.string().optional(),
@@ -166,7 +170,7 @@ export const updateOwner = authed
       created_at: z.number(),
       display_name: z.string().optional(),
       owner_id: z.string(),
-      owner_wallet_address: z.string(),
+      owner_wallet_address: z.string().nullable(),
       updated_at: z.number(),
       wallet_mode: z.enum(["custodial", "byow"]),
       website: z.string().optional(),

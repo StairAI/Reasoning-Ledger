@@ -5,6 +5,6 @@
   "description": "Shared runners for cross-SDK integration tests",
   "type": "module",
   "dependencies": {
-    "reasoning-ledger-sdk": "^0.1.0"
+    "reasoning-ledger-sdk": "workspace:*"
   }
 }

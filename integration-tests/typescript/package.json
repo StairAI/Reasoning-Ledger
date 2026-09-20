@@ -2,14 +2,14 @@
   "name": "@reasoning-ledger/integration-tests-typescript",
   "version": "0.0.0",
   "private": true,
-  "description": "Integration tests for the published reasoning-ledger-sdk against the staging API.",
+  "description": "Integration tests for the workspace reasoning-ledger-sdk against a running api-server.",
   "type": "module",
   "scripts": {
     "test": "PYTHON=../python/.venv/bin/python vitest run",
     "test:watch": "PYTHON=../python/.venv/bin/python vitest"
   },
   "dependencies": {
-    "reasoning-ledger-sdk": "^0.1.0"
+    "reasoning-ledger-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

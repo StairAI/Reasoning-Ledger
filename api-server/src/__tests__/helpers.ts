@@ -15,6 +15,22 @@ import { prisma } from "#/lib/prisma";
 // Context helpers
 // ---------------------------------------------------------------------------
 
+/** Owner registration is admin-only by default (RL_REGISTRATION=admin); tests hold the token. */
+export const TEST_ADMIN_TOKEN = process.env.RL_ADMIN_TOKEN ?? "test-admin-token";
+process.env.RL_ADMIN_TOKEN = TEST_ADMIN_TOKEN;
+
+/** Context carrying the administrator token, for registerOwner. */
+export function adminCtx() {
+  return {
+    context: {
+      headers: { "x-admin-token": TEST_ADMIN_TOKEN } as Record<
+        string,
+        string | string[] | undefined
+      >,
+    },
+  };
+}
+
 /** Build the raw context that oRPC's `call` expects for `base` procedures. */
 export function ctx(apiKey?: string) {
   return {
@@ -32,8 +48,10 @@ export function makeObservingInput(agentId: string, overrides: Record<string, un
     agent_id: agentId,
     behavior: "Observing" as const,
     client_ts_utc: Date.now(),
+    executor: "det" as const,
     record_id: crypto.randomUUID(),
-    schema_version: "0.3",
+    record_phase: "post_execution" as const,
+    schema_version: "0.4",
     session_id: `sess-${crypto.randomUUID()}`,
     trigger_description: "Test trigger",
     trigger_payload_summary: "test payload",
@@ -73,7 +91,7 @@ export async function makeTestOwner(
         owner_wallet_address: opts.walletAddress ?? `0x${"a".repeat(64)}`,
       }),
     },
-    ctx(), // registerOwner uses base, not authed
+    adminCtx(),
   );
 
   if (!result.api_key) {

@@ -12,7 +12,7 @@ import { RegisterAgentInput, UpdateAgentInput } from "#/schemas/agents";
 function agentToRegistration(agent: {
   id: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address: string | null;
   created_at: Date;
 }) {
   return {
@@ -26,7 +26,7 @@ function agentToRegistration(agent: {
 function agentToMeta(agent: {
   id: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address: string | null;
   description: string | null;
   website: string | null;
   tags: string[];
@@ -67,7 +67,7 @@ export const registerAgent = authed
   .output(
     z.object({
       agent_id: z.string(),
-      agent_wallet_address: z.string(),
+      agent_wallet_address: z.string().nullable(),
       created_at: z.number(),
       name: z.string(),
     }),
@@ -83,8 +83,9 @@ export const registerAgent = authed
       return agentToRegistration(existing);
     }
 
-    // Determine wallet address.
-    let walletAddress: string;
+    // Determine wallet address. Optional since v1.0: a byow owner without a
+    // default address yields an agent without one.
+    let walletAddress: string | null;
     if (context.walletMode === "byow") {
       if (input.wallet?.address) {
         walletAddress = input.wallet.address;
@@ -135,7 +136,7 @@ export const resolveAgent = authed
   .output(
     z.object({
       agent_id: z.string(),
-      agent_wallet_address: z.string(),
+      agent_wallet_address: z.string().nullable(),
       created_at: z.number(),
       description: z.string().nullable(),
       name: z.string(),
@@ -178,7 +179,7 @@ export const getAgent = authed
   .output(
     z.object({
       agent_id: z.string(),
-      agent_wallet_address: z.string(),
+      agent_wallet_address: z.string().nullable(),
       created_at: z.number(),
       description: z.string().nullable(),
       name: z.string(),
@@ -222,7 +223,7 @@ export const updateAgent = authed
   .output(
     z.object({
       agent_id: z.string(),
-      agent_wallet_address: z.string(),
+      agent_wallet_address: z.string().nullable(),
       created_at: z.number(),
       description: z.string().nullable(),
       name: z.string(),

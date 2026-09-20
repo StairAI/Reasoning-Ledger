@@ -12,6 +12,17 @@ export interface AuthContext {
  */
 export const base = os.$context<{ headers: Record<string, string | string[] | undefined> }>();
 
+/** Look up the owner behind a raw API key; undefined when the key is unknown. */
+export async function ownerForApiKey(raw: string): Promise<AuthContext | undefined> {
+  const owner = await prisma.owner.findUnique({
+    select: { id: true, wallet_mode: true },
+    where: { api_key_hash: hashApiKey(raw) },
+  });
+  return owner
+    ? { ownerId: owner.id, walletMode: owner.wallet_mode as "custodial" | "byow" }
+    : undefined;
+}
+
 /**
  * Authenticated procedure builder.
  *
@@ -28,20 +39,10 @@ export const authed = base.use(async ({ context, next }) => {
     throw new ORPCError("UNAUTHORIZED", { message: "Missing X-API-Key header" });
   }
 
-  const hash = hashApiKey(raw);
-  const owner = await prisma.owner.findUnique({
-    select: { id: true, wallet_mode: true },
-    where: { api_key_hash: hash },
-  });
-
+  const owner = await ownerForApiKey(raw);
   if (!owner) {
     throw new ORPCError("UNAUTHORIZED", { message: "Invalid API key" });
   }
 
-  return next({
-    context: {
-      ownerId: owner.id,
-      walletMode: owner.wallet_mode as "custodial" | "byow",
-    },
-  });
+  return next({ context: owner });
 });

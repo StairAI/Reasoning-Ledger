@@ -9,10 +9,10 @@ from .constants import SIZE_LIMITS
 from .errors import ValidationError
 from .generated.records import (
     ActingRecord,
+    AttestingRecord,
     ObservingRecord,
     OtherRecord,
     ReasoningLedgerRecordSchemas,
-    ThinkingRecord,
     ToolCallingRecord,
 )
 
@@ -32,10 +32,12 @@ def _str_byte_length(value: str) -> int:
 # ---------------------------------------------------------------------------
 # validate_record
 #
-# Validates a *complete* record (after auto-fill) against:
+# Validates a *complete* record (after auto-fill, content positions holding
+# ContentRefs) against:
 #   1. The Pydantic schema from generated/records.py
-#   2. Per-record total JSON size (64 KB)
-#   3. Behavior-specific field size caps (§10.2)
+#   2. The cross-field rules of the schema that the generated models miss
+#   3. Per-record total JSON size (64 KB)
+#   4. Behavior-specific field size caps (§10.2)
 #
 # Raises ValidationError on the first violation. Called before any
 # network call so the server is never reached with invalid data.
@@ -57,7 +59,25 @@ def validate_record(record: Any) -> None:
 
     typed = parsed.root
 
-    # 2. Per-record total JSON size.
+    # 2. Cross-field rules (JSON Schema if/then), worded as the server words them.
+    if (
+        isinstance(typed, ActingRecord)
+        and typed.target_system == "public-chain"
+        and typed.execution_status == "confirmed"
+        and not typed.execution_id
+    ):
+        raise ValidationError(
+            "execution_id is required when target_system is 'public-chain' "
+            "and execution_status is 'confirmed'",
+            {"field": "execution_id", "reason": "required"},
+        )
+    if isinstance(typed, AttestingRecord) and typed.disposition == "reject" and not typed.reason:
+        raise ValidationError(
+            "reason is required when disposition is 'reject'",
+            {"field": "reason", "reason": "required"},
+        )
+
+    # 3. Per-record total JSON size.
     total_bytes = _json_byte_length(record)
     if total_bytes > SIZE_LIMITS["RECORD_JSON"]:
         kb = SIZE_LIMITS["RECORD_JSON"] // 1024
@@ -66,7 +86,8 @@ def validate_record(record: Any) -> None:
             {"field": "(record)", "reason": "total size exceeded"},
         )
 
-    # 3. Behavior-specific field size caps.
+    # 4. Behavior-specific field size caps. Content positions hold ContentRefs;
+    # the server enforces the size of the content itself on upload.
 
     if isinstance(typed, ObservingRecord):
         tps_bytes = _str_byte_length(typed.trigger_payload_summary)
@@ -85,40 +106,6 @@ def validate_record(record: Any) -> None:
             raise ValidationError(
                 f"tool_meta exceeds {kb} KB limit ({meta_bytes} bytes)",
                 {"field": "tool_meta", "reason": "size exceeded"},
-            )
-        inp_bytes = _json_byte_length(typed.input_payload)
-        tool_input_limit = SIZE_LIMITS["TOOL_INPUT"]
-        if inp_bytes > tool_input_limit:
-            kb = tool_input_limit // 1024
-            raise ValidationError(
-                f"input_payload exceeds {kb} KB limit ({inp_bytes} bytes)",
-                {"field": "input_payload", "reason": "size exceeded"},
-            )
-        out_bytes = _json_byte_length(typed.output_payload)
-        tool_output_limit = SIZE_LIMITS["TOOL_OUTPUT"]
-        if out_bytes > tool_output_limit:
-            kb = tool_output_limit // 1024
-            raise ValidationError(
-                f"output_payload exceeds {kb} KB limit ({out_bytes} bytes)",
-                {"field": "output_payload", "reason": "size exceeded"},
-            )
-
-    elif isinstance(typed, ThinkingRecord):
-        prompt_bytes = _str_byte_length(typed.prompt)
-        prompt_limit = SIZE_LIMITS["THINKING_PROMPT"]
-        if prompt_bytes > prompt_limit:
-            kb = prompt_limit // 1024
-            raise ValidationError(
-                f"prompt exceeds {kb} KB limit ({prompt_bytes} bytes)",
-                {"field": "prompt", "reason": "size exceeded"},
-            )
-        out_bytes = _str_byte_length(typed.output_payload)
-        output_limit = SIZE_LIMITS["THINKING_OUTPUT"]
-        if out_bytes > output_limit:
-            kb = output_limit // 1024
-            raise ValidationError(
-                f"output_payload exceeds {kb} KB limit ({out_bytes} bytes)",
-                {"field": "output_payload", "reason": "size exceeded"},
             )
 
     elif isinstance(typed, ActingRecord):
@@ -141,10 +128,9 @@ def validate_record(record: Any) -> None:
                 {"field": "data", "reason": "size exceeded"},
             )
 
-    # Planning and Reflecting have no extra field-level size caps beyond the
-    # record total; tags/notes are capped by the Pydantic schema (max_length /
-    # max_items) rather than byte limits.
-    # ReflectingRecord.output_payload is covered by the 64 KB per-record limit.
+    # Planning, Thinking, Reflecting and Attesting have no extra field-level
+    # size caps beyond the record total; tags/notes are capped by the Pydantic
+    # schema (max_length / max_items) rather than byte limits.
 
 
 # ---------------------------------------------------------------------------

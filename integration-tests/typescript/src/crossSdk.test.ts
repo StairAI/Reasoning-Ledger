@@ -8,16 +8,16 @@ const __dirname = dirname(__filename);
 
 import { beforeAll, describe, expect, test } from "vitest";
 import { LedgerClient } from "reasoning-ledger-sdk";
+import type { ContentRef } from "reasoning-ledger-sdk";
 
 import { resolveStagingEnv } from "./env.js";
-import { StagingTransport } from "./stagingTransport.js";
 
 // Orchestrated cross-SDK synergy: the PYTHON SDK writes records; the
 // TYPESCRIPT SDK reads them back and verifies integrity.
 //
 // Skips if staging credentials are absent, or if no python interpreter is
 // available on PATH. The matching test on the Python side does the inverse:
-// TS writes, Python reads.
+// TS writes, Python reads. Both writers write the same fixture.
 
 const skip = !process.env["STAIRAI_STAGING_API_KEY"];
 const pythonBin = process.env["PYTHON"] ?? "python3";
@@ -44,9 +44,15 @@ interface WriterOutput {
   };
 }
 
+const EXPECTED_BEHAVIOR: Record<string, string> = {
+  acting: "Acting",
+  observing: "Observing",
+  thinking: "Thinking",
+  toolcalling: "ToolCalling",
+};
+
 describeIfReady("cross-SDK: Python writes → TypeScript reads", () => {
   const env = skip ? null : resolveStagingEnv();
-  const transport = skip ? null : new StagingTransport(env!.baseUrl);
 
   // Fresh agent + session per test run so the read-back asserts exactly what
   // this run wrote, not leftovers from a previous invocation.
@@ -96,7 +102,6 @@ describeIfReady("cross-SDK: Python writes → TypeScript reads", () => {
       agentId: writerOut.agent_id,
       apiKey: env!.apiKey,
       endpoint: env!.baseUrl,
-      httpTransport: transport!,
     });
   });
 
@@ -108,31 +113,20 @@ describeIfReady("cross-SDK: Python writes → TypeScript reads", () => {
     expect(writerOut.records.acting).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
-  test("getRecord() can read each record the Python SDK wrote", async () => {
+  test("getRecord() reads each record the Python SDK wrote", async () => {
     for (const [kind, rid] of Object.entries(writerOut.records)) {
       const record = await client.getRecord(rid);
-      expect(record["record_id"]).toBe(rid);
-      expect(record["session_id"]).toBe(sessionId);
-      expect(record["agent_id"]).toBe(writerOut.agent_id);
-
-      // Sanity-check the behavior tag round-trips through schema.
-      const expectedBehavior = {
-        acting: "Acting",
-        observing: "Observing",
-        thinking: "Thinking",
-        toolcalling: "ToolCalling",
-      }[kind];
-      expect(record["behavior"]).toBe(expectedBehavior);
+      expect(record.record_id).toBe(rid);
+      expect(record.agent_id).toBe(writerOut.agent_id);
+      expect(record.session_id).toBe(sessionId);
+      expect(record.behavior).toBe(EXPECTED_BEHAVIOR[kind]);
     }
   });
 
-  test("getSession() returns the four records in submission order", async () => {
+  test("getSession() returns the four records in write order", async () => {
     const fetched = await client.getSession(sessionId);
     expect(fetched.session_id).toBe(sessionId);
-    expect(fetched.records).toHaveLength(4);
-
-    const order = fetched.records.map((r) => r["record_id"] as string);
-    expect(order).toEqual([
+    expect(fetched.records.map((r) => r.record_id)).toEqual([
       writerOut.records.observing,
       writerOut.records.toolcalling,
       writerOut.records.thinking,
@@ -142,11 +136,18 @@ describeIfReady("cross-SDK: Python writes → TypeScript reads", () => {
 
   test("ToolCalling upstream_record_id reference survives Python → TS", async () => {
     const tc = await client.getRecord(writerOut.records.toolcalling);
-    const upstream = tc["upstream_record_id"] as string[];
-    expect(upstream).toEqual([writerOut.records.observing]);
+    expect(tc.upstream_record_id).toEqual([writerOut.records.observing]);
+  });
 
-    // And the payload deserializes to the original JSON shape.
-    const input = JSON.parse(tc["input_payload"] as string) as Record<string, unknown>;
-    expect(input).toEqual({ from: "python" });
+  test("ToolCalling.input_payload reads back as the JSON object the writer passed", async () => {
+    const tc = await client.getRecord(writerOut.records.toolcalling);
+    const bytes = await client.getContent(tc["input_payload"] as ContentRef);
+    expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual({ n: 1, query: "cross-sdk" });
+  });
+
+  test("Thinking.prompt reads back as the text the writer passed", async () => {
+    const thinking = await client.getRecord(writerOut.records.thinking);
+    const bytes = await client.getContent(thinking["prompt"] as ContentRef);
+    expect(new TextDecoder().decode(bytes)).toBe("Should we act?");
   });
 });

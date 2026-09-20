@@ -16,8 +16,8 @@
 
 import * as runtime from "@prisma/client/runtime/index-browser";
 
-export type * from "../models";
-export type * from "./prismaNamespace";
+export type * from "../models.ts";
+export type * from "./prismaNamespace.ts";
 
 export const Decimal = runtime.Decimal;
 
@@ -51,6 +51,9 @@ export const ModelName = {
   Owner: "Owner",
   Agent: "Agent",
   TraceRecord: "TraceRecord",
+  ContentObject: "ContentObject",
+  ContentDeletion: "ContentDeletion",
+  VizSession: "VizSession",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -106,6 +109,11 @@ export const TraceRecordScalarFieldEnum = {
   behavior: "behavior",
   client_ts_utc: "client_ts_utc",
   server_ts_utc: "server_ts_utc",
+  sequence: "sequence",
+  executor: "executor",
+  record_phase: "record_phase",
+  outcome: "outcome",
+  duration_ms: "duration_ms",
   notes: "notes",
   tags: "tags",
   model_invocation: "model_invocation",
@@ -117,6 +125,40 @@ export const TraceRecordScalarFieldEnum = {
 
 export type TraceRecordScalarFieldEnum =
   (typeof TraceRecordScalarFieldEnum)[keyof typeof TraceRecordScalarFieldEnum];
+
+export const ContentObjectScalarFieldEnum = {
+  owner_id: "owner_id",
+  sha256: "sha256",
+  bytes: "bytes",
+  media_type: "media_type",
+  created_at: "created_at",
+  deleted_at: "deleted_at",
+} as const;
+
+export type ContentObjectScalarFieldEnum =
+  (typeof ContentObjectScalarFieldEnum)[keyof typeof ContentObjectScalarFieldEnum];
+
+export const ContentDeletionScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  sha256: "sha256",
+  reason: "reason",
+  operator: "operator",
+  deleted_at: "deleted_at",
+} as const;
+
+export type ContentDeletionScalarFieldEnum =
+  (typeof ContentDeletionScalarFieldEnum)[keyof typeof ContentDeletionScalarFieldEnum];
+
+export const VizSessionScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  created_at: "created_at",
+  expires_at: "expires_at",
+} as const;
+
+export type VizSessionScalarFieldEnum =
+  (typeof VizSessionScalarFieldEnum)[keyof typeof VizSessionScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",

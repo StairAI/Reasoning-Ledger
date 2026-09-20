@@ -232,15 +232,24 @@ wheels = [
 
 [[package]]
 name = "reasoning-ledger"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
+version = "1.0.0"
+source = { editable = "../../python-sdk" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/c4/28ad8521c407c08ab1f59d17ac1a56e97771cc3c091406ce8f0ee318b3ab/reasoning_ledger-0.1.0.tar.gz", hash = "sha256:d4e5b29515930de43e856c6a75d00c58090620f271d570cbe9522b2ec850b90a", size = 14194, upload-time = "2026-05-11T06:44:27.643Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/35/0721798f57f360572f938ab7addf234155b3db02ea2af7b676b3aa030d35/reasoning_ledger-0.1.0-py3-none-any.whl", hash = "sha256:24c6dcac30aacde6913eaeadd0ac52ce7449f1460891f5a621749ffd2b69e1c2", size = 18923, upload-time = "2026-05-11T06:44:29Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pydantic", specifier = ">=2.13.3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8" },
+    { name = "ruff", specifier = ">=0.9" },
+    { name = "ty", specifier = ">=0.0.3" },
 ]
 
 [[package]]
@@ -257,7 +266,7 @@ dependencies = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8" },
-    { name = "reasoning-ledger", specifier = ">=0.1.0" },
+    { name = "reasoning-ledger", editable = "../../python-sdk" },
 ]
 
 [[package]]

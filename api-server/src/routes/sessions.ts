@@ -1,19 +1,20 @@
 import { ORPCError } from "@orpc/server";
 import * as z from "zod";
-import { prisma } from "#/lib/prisma";
 import { authed } from "#/lib/auth";
 import { reconstructRecord } from "#/lib/record";
+import { ownedSession } from "#/lib/repository";
 
 // ---------------------------------------------------------------------------
 // GET /v1/sessions/:session_id?agent_id=...
-// Fetch all records in a session, ordered by server_ts_utc ascending.
+// Fetch all records in a session, in the order the server received them.
 // ---------------------------------------------------------------------------
 
 export const getSession = authed
   .route({
     description:
-      "Fetch every record submitted under a given `(agent_id, session_id)` pair, ordered by `server_ts_utc` ascending. " +
-      "Sessions have no server-side lifecycle — this is a filtered view of the agent's trace. " +
+      "Fetch every record submitted under a given `(agent_id, session_id)` pair, in the order the server received them (`sequence` ascending). " +
+      "Sessions have no server-side lifecycle — this is a filtered view of the agent's trace. `session_id` is scoped per agent. " +
+      "An agent that is not yours answers 404, the same as one that does not exist. " +
       "Returns an empty `records` array when the session exists but contains no records.",
     method: "GET",
     path: "/sessions/{session_id}",
@@ -33,22 +34,12 @@ export const getSession = authed
     }),
   )
   .handler(async ({ input, context }) => {
-    // Verify the agent belongs to the calling owner.
-    const agent = await prisma.agent.findUnique({
-      select: { owner_id: true },
-      where: { id: input.agent_id },
-    });
-    if (!agent || agent.owner_id !== context.ownerId) {
+    const session = await ownedSession(context.ownerId, input.agent_id, input.session_id);
+    if (!session) {
       throw new ORPCError("NOT_FOUND", { message: "Agent not found" });
     }
-
-    const rows = await prisma.traceRecord.findMany({
-      orderBy: { server_ts_utc: "asc" },
-      where: { agent_id: input.agent_id, session_id: input.session_id },
-    });
-
     return {
-      records: rows.map(reconstructRecord),
+      records: session.rows.map(reconstructRecord),
       session_id: input.session_id,
     };
   });

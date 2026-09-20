@@ -1,16 +1,6 @@
 ---
 import Icon from "./Icon.astro";
 import { BEHAVIOR_META, LEGEND_ORDER } from "#/lib/trace";
-
-const COLOR: Record<string, string> = {
-  acting: "#00b2a4",
-  observing: "#ebb447",
-  other: "#9a9a9a",
-  planning: "#7ee055",
-  reflecting: "#e06c7f",
-  thinking: "#bf80ff",
-  toolcalling: "#3c9add",
-};
 ---
 
 <div
@@ -21,7 +11,7 @@ const COLOR: Record<string, string> = {
       const meta = BEHAVIOR_META[b];
       return (
         <div class="flex w-24 items-center gap-1">
-          <span style={`color:${COLOR[meta.token]}`}>
+          <span style={`color:${meta.color}`}>
             <Icon name={meta.icon} size={12} />
           </span>
           <span class="text-[12px] text-ink">{meta.label}</span>

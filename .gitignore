@@ -14,3 +14,6 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+
+# Default content store when the api-server runs from its own directory
+api-server/data/

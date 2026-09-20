@@ -1,3 +1,3 @@
 # Generated package — do not edit manually.
 from .records import *
-from .version import SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSIONS
+from .version import KNOWN_SCHEMA_VERSIONS, RETIRED_SCHEMA_VERSIONS, SCHEMA_VERSION

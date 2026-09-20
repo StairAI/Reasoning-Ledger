@@ -1,14 +1,15 @@
 /**
  * Cross-SDK writer runner (TypeScript side).
  *
- * Writes a deterministic 4-record decision cycle to the specified session
- * using the published `reasoning-ledger-sdk` npm package, then prints a JSON
- * object on stdout so a test in another language can invoke this runner and
- * verify the records via its own SDK.
+ * Writes the shared 4-record fixture (Observing → ToolCalling → Thinking →
+ * Acting) to the specified session using the workspace `reasoning-ledger-sdk`,
+ * then prints a JSON object on stdout so a test in another language can invoke
+ * this runner and verify the records via its own SDK. The Python writer
+ * (python_writer.py) writes the same fixture.
  *
  * Input (env vars):
  *   STAIRAI_STAGING_API_KEY   required
- *   STAIRAI_STAGING_BASE_URL  default https://staging-api.stair-ai.com
+ *   STAIRAI_STAGING_BASE_URL  default https://stg-api.stair-ai.com
  *   AGENT_NAME                required (already registered or will be created)
  *   SESSION_ID                required
  *
@@ -27,8 +28,6 @@
 
 import { LedgerClient, newRecordId } from "reasoning-ledger-sdk";
 
-import { StagingTransport } from "../../typescript/src/stagingTransport.js";
-
 function req(name: string): string {
   const v = process.env[name];
   if (!v) {
@@ -40,32 +39,22 @@ function req(name: string): string {
 
 async function main(): Promise<void> {
   const apiKey = req("STAIRAI_STAGING_API_KEY");
-  const baseUrl = (process.env["STAIRAI_STAGING_BASE_URL"] ?? "https://staging-api.stair-ai.com")
-    .replace(/\/$/, "");
+  const endpoint = process.env["STAIRAI_STAGING_BASE_URL"] ?? "https://stg-api.stair-ai.com";
   const agentName = req("AGENT_NAME");
   const sessionId = req("SESSION_ID");
 
-  const transport = new StagingTransport(baseUrl);
-
-  const reg = await LedgerClient.registerAgent(
-    {
-      apiKey,
-      metadata: {
-        description: "cross-sdk typescript writer",
-        tags: ["integration-test", "cross-sdk", "ts-writer"],
-      },
-      name: agentName,
+  const reg = await LedgerClient.registerAgent({
+    apiKey,
+    endpoint,
+    metadata: {
+      description: "cross-sdk typescript writer",
+      tags: ["integration-test", "cross-sdk", "ts-writer"],
     },
-    transport,
-  );
+    name: agentName,
+  });
   const agentId = reg.agent_id;
 
-  const client = new LedgerClient({
-    agentId,
-    apiKey,
-    endpoint: baseUrl,
-    httpTransport: transport,
-  });
+  const client = new LedgerClient({ agentId, apiKey, endpoint });
   const session = client.newSession(sessionId);
 
   const ids = {
@@ -75,40 +64,58 @@ async function main(): Promise<void> {
     toolcalling: newRecordId(),
   };
 
+  // 1. Observing.
   await session.submit({
     behavior: "Observing",
+    executor: "det",
     record_id: ids.observing,
-    trigger_description: "ts-writer: deterministic probe",
-    trigger_payload_summary: "probe=ts",
+    record_phase: "post_execution",
+    trigger_description: "cross-sdk writer",
+    trigger_payload_summary: "cross-sdk",
     trigger_source: "cross-sdk",
     trigger_type: "signal_trigger",
   });
+
+  // 2. ToolCalling. The object payloads are uploaded as application/json.
+  // Key order as in the fixture, so both writers upload identical bytes.
   await session.submit({
     behavior: "ToolCalling",
-    description: "ts-writer tool call",
-    input_payload: JSON.stringify({ from: "typescript" }),
-    output_payload: JSON.stringify({ ok: true }),
+    description: "echo tool",
+    executor: "det",
+    input_payload: { query: "cross-sdk", n: 1 },
+    outcome: "success",
+    output_payload: { ok: true },
     record_id: ids.toolcalling,
-    success: true,
-    tool_meta: { category: "external_api", tool_id: "probe-tool" },
+    record_phase: "post_execution",
+    tool_meta: { name: "echo" },
     upstream_record_id: [ids.observing],
   });
+
+  // 3. Thinking. The strings are uploaded as text/plain; charset=utf-8.
   await session.submit({
     behavior: "Thinking",
-    inputs: [],
-    output_payload: JSON.stringify({ decision: "hold" }),
-    prompt: "ts-writer thinking",
+    executor: "ai",
+    inputs: [{ input_payload: "echo ok", input_record_id: ids.toolcalling }],
+    output_payload: "Yes",
+    prompt: "Should we act?",
     record_id: ids.thinking,
+    record_phase: "post_execution",
+    upstream_record_id: [ids.toolcalling],
   });
+
+  // 4. Acting.
   await session.submit({
-    action_summary: "ts-writer acting",
-    action_type: "noop",
+    action_summary: "cross-sdk act",
+    action_type: "publish",
     behavior: "Acting",
     dry_run: true,
-    execution_status: "confirmed",
-    parameters: { source: "typescript" },
+    executor: "det",
+    execution_status: "simulated",
+    parameters: {},
     record_id: ids.acting,
-    target_system: "cross-sdk",
+    record_phase: "post_execution",
+    target_system: "noop",
+    upstream_record_id: [ids.thinking],
   });
 
   // eslint-disable-next-line no-console

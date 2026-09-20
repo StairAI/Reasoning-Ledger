@@ -1,14 +1,14 @@
 """
 Cross-SDK writer runner (Python side).
 
-Writes a deterministic 4-record decision cycle to the specified session using
-the published ``reasoning-ledger`` PyPI SDK, then prints a JSON object on
-stdout so a test in another language can invoke this runner and verify the
-records via its own SDK.
+Writes the shared 4-record cross-SDK fixture to the specified session using
+the workspace ``reasoning-ledger`` SDK, then prints a JSON object on stdout so
+a test in another language can invoke this runner and verify the records via
+its own SDK.
 
 Input (env vars):
     STAIRAI_STAGING_API_KEY   required
-    STAIRAI_STAGING_BASE_URL  default https://staging-api.stair-ai.com
+    STAIRAI_STAGING_BASE_URL  default https://stg-api.stair-ai.com
     AGENT_NAME                required (already registered or will be created)
     SESSION_ID                required
 
@@ -32,40 +32,34 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
 
-# Allow running as `python python_writer.py` from this directory.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "python" / "tests"))
-
-from staging_transport import StagingTransport  # noqa: E402
-
-from reasoning_ledger import (  # noqa: E402
+from reasoning_ledger import (
+    AgentMetadata,
     LedgerClient,
     LedgerClientConfig,
     RegisterAgentOpts,
     new_record_id,
 )
-from reasoning_ledger.types import AgentMetadata  # noqa: E402
+
+DEFAULT_BASE_URL = "https://stg-api.stair-ai.com"
 
 
 def main() -> int:
     api_key = os.environ["STAIRAI_STAGING_API_KEY"]
-    base_url = os.environ.get("STAIRAI_STAGING_BASE_URL", "https://staging-api.stair-ai.com")
+    base_url = os.environ.get("STAIRAI_STAGING_BASE_URL", DEFAULT_BASE_URL)
     agent_name = os.environ["AGENT_NAME"]
     session_id = os.environ["SESSION_ID"]
-
-    transport = StagingTransport(base_url)
 
     reg = LedgerClient.register_agent(
         RegisterAgentOpts(
             api_key=api_key,
+            endpoint=base_url,
             name=agent_name,
             metadata=AgentMetadata(
                 description="cross-sdk python writer",
                 tags=["integration-test", "cross-sdk", "py-writer"],
             ),
-        ),
-        _transport=transport,
+        )
     )
     agent_id = reg["agent_id"]
 
@@ -74,12 +68,11 @@ def main() -> int:
             agent_id=agent_id,
             api_key=api_key,
             endpoint=base_url,
-            http_transport=transport,
         )
     )
     session = client.new_session(session_id)
 
-    # Deterministic record IDs so the reading side can assert exact match.
+    # Record IDs chosen up front so the reading side can assert exact matches.
     ids = {
         "observing": new_record_id(),
         "toolcalling": new_record_id(),
@@ -91,43 +84,55 @@ def main() -> int:
         {
             "behavior": "Observing",
             "record_id": ids["observing"],
-            "trigger_description": "py-writer: deterministic probe",
-            "trigger_payload_summary": "probe=py",
             "trigger_source": "cross-sdk",
             "trigger_type": "signal_trigger",
+            "trigger_description": "cross-sdk writer",
+            "trigger_payload_summary": "cross-sdk",
+            "executor": "det",
+            "record_phase": "post_execution",
         }
     )
     session.submit(
         {
             "behavior": "ToolCalling",
             "record_id": ids["toolcalling"],
-            "tool_meta": {"tool_id": "probe-tool", "category": "external_api"},
-            "description": "py-writer tool call",
-            "input_payload": json.dumps({"from": "python"}),
-            "output_payload": json.dumps({"ok": True}),
-            "success": True,
             "upstream_record_id": [ids["observing"]],
+            "tool_meta": {"name": "echo"},
+            "description": "echo tool",
+            # Objects are uploaded by the SDK as application/json content.
+            "input_payload": {"query": "cross-sdk", "n": 1},
+            "output_payload": {"ok": True},
+            "outcome": "success",
+            "executor": "det",
+            "record_phase": "post_execution",
         }
     )
     session.submit(
         {
             "behavior": "Thinking",
             "record_id": ids["thinking"],
-            "prompt": "py-writer thinking",
-            "inputs": [],
-            "output_payload": json.dumps({"decision": "hold"}),
+            "upstream_record_id": [ids["toolcalling"]],
+            # Strings are uploaded by the SDK as text/plain content.
+            "prompt": "Should we act?",
+            "inputs": [{"input_record_id": ids["toolcalling"], "input_payload": "echo ok"}],
+            "output_payload": "Yes",
+            "executor": "ai",
+            "record_phase": "post_execution",
         }
     )
     session.submit(
         {
             "behavior": "Acting",
             "record_id": ids["acting"],
-            "action_type": "noop",
-            "target_system": "cross-sdk",
-            "action_summary": "py-writer acting",
-            "parameters": {"source": "python"},
+            "upstream_record_id": [ids["thinking"]],
+            "action_type": "publish",
+            "target_system": "noop",
+            "action_summary": "cross-sdk act",
+            "parameters": {},
             "dry_run": True,
-            "execution_status": "confirmed",
+            "execution_status": "simulated",
+            "executor": "det",
+            "record_phase": "post_execution",
         }
     )
 

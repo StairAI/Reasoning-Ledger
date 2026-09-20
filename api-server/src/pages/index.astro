@@ -2,18 +2,19 @@
 import Layout from "#/layouts/Layout.astro";
 import Icon from "#/components/Icon.astro";
 import TypeBadge from "#/components/TypeBadge.astro";
-import { createTraceClient } from "#/lib/rpc";
+import { ownedSessionSummaries } from "#/lib/repository";
+import type { SessionSummary } from "#/lib/repository";
 import { formatNumber } from "#/lib/trace";
 
 export const prerender = false;
 
-const client = createTraceClient();
+// Set by src/middleware.ts from the visitor's login session.
+const ownerId = Astro.locals.ownerId ?? "";
 
-let sessions: Awaited<ReturnType<typeof client.traces.listSessions>>["sessions"] = [];
+let sessions: SessionSummary[] = [];
 let loadError: string | null = null;
 try {
-  const list = await client.traces.listSessions({ limit: 200 });
-  ({ sessions } = list);
+  sessions = await ownedSessionSummaries(ownerId, 200);
 } catch (error) {
   loadError = error instanceof Error ? error.message : "Failed to load traces";
 }
@@ -34,6 +35,9 @@ function formatDate(ms: number): string {
         <div class="flex items-center gap-2 text-ink/50">
           <Icon name="git-fork" size={16} />
           <span class="font-sans text-[13px] uppercase tracking-wider">Reasoning Ledger</span>
+          <form method="post" action="/logout" class="ml-auto">
+            <button type="submit" class="text-[12px] text-ink/50 hover:text-ink">Sign out</button>
+          </form>
         </div>
         <h1 class="font-sans text-[28px] font-medium text-ink">Reasoning Traces</h1>
         <p class="text-[13px] text-ink/50">

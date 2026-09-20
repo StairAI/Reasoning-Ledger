@@ -8,14 +8,14 @@ export interface StagingEnv {
   agentName: string;
 }
 
-const DEFAULT_BASE_URL = "https://staging-api.stair-ai.com";
+const DEFAULT_BASE_URL = "https://stg-api.stair-ai.com";
 
 export function resolveStagingEnv(): StagingEnv {
   const apiKey = process.env["STAIRAI_STAGING_API_KEY"];
   if (!apiKey) {
     throw new Error(
       "STAIRAI_STAGING_API_KEY is not set. Integration tests require an owner-level API key " +
-        "issued against https://staging-api.stair-ai.com. See integration-tests/README.md.",
+        "issued against https://stg-api.stair-ai.com. See integration-tests/README.md.",
     );
   }
 

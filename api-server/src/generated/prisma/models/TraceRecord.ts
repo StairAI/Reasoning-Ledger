@@ -8,8 +8,8 @@
  * 🟢 You can import this file directly.
  */
 import type * as runtime from "@prisma/client/runtime/client";
-import type * as $Enums from "../enums";
-import type * as Prisma from "../internal/prismaNamespace";
+import type * as $Enums from "../enums.ts";
+import type * as Prisma from "../internal/prismaNamespace.ts";
 
 /**
  * Model TraceRecord
@@ -28,11 +28,15 @@ export type AggregateTraceRecord = {
 export type TraceRecordAvgAggregateOutputType = {
   client_ts_utc: number | null;
   server_ts_utc: number | null;
+  sequence: number | null;
+  duration_ms: number | null;
 };
 
 export type TraceRecordSumAggregateOutputType = {
   client_ts_utc: bigint | null;
   server_ts_utc: bigint | null;
+  sequence: bigint | null;
+  duration_ms: number | null;
 };
 
 export type TraceRecordMinAggregateOutputType = {
@@ -43,6 +47,11 @@ export type TraceRecordMinAggregateOutputType = {
   behavior: $Enums.BehaviorType | null;
   client_ts_utc: bigint | null;
   server_ts_utc: bigint | null;
+  sequence: bigint | null;
+  executor: $Enums.Executor | null;
+  record_phase: $Enums.RecordPhase | null;
+  outcome: $Enums.Outcome | null;
+  duration_ms: number | null;
   notes: string | null;
   parent_record_id: string | null;
   created_at: Date | null;
@@ -56,6 +65,11 @@ export type TraceRecordMaxAggregateOutputType = {
   behavior: $Enums.BehaviorType | null;
   client_ts_utc: bigint | null;
   server_ts_utc: bigint | null;
+  sequence: bigint | null;
+  executor: $Enums.Executor | null;
+  record_phase: $Enums.RecordPhase | null;
+  outcome: $Enums.Outcome | null;
+  duration_ms: number | null;
   notes: string | null;
   parent_record_id: string | null;
   created_at: Date | null;
@@ -69,6 +83,11 @@ export type TraceRecordCountAggregateOutputType = {
   behavior: number;
   client_ts_utc: number;
   server_ts_utc: number;
+  sequence: number;
+  executor: number;
+  record_phase: number;
+  outcome: number;
+  duration_ms: number;
   notes: number;
   tags: number;
   model_invocation: number;
@@ -82,11 +101,15 @@ export type TraceRecordCountAggregateOutputType = {
 export type TraceRecordAvgAggregateInputType = {
   client_ts_utc?: true;
   server_ts_utc?: true;
+  sequence?: true;
+  duration_ms?: true;
 };
 
 export type TraceRecordSumAggregateInputType = {
   client_ts_utc?: true;
   server_ts_utc?: true;
+  sequence?: true;
+  duration_ms?: true;
 };
 
 export type TraceRecordMinAggregateInputType = {
@@ -97,6 +120,11 @@ export type TraceRecordMinAggregateInputType = {
   behavior?: true;
   client_ts_utc?: true;
   server_ts_utc?: true;
+  sequence?: true;
+  executor?: true;
+  record_phase?: true;
+  outcome?: true;
+  duration_ms?: true;
   notes?: true;
   parent_record_id?: true;
   created_at?: true;
@@ -110,6 +138,11 @@ export type TraceRecordMaxAggregateInputType = {
   behavior?: true;
   client_ts_utc?: true;
   server_ts_utc?: true;
+  sequence?: true;
+  executor?: true;
+  record_phase?: true;
+  outcome?: true;
+  duration_ms?: true;
   notes?: true;
   parent_record_id?: true;
   created_at?: true;
@@ -123,6 +156,11 @@ export type TraceRecordCountAggregateInputType = {
   behavior?: true;
   client_ts_utc?: true;
   server_ts_utc?: true;
+  sequence?: true;
+  executor?: true;
+  record_phase?: true;
+  outcome?: true;
+  duration_ms?: true;
   notes?: true;
   tags?: true;
   model_invocation?: true;
@@ -232,6 +270,11 @@ export type TraceRecordGroupByOutputType = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint;
   server_ts_utc: bigint;
+  sequence: bigint;
+  executor: $Enums.Executor | null;
+  record_phase: $Enums.RecordPhase | null;
+  outcome: $Enums.Outcome | null;
+  duration_ms: number | null;
   notes: string | null;
   tags: string[];
   model_invocation: runtime.JsonValue | null;
@@ -269,6 +312,11 @@ export type TraceRecordWhereInput = {
   behavior?: Prisma.EnumBehaviorTypeFilter<"TraceRecord"> | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
   server_ts_utc?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
+  sequence?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
+  executor?: Prisma.EnumExecutorNullableFilter<"TraceRecord"> | $Enums.Executor | null;
+  record_phase?: Prisma.EnumRecordPhaseNullableFilter<"TraceRecord"> | $Enums.RecordPhase | null;
+  outcome?: Prisma.EnumOutcomeNullableFilter<"TraceRecord"> | $Enums.Outcome | null;
+  duration_ms?: Prisma.IntNullableFilter<"TraceRecord"> | number | null;
   notes?: Prisma.StringNullableFilter<"TraceRecord"> | string | null;
   tags?: Prisma.StringNullableListFilter<"TraceRecord">;
   model_invocation?: Prisma.JsonNullableFilter<"TraceRecord">;
@@ -287,6 +335,11 @@ export type TraceRecordOrderByWithRelationInput = {
   behavior?: Prisma.SortOrder;
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  executor?: Prisma.SortOrderInput | Prisma.SortOrder;
+  record_phase?: Prisma.SortOrderInput | Prisma.SortOrder;
+  outcome?: Prisma.SortOrderInput | Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrderInput | Prisma.SortOrder;
   notes?: Prisma.SortOrderInput | Prisma.SortOrder;
   tags?: Prisma.SortOrder;
   model_invocation?: Prisma.SortOrderInput | Prisma.SortOrder;
@@ -300,6 +353,7 @@ export type TraceRecordOrderByWithRelationInput = {
 export type TraceRecordWhereUniqueInput = Prisma.AtLeast<
   {
     record_id?: string;
+    sequence?: bigint | number;
     AND?: Prisma.TraceRecordWhereInput | Prisma.TraceRecordWhereInput[];
     OR?: Prisma.TraceRecordWhereInput[];
     NOT?: Prisma.TraceRecordWhereInput | Prisma.TraceRecordWhereInput[];
@@ -309,6 +363,10 @@ export type TraceRecordWhereUniqueInput = Prisma.AtLeast<
     behavior?: Prisma.EnumBehaviorTypeFilter<"TraceRecord"> | $Enums.BehaviorType;
     client_ts_utc?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
     server_ts_utc?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
+    executor?: Prisma.EnumExecutorNullableFilter<"TraceRecord"> | $Enums.Executor | null;
+    record_phase?: Prisma.EnumRecordPhaseNullableFilter<"TraceRecord"> | $Enums.RecordPhase | null;
+    outcome?: Prisma.EnumOutcomeNullableFilter<"TraceRecord"> | $Enums.Outcome | null;
+    duration_ms?: Prisma.IntNullableFilter<"TraceRecord"> | number | null;
     notes?: Prisma.StringNullableFilter<"TraceRecord"> | string | null;
     tags?: Prisma.StringNullableListFilter<"TraceRecord">;
     model_invocation?: Prisma.JsonNullableFilter<"TraceRecord">;
@@ -318,7 +376,7 @@ export type TraceRecordWhereUniqueInput = Prisma.AtLeast<
     created_at?: Prisma.DateTimeFilter<"TraceRecord"> | Date | string;
     agent?: Prisma.XOR<Prisma.AgentScalarRelationFilter, Prisma.AgentWhereInput>;
   },
-  "record_id"
+  "record_id" | "sequence"
 >;
 
 export type TraceRecordOrderByWithAggregationInput = {
@@ -329,6 +387,11 @@ export type TraceRecordOrderByWithAggregationInput = {
   behavior?: Prisma.SortOrder;
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  executor?: Prisma.SortOrderInput | Prisma.SortOrder;
+  record_phase?: Prisma.SortOrderInput | Prisma.SortOrder;
+  outcome?: Prisma.SortOrderInput | Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrderInput | Prisma.SortOrder;
   notes?: Prisma.SortOrderInput | Prisma.SortOrder;
   tags?: Prisma.SortOrder;
   model_invocation?: Prisma.SortOrderInput | Prisma.SortOrder;
@@ -358,6 +421,17 @@ export type TraceRecordScalarWhereWithAggregatesInput = {
   behavior?: Prisma.EnumBehaviorTypeWithAggregatesFilter<"TraceRecord"> | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntWithAggregatesFilter<"TraceRecord"> | bigint | number;
   server_ts_utc?: Prisma.BigIntWithAggregatesFilter<"TraceRecord"> | bigint | number;
+  sequence?: Prisma.BigIntWithAggregatesFilter<"TraceRecord"> | bigint | number;
+  executor?:
+    | Prisma.EnumExecutorNullableWithAggregatesFilter<"TraceRecord">
+    | $Enums.Executor
+    | null;
+  record_phase?:
+    | Prisma.EnumRecordPhaseNullableWithAggregatesFilter<"TraceRecord">
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.EnumOutcomeNullableWithAggregatesFilter<"TraceRecord"> | $Enums.Outcome | null;
+  duration_ms?: Prisma.IntNullableWithAggregatesFilter<"TraceRecord"> | number | null;
   notes?: Prisma.StringNullableWithAggregatesFilter<"TraceRecord"> | string | null;
   tags?: Prisma.StringNullableListFilter<"TraceRecord">;
   model_invocation?: Prisma.JsonNullableWithAggregatesFilter<"TraceRecord">;
@@ -374,6 +448,11 @@ export type TraceRecordCreateInput = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint | number;
   server_ts_utc: bigint | number;
+  sequence?: bigint | number;
+  executor?: $Enums.Executor | null;
+  record_phase?: $Enums.RecordPhase | null;
+  outcome?: $Enums.Outcome | null;
+  duration_ms?: number | null;
   notes?: string | null;
   tags?: Prisma.TraceRecordCreatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -392,6 +471,11 @@ export type TraceRecordUncheckedCreateInput = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint | number;
   server_ts_utc: bigint | number;
+  sequence?: bigint | number;
+  executor?: $Enums.Executor | null;
+  record_phase?: $Enums.RecordPhase | null;
+  outcome?: $Enums.Outcome | null;
+  duration_ms?: number | null;
   notes?: string | null;
   tags?: Prisma.TraceRecordCreatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -408,6 +492,14 @@ export type TraceRecordUpdateInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -426,6 +518,14 @@ export type TraceRecordUncheckedUpdateInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -443,6 +543,11 @@ export type TraceRecordCreateManyInput = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint | number;
   server_ts_utc: bigint | number;
+  sequence?: bigint | number;
+  executor?: $Enums.Executor | null;
+  record_phase?: $Enums.RecordPhase | null;
+  outcome?: $Enums.Outcome | null;
+  duration_ms?: number | null;
   notes?: string | null;
   tags?: Prisma.TraceRecordCreatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -459,6 +564,14 @@ export type TraceRecordUpdateManyMutationInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -476,6 +589,14 @@ export type TraceRecordUncheckedUpdateManyInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -503,6 +624,11 @@ export type TraceRecordCountOrderByAggregateInput = {
   behavior?: Prisma.SortOrder;
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  executor?: Prisma.SortOrder;
+  record_phase?: Prisma.SortOrder;
+  outcome?: Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrder;
   notes?: Prisma.SortOrder;
   tags?: Prisma.SortOrder;
   model_invocation?: Prisma.SortOrder;
@@ -515,6 +641,8 @@ export type TraceRecordCountOrderByAggregateInput = {
 export type TraceRecordAvgOrderByAggregateInput = {
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrder;
 };
 
 export type TraceRecordMaxOrderByAggregateInput = {
@@ -525,6 +653,11 @@ export type TraceRecordMaxOrderByAggregateInput = {
   behavior?: Prisma.SortOrder;
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  executor?: Prisma.SortOrder;
+  record_phase?: Prisma.SortOrder;
+  outcome?: Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrder;
   notes?: Prisma.SortOrder;
   parent_record_id?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
@@ -538,6 +671,11 @@ export type TraceRecordMinOrderByAggregateInput = {
   behavior?: Prisma.SortOrder;
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  executor?: Prisma.SortOrder;
+  record_phase?: Prisma.SortOrder;
+  outcome?: Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrder;
   notes?: Prisma.SortOrder;
   parent_record_id?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
@@ -546,6 +684,8 @@ export type TraceRecordMinOrderByAggregateInput = {
 export type TraceRecordSumOrderByAggregateInput = {
   client_ts_utc?: Prisma.SortOrder;
   server_ts_utc?: Prisma.SortOrder;
+  sequence?: Prisma.SortOrder;
+  duration_ms?: Prisma.SortOrder;
 };
 
 export type TraceRecordCreateNestedManyWithoutAgentInput = {
@@ -654,6 +794,26 @@ export type BigIntFieldUpdateOperationsInput = {
   divide?: bigint | number;
 };
 
+export type NullableEnumExecutorFieldUpdateOperationsInput = {
+  set?: $Enums.Executor | null;
+};
+
+export type NullableEnumRecordPhaseFieldUpdateOperationsInput = {
+  set?: $Enums.RecordPhase | null;
+};
+
+export type NullableEnumOutcomeFieldUpdateOperationsInput = {
+  set?: $Enums.Outcome | null;
+};
+
+export type NullableIntFieldUpdateOperationsInput = {
+  set?: number | null;
+  increment?: number;
+  decrement?: number;
+  multiply?: number;
+  divide?: number;
+};
+
 export type TraceRecordUpdatetagsInput = {
   set?: string[];
   push?: string | string[];
@@ -671,6 +831,11 @@ export type TraceRecordCreateWithoutAgentInput = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint | number;
   server_ts_utc: bigint | number;
+  sequence?: bigint | number;
+  executor?: $Enums.Executor | null;
+  record_phase?: $Enums.RecordPhase | null;
+  outcome?: $Enums.Outcome | null;
+  duration_ms?: number | null;
   notes?: string | null;
   tags?: Prisma.TraceRecordCreatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -687,6 +852,11 @@ export type TraceRecordUncheckedCreateWithoutAgentInput = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint | number;
   server_ts_utc: bigint | number;
+  sequence?: bigint | number;
+  executor?: $Enums.Executor | null;
+  record_phase?: $Enums.RecordPhase | null;
+  outcome?: $Enums.Outcome | null;
+  duration_ms?: number | null;
   notes?: string | null;
   tags?: Prisma.TraceRecordCreatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -748,6 +918,11 @@ export type TraceRecordScalarWhereInput = {
   behavior?: Prisma.EnumBehaviorTypeFilter<"TraceRecord"> | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
   server_ts_utc?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
+  sequence?: Prisma.BigIntFilter<"TraceRecord"> | bigint | number;
+  executor?: Prisma.EnumExecutorNullableFilter<"TraceRecord"> | $Enums.Executor | null;
+  record_phase?: Prisma.EnumRecordPhaseNullableFilter<"TraceRecord"> | $Enums.RecordPhase | null;
+  outcome?: Prisma.EnumOutcomeNullableFilter<"TraceRecord"> | $Enums.Outcome | null;
+  duration_ms?: Prisma.IntNullableFilter<"TraceRecord"> | number | null;
   notes?: Prisma.StringNullableFilter<"TraceRecord"> | string | null;
   tags?: Prisma.StringNullableListFilter<"TraceRecord">;
   model_invocation?: Prisma.JsonNullableFilter<"TraceRecord">;
@@ -764,6 +939,11 @@ export type TraceRecordCreateManyAgentInput = {
   behavior: $Enums.BehaviorType;
   client_ts_utc: bigint | number;
   server_ts_utc: bigint | number;
+  sequence?: bigint | number;
+  executor?: $Enums.Executor | null;
+  record_phase?: $Enums.RecordPhase | null;
+  outcome?: $Enums.Outcome | null;
+  duration_ms?: number | null;
   notes?: string | null;
   tags?: Prisma.TraceRecordCreatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -780,6 +960,14 @@ export type TraceRecordUpdateWithoutAgentInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -796,6 +984,14 @@ export type TraceRecordUncheckedUpdateWithoutAgentInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -812,6 +1008,14 @@ export type TraceRecordUncheckedUpdateManyWithoutAgentInput = {
   behavior?: Prisma.EnumBehaviorTypeFieldUpdateOperationsInput | $Enums.BehaviorType;
   client_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
   server_ts_utc?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  sequence?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  executor?: Prisma.NullableEnumExecutorFieldUpdateOperationsInput | $Enums.Executor | null;
+  record_phase?:
+    | Prisma.NullableEnumRecordPhaseFieldUpdateOperationsInput
+    | $Enums.RecordPhase
+    | null;
+  outcome?: Prisma.NullableEnumOutcomeFieldUpdateOperationsInput | $Enums.Outcome | null;
+  duration_ms?: Prisma.NullableIntFieldUpdateOperationsInput | number | null;
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.TraceRecordUpdatetagsInput | string[];
   model_invocation?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue;
@@ -832,6 +1036,11 @@ export type TraceRecordSelect<
     behavior?: boolean;
     client_ts_utc?: boolean;
     server_ts_utc?: boolean;
+    sequence?: boolean;
+    executor?: boolean;
+    record_phase?: boolean;
+    outcome?: boolean;
+    duration_ms?: boolean;
     notes?: boolean;
     tags?: boolean;
     model_invocation?: boolean;
@@ -855,6 +1064,11 @@ export type TraceRecordSelectCreateManyAndReturn<
     behavior?: boolean;
     client_ts_utc?: boolean;
     server_ts_utc?: boolean;
+    sequence?: boolean;
+    executor?: boolean;
+    record_phase?: boolean;
+    outcome?: boolean;
+    duration_ms?: boolean;
     notes?: boolean;
     tags?: boolean;
     model_invocation?: boolean;
@@ -878,6 +1092,11 @@ export type TraceRecordSelectUpdateManyAndReturn<
     behavior?: boolean;
     client_ts_utc?: boolean;
     server_ts_utc?: boolean;
+    sequence?: boolean;
+    executor?: boolean;
+    record_phase?: boolean;
+    outcome?: boolean;
+    duration_ms?: boolean;
     notes?: boolean;
     tags?: boolean;
     model_invocation?: boolean;
@@ -898,6 +1117,11 @@ export type TraceRecordSelectScalar = {
   behavior?: boolean;
   client_ts_utc?: boolean;
   server_ts_utc?: boolean;
+  sequence?: boolean;
+  executor?: boolean;
+  record_phase?: boolean;
+  outcome?: boolean;
+  duration_ms?: boolean;
   notes?: boolean;
   tags?: boolean;
   model_invocation?: boolean;
@@ -917,6 +1141,11 @@ export type TraceRecordOmit<
   | "behavior"
   | "client_ts_utc"
   | "server_ts_utc"
+  | "sequence"
+  | "executor"
+  | "record_phase"
+  | "outcome"
+  | "duration_ms"
   | "notes"
   | "tags"
   | "model_invocation"
@@ -967,6 +1196,17 @@ export type $TraceRecordPayload<
        * Server-stamped epoch milliseconds on receipt; authoritative for trust purposes.
        */
       server_ts_utc: bigint;
+      /**
+       * Server-assigned total order within this deployment: pagination cursor and export range key.
+       */
+      sequence: bigint;
+      /**
+       * Required for schema 0.4+ records, empty for 0.1–0.3 (database CHECK constraint).
+       */
+      executor: $Enums.Executor | null;
+      record_phase: $Enums.RecordPhase | null;
+      outcome: $Enums.Outcome | null;
+      duration_ms: number | null;
       /**
        * Optional free-text annotation (≤2 048 chars, enforced at app layer).
        */
@@ -1582,6 +1822,11 @@ export interface TraceRecordFieldRefs {
   readonly behavior: Prisma.FieldRef<"TraceRecord", "BehaviorType">;
   readonly client_ts_utc: Prisma.FieldRef<"TraceRecord", "BigInt">;
   readonly server_ts_utc: Prisma.FieldRef<"TraceRecord", "BigInt">;
+  readonly sequence: Prisma.FieldRef<"TraceRecord", "BigInt">;
+  readonly executor: Prisma.FieldRef<"TraceRecord", "Executor">;
+  readonly record_phase: Prisma.FieldRef<"TraceRecord", "RecordPhase">;
+  readonly outcome: Prisma.FieldRef<"TraceRecord", "Outcome">;
+  readonly duration_ms: Prisma.FieldRef<"TraceRecord", "Int">;
   readonly notes: Prisma.FieldRef<"TraceRecord", "String">;
   readonly tags: Prisma.FieldRef<"TraceRecord", "String[]">;
   readonly model_invocation: Prisma.FieldRef<"TraceRecord", "Json">;

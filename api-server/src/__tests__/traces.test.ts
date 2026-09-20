@@ -2,7 +2,7 @@ import { call } from "@orpc/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { registerAgent } from "#/routes/agents";
 import { submitRecord } from "#/routes/records";
-import { getTrace } from "#/routes/traces";
+import { getTrace, listSessions } from "#/routes/traces";
 import { ctx, makeObservingInput, makeTestOwner } from "./helpers";
 import type { TestOwner } from "./helpers";
 
@@ -88,7 +88,7 @@ describe("Traces — getTrace", () => {
     expect(next_cursor).toBeNull();
   });
 
-  it("returns BAD_REQUEST for an invalid cursor record_id", async () => {
+  it("rejects a cursor that did not come from next_cursor", async () => {
     await expect(
       call(getTrace, { agent_id: agentId, before: crypto.randomUUID() }, ctx(owner.apiKey)),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -127,5 +127,41 @@ describe("Traces — getTrace", () => {
     await expect(call(getTrace, { agent_id: agentId }, ctx())).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
+  });
+});
+
+describe("Traces — listSessions", () => {
+  let owner: TestOwner;
+  let ownerB: TestOwner;
+  let sessionA: string;
+  let sessionB: string;
+
+  beforeAll(async () => {
+    [owner, ownerB] = await Promise.all([makeTestOwner(), makeTestOwner()]);
+    const [agentA, agentB] = await Promise.all([
+      call(registerAgent, { name: `list-a-${crypto.randomUUID()}` }, ctx(owner.apiKey)),
+      call(registerAgent, { name: `list-b-${crypto.randomUUID()}` }, ctx(ownerB.apiKey)),
+    ]);
+    const a = makeObservingInput(agentA.agent_id);
+    const b = makeObservingInput(agentB.agent_id);
+    sessionA = a.session_id;
+    sessionB = b.session_id;
+    await call(submitRecord, a, ctx(owner.apiKey));
+    await call(submitRecord, b, ctx(ownerB.apiKey));
+  });
+
+  afterAll(async () => {
+    await Promise.all([owner.cleanup(), ownerB.cleanup()]);
+  });
+
+  it("lists only the caller's own sessions", async () => {
+    const { sessions } = await call(listSessions, { limit: 500 }, ctx(owner.apiKey));
+    const ids = sessions.map((s) => s.session_id);
+    expect(ids).toContain(sessionA);
+    expect(ids).not.toContain(sessionB);
+  });
+
+  it("rejects unauthenticated requests", async () => {
+    await expect(call(listSessions, {}, ctx())).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

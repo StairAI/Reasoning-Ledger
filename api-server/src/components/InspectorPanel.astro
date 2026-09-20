@@ -2,30 +2,23 @@
 import Icon from "./Icon.astro";
 import StatusTag from "./StatusTag.astro";
 import { behaviorMeta, depIds, formatFull, highlightJSON, overviewSections, payloadOnly } from '#/lib/trace';
-import type { TraceRecord } from '#/lib/trace';
+import type { ContentMap, TraceRecord } from '#/lib/trace';
 
 interface Props {
   record: TraceRecord;
+  /** Content the record references, resolved for the signed-in owner. */
+  contents?: ContentMap;
   /** Whether this panel is the initially-visible one. */
   active?: boolean;
 }
 
-const { record, active = false } = Astro.props;
+const { record, contents = {}, active = false } = Astro.props;
 const meta = behaviorMeta(record.behavior);
-const sections = overviewSections(record);
+const sections = overviewSections(record, contents);
 const deps = depIds(record);
 const payload = payloadOnly(record);
 
-const COLOR: Record<string, string> = {
-  acting: "#00b2a4",
-  observing: "#ebb447",
-  other: "#9a9a9a",
-  planning: "#7ee055",
-  reflecting: "#e06c7f",
-  thinking: "#bf80ff",
-  toolcalling: "#3c9add",
-};
-const tc = COLOR[meta.token] ?? COLOR.other;
+const tc = meta.color;
 ---
 
 <section
