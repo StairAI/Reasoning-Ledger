@@ -6,25 +6,45 @@ import Legend from "#/components/Legend.astro";
 import ViewController from "#/components/ViewController.astro";
 import NodeCard from "#/components/NodeCard.astro";
 import InspectorPanel from "#/components/InspectorPanel.astro";
-import { createTraceClient } from "#/lib/rpc";
-import type { TraceClient } from "#/lib/rpc";
-import type { TraceRecord } from "#/lib/trace";
+import { contentForViewer } from "#/lib/content-view";
+import { reconstructRecord } from "#/lib/record";
+import { ownedSession, ownedSessionSummaries, sessionStats } from "#/lib/repository";
+import type { SessionSummary } from "#/lib/repository";
+import type { ContentMap, TraceRecord } from "#/lib/trace";
 
 export const prerender = false;
 
 const agentId = decodeURIComponent(Astro.params.agent ?? "");
 const sessionId = decodeURIComponent(Astro.params.session ?? "");
+// Set by src/middleware.ts from the visitor's login session.
+const ownerId = Astro.locals.ownerId ?? "";
 
-const client = createTraceClient();
-
-let trace: Awaited<ReturnType<TraceClient["traces"]["getSession"]>> | null = null;
-let sessions: Awaited<ReturnType<TraceClient["traces"]["listSessions"]>>["sessions"] = [];
+let trace: {
+  agent_id: string;
+  agent_name: string;
+  records: Record<string, unknown>[];
+  session_id: string;
+  stats: ReturnType<typeof sessionStats>;
+} | null = null;
+let sessions: SessionSummary[] = [];
+let contents: ContentMap = {};
 let loadError: string | null = null;
 
 try {
-  trace = await client.traces.getSession({ agent_id: agentId, session_id: sessionId });
-  const list = await client.traces.listSessions({ limit: 200 });
-  ({ sessions } = list);
+  const session = await ownedSession(ownerId, agentId, sessionId);
+  if (session && session.rows.length > 0) {
+    trace = {
+      agent_id: session.agent.id,
+      agent_name: session.agent.name,
+      records: session.rows.map(reconstructRecord),
+      session_id: sessionId,
+      stats: sessionStats(session.rows),
+    };
+    contents = await contentForViewer(ownerId, trace.records);
+  } else {
+    loadError = "Trace (session) not found";
+  }
+  sessions = await ownedSessionSummaries(ownerId, 200);
 } catch (error) {
   loadError = error instanceof Error ? error.message : "Failed to load trace";
 }
@@ -47,7 +67,7 @@ const records = (trace?.records ?? []) as unknown as TraceRecord[];
           <div id="graph-world" class="absolute left-0 top-0 origin-top-left will-change-transform">
             <svg id="graph-edges" class="pointer-events-none absolute left-0 top-0 overflow-visible" />
             {records.map((r) => (
-              <NodeCard record={r} />
+              <NodeCard record={r} contents={contents} />
             ))}
           </div>
         </div>
@@ -90,7 +110,7 @@ const records = (trace?.records ?? []) as unknown as TraceRecord[];
         {/* inspector dock */}
         <aside id="inspector-dock" class="absolute bottom-6 right-6 top-6 w-[320px]" hidden>
           {records.map((r) => (
-            <InspectorPanel record={r} />
+            <InspectorPanel record={r} contents={contents} />
           ))}
         </aside>
       </main>

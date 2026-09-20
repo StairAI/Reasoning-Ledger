@@ -2,6 +2,7 @@ import { call } from "@orpc/server";
 import { afterAll, beforeAll, describe, expect, it, expectTypeOf } from "vitest";
 import { registerAgent } from "#/routes/agents";
 import { getRecord, submitBatch, submitRecord } from "#/routes/records";
+import { prisma } from "#/lib/prisma";
 import { ctx, makeObservingInput, makeTestOwner } from "./helpers";
 import type { TestOwner } from "./helpers";
 
@@ -28,7 +29,7 @@ describe("Records", () => {
   // POST /v1/records — submitRecord
   // -------------------------------------------------------------------------
 
-  describe(submitRecord, () => {
+  describe("POST /v1/records — submitRecord", () => {
     it("accepts a valid Observing record and returns a RecordAck", async () => {
       const input = makeObservingInput(agentId);
       const ack = await call(submitRecord, input, ctx(owner.apiKey));
@@ -53,16 +54,39 @@ describe("Records", () => {
       const input = makeObservingInput(agentId, { schema_version: "99.9" });
       await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
         code: "BAD_REQUEST",
+        message: expect.stringContaining("Unsupported schema_version '99.9'"),
       });
     });
 
-    it("accepts a historical schema_version that is still in the supported set", async () => {
-      const input = makeObservingInput(agentId, { schema_version: "0.1" });
-      const ack = await call(submitRecord, input, ctx(owner.apiKey));
-      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+    it("rejects writes stamped with an older schema_version, which stays readable only", async () => {
+      const input = makeObservingInput(agentId, { schema_version: "0.3" });
+      await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("readable but no longer accepted for writes"),
+      });
+    });
 
-      expect(ack.record_id).toBe(input.record_id);
-      expect(stored["schema_version"]).toBe("0.1");
+    it("rejects the retired '1.0' label with an upgrade hint", async () => {
+      const input = makeObservingInput(agentId, { schema_version: "1.0" });
+      await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("upgrade to an SDK that writes 0.4"),
+      });
+    });
+
+    it("checks the version before the record shape, so an old-format body gets the upgrade hint", async () => {
+      const oldFormat = {
+        ...makeObservingInput(agentId, { schema_version: "0.3" }),
+        executor: undefined,
+        record_phase: undefined,
+      };
+      // Deliberately not a valid 0.4 record: cast past the input type.
+      await expect(call(submitRecord, oldFormat as never, ctx(owner.apiKey))).rejects.toMatchObject(
+        {
+          code: "BAD_REQUEST",
+          message: expect.stringContaining("upgrade to an SDK"),
+        },
+      );
     });
 
     it("rejects a record for an agent owned by a different owner", async () => {
@@ -104,10 +128,10 @@ describe("Records", () => {
   });
 
   // -------------------------------------------------------------------------
-  // POST /v1/records:batch — submitBatch
+  // POST /v1/records/batch — submitBatch
   // -------------------------------------------------------------------------
 
-  describe(submitBatch, () => {
+  describe("POST /v1/records/batch — submitBatch", () => {
     it("persists multiple records and returns an ack for each", async () => {
       const records = [makeObservingInput(agentId), makeObservingInput(agentId)];
       const { batch_id, results } = await call(submitBatch, { records }, ctx(owner.apiKey));
@@ -146,7 +170,7 @@ describe("Records", () => {
   // GET /v1/records/:record_id — getRecord
   // -------------------------------------------------------------------------
 
-  describe(getRecord, () => {
+  describe("GET /v1/records/{record_id} — getRecord", () => {
     it("returns the full record with base + payload fields merged", async () => {
       const input = makeObservingInput(agentId, {
         notes: "test note",
@@ -160,8 +184,8 @@ describe("Records", () => {
       expect(record.agent_id).toBe(agentId);
       expect(record.behavior).toBe("Observing");
       expect(record.notes).toBe("test note");
-      expectTypeOf(record.server_ts_utc).toBeNumber();
-      expectTypeOf(record.client_ts_utc).toBeNumber();
+      expect(record.server_ts_utc).toBeTypeOf("number");
+      expect(record.client_ts_utc).toBeTypeOf("number");
     });
 
     it("returns NOT_FOUND for an unknown record_id", async () => {
@@ -177,6 +201,150 @@ describe("Records", () => {
       await expect(
         call(getRecord, { record_id: input.record_id }, ctx(ownerB.apiKey)),
       ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Schema 0.4
+  // -------------------------------------------------------------------------
+
+  describe("schema 0.4", () => {
+    const writtenBy = { component: "test-harness", credential: "owner-key" };
+
+    function attesting(overrides: Record<string, unknown> = {}) {
+      return {
+        ...makeObservingInput(agentId),
+        behavior: "Attesting" as const,
+        disposition: "approve" as const,
+        executor: "human" as const,
+        gate_kind: "approval",
+        operator_id: "reviewer-1",
+        record_phase: "concurrent" as const,
+        trigger_description: undefined,
+        trigger_payload_summary: undefined,
+        trigger_source: undefined,
+        trigger_type: undefined,
+        written_by: writtenBy,
+        ...overrides,
+      };
+    }
+
+    it("stores executor, record_phase, outcome and duration_ms and reads them back with a sequence", async () => {
+      const first = makeObservingInput(agentId, { duration_ms: 12, outcome: "success" });
+      const second = makeObservingInput(agentId);
+      await call(submitRecord, first, ctx(owner.apiKey));
+      await call(submitRecord, second, ctx(owner.apiKey));
+
+      const a = await call(getRecord, { record_id: first.record_id }, ctx(owner.apiKey));
+      const b = await call(getRecord, { record_id: second.record_id }, ctx(owner.apiKey));
+      expect(a).toMatchObject({
+        duration_ms: 12,
+        executor: "det",
+        outcome: "success",
+        record_phase: "post_execution",
+        schema_version: "0.4",
+      });
+      expect(b["outcome"]).toBeUndefined();
+      expect(Number(b["sequence"])).toBeGreaterThan(Number(a["sequence"]));
+    });
+
+    it("requires executor and record_phase", async () => {
+      const input = { ...makeObservingInput(agentId), executor: undefined };
+      // Deliberately invalid: cast past the input type.
+      await expect(call(submitRecord, input as never, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    it("accepts an Attesting record with decision, seen_digest and written_by", async () => {
+      const input = attesting({ decision: { owner: "member-b" }, seen_digest: "sha256:abc" });
+      await call(submitRecord, input, ctx(owner.apiKey));
+      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        behavior: "Attesting",
+        decision: { owner: "member-b" },
+        executor: "human",
+        seen_digest: "sha256:abc",
+        written_by: writtenBy,
+      });
+    });
+
+    it("requires a reason when an Attesting record rejects", async () => {
+      await expect(
+        call(submitRecord, attesting({ disposition: "reject" }), ctx(owner.apiKey)),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("reason is required"),
+      });
+      const ack = await call(
+        submitRecord,
+        attesting({ disposition: "reject", reason: "wrong owner" }),
+        ctx(owner.apiKey),
+      );
+      expect(ack.is_duplicate).toBeFalsy();
+    });
+
+    it("only accepts human as the executor of an Attesting record", async () => {
+      await expect(
+        call(submitRecord, attesting({ executor: "ai" }), ctx(owner.apiKey)),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("requires execution_id for a confirmed public-chain Acting record", async () => {
+      const acting = {
+        ...makeObservingInput(agentId),
+        action_summary: "publish",
+        action_type: "publish",
+        behavior: "Acting" as const,
+        dry_run: false,
+        execution_status: "confirmed" as const,
+        parameters: {},
+        target_system: "public-chain",
+        trigger_description: undefined,
+        trigger_payload_summary: undefined,
+        trigger_source: undefined,
+        trigger_type: undefined,
+      };
+      await expect(call(submitRecord, acting, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("execution_id is required"),
+      });
+    });
+
+    it("keeps records written before 0.4 readable", async () => {
+      const recordId = crypto.randomUUID();
+      await prisma.traceRecord.create({
+        data: {
+          agent_id: agentId,
+          behavior: "Observing",
+          client_ts_utc: BigInt(Date.now()),
+          payload: { trigger_source: "legacy", trigger_type: "cron_trigger" },
+          record_id: recordId,
+          schema_version: "0.3",
+          server_ts_utc: BigInt(Date.now()),
+          session_id: "legacy-session",
+        },
+      });
+      const stored = await call(getRecord, { record_id: recordId }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({ schema_version: "0.3", trigger_source: "legacy" });
+      expect(stored["executor"]).toBeUndefined();
+    });
+
+    it("refuses a 0.4 row without executor at the database level", async () => {
+      await expect(
+        prisma.traceRecord.create({
+          data: {
+            agent_id: agentId,
+            behavior: "Observing",
+            client_ts_utc: BigInt(Date.now()),
+            payload: {},
+            record_id: crypto.randomUUID(),
+            schema_version: "0.4",
+            server_ts_utc: BigInt(Date.now()),
+            session_id: "no-executor",
+          },
+        }),
+      ).rejects.toThrow(/trace_records_executor_phase_check/);
     });
   });
 });

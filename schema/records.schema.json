@@ -2,8 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stair-ai.com/schemas/records.schema.json",
   "title": "Reasoning Ledger Record Schemas",
-  "description": "Canonical record schemas for sections 4.1-4.8 of Reasoning_Ledger_SDK_Design_v1.",
-  "version": "0.3",
+  "description": "Canonical record schemas for the Reasoning Ledger. Prose reference: SCHEMA.md.",
+  "version": "0.4",
+  "retired_versions": [
+    "1.0"
+  ],
   "$defs": {
     "BehaviorType": {
       "type": "string",
@@ -14,6 +17,7 @@
         "Thinking",
         "Acting",
         "Reflecting",
+        "Attesting",
         "Other"
       ]
     },
@@ -24,6 +28,180 @@
     "EpochMs": {
       "type": "integer",
       "minimum": 0
+    },
+    "Sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ContentRef": {
+      "type": "object",
+      "description": "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them.",
+      "required": [
+        "sha256",
+        "bytes",
+        "media_type"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/Sha256Hex",
+          "description": "SHA-256 of the raw bytes, lowercase hex."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "text/plain; charset=utf-8",
+            "application/json"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Executor": {
+      "type": "string",
+      "enum": [
+        "ai",
+        "det",
+        "human"
+      ],
+      "description": "Who performed the step: a model (ai), deterministic code (det) or a person (human)."
+    },
+    "RecordPhase": {
+      "type": "string",
+      "enum": [
+        "pre_execution",
+        "concurrent",
+        "post_execution"
+      ],
+      "description": "When the record was written relative to the action it describes."
+    },
+    "Outcome": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure",
+        "denied",
+        "escalated",
+        "timeout"
+      ]
+    },
+    "SourceDescriptor": {
+      "type": "object",
+      "description": "Where an input came from. Only kind and ref are required; other fields are open.",
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "model",
+            "rule",
+            "reference_data",
+            "api",
+            "document",
+            "human"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable reference to the source."
+        },
+        "fetched_at": {
+          "$ref": "#/$defs/EpochMs"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256Hex",
+          "description": "Content hash of what was fetched."
+        },
+        "record_id": {
+          "$ref": "#/$defs/UuidV4",
+          "description": "Record that fetched it."
+        }
+      },
+      "additionalProperties": true
+    },
+    "Verdict": {
+      "type": "object",
+      "description": "Basis of a judgment. Only conclusion and decided_by are required; other fields are open.",
+      "required": [
+        "conclusion",
+        "decided_by"
+      ],
+      "properties": {
+        "conclusion": {
+          "description": "The judgment itself (any JSON value)."
+        },
+        "decided_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "rule_ref": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceDescriptor"
+          }
+        },
+        "counterfactual": {
+          "type": "string"
+        },
+        "dissent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "WrittenBy": {
+      "type": "object",
+      "description": "Declared by the submitter: which component wrote the record, with which credential. A record, not a permission.",
+      "required": [
+        "component",
+        "credential"
+      ],
+      "properties": {
+        "component": {
+          "type": "string",
+          "minLength": 1
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
     },
     "ModelInvocation": {
       "type": "object",
@@ -62,8 +240,8 @@
           "type": "string"
         },
         "internal_reasoning": {
-          "type": "string",
-          "description": "Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
+          "$ref": "#/$defs/ContentRef",
+          "description": "Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output, stored in the content library. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
         }
       },
       "additionalProperties": false
@@ -76,14 +254,16 @@
         "session_id",
         "record_id",
         "behavior",
-        "client_ts_utc"
+        "client_ts_utc",
+        "executor",
+        "record_phase"
       ],
       "properties": {
         "schema_version": {
           "type": "string",
           "minLength": 1,
           "examples": [
-            "0.3"
+            "0.4"
           ]
         },
         "agent_id": {
@@ -119,13 +299,38 @@
         },
         "upstream_record_id": {
           "type": "array",
-          "items": { "$ref": "#/$defs/UuidV4" },
+          "items": {
+            "$ref": "#/$defs/UuidV4"
+          },
           "maxItems": 32,
           "description": "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted."
         },
         "parent_record_id": {
           "$ref": "#/$defs/UuidV4",
           "description": "Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
+        },
+        "executor": {
+          "$ref": "#/$defs/Executor"
+        },
+        "record_phase": {
+          "$ref": "#/$defs/RecordPhase"
+        },
+        "outcome": {
+          "$ref": "#/$defs/Outcome"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceDescriptor"
+          },
+          "maxItems": 64
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
         }
       }
     },
@@ -139,7 +344,7 @@
           "$ref": "#/$defs/UuidV4"
         },
         "input_payload": {
-          "type": "string"
+          "$ref": "#/$defs/ContentRef"
         }
       },
       "additionalProperties": false
@@ -154,7 +359,7 @@
           "$ref": "#/$defs/UuidV4"
         },
         "input_payload": {
-          "type": "string"
+          "$ref": "#/$defs/ContentRef"
         }
       },
       "additionalProperties": false
@@ -245,7 +450,7 @@
             "description",
             "input_payload",
             "output_payload",
-            "success"
+            "outcome"
           ],
           "properties": {
             "behavior": {
@@ -259,10 +464,15 @@
               "type": "string",
               "minLength": 1
             },
-            "input_payload": true,
-            "output_payload": true,
-            "success": {
-              "type": "boolean"
+            "input_payload": {
+              "$ref": "#/$defs/ContentRef"
+            },
+            "output_payload": {
+              "$ref": "#/$defs/ContentRef"
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome",
+              "description": "Result of the call; replaces the 0.3 'success' flag."
             }
           }
         }
@@ -324,8 +534,7 @@
               "const": "Thinking"
             },
             "prompt": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "#/$defs/ContentRef"
             },
             "inputs": {
               "type": "array",
@@ -334,8 +543,7 @@
               }
             },
             "output_payload": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "#/$defs/ContentRef"
             }
           }
         }
@@ -444,10 +652,120 @@
               }
             },
             "output_payload": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "#/$defs/ContentRef"
             }
           }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AttestingRecord": {
+      "description": "A person's disposition of a pending action, submitted by the upper-layer application on the person's behalf.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "executor",
+            "operator_id",
+            "disposition",
+            "gate_kind",
+            "written_by"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Attesting"
+            },
+            "executor": {
+              "const": "human"
+            },
+            "operator_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The person who made the disposition."
+            },
+            "disposition": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "edit"
+              ],
+              "description": "For value-choosing decisions: approve = accepted the default suggestion, edit = changed it."
+            },
+            "decision": {
+              "description": "Structured decision content: the value the person chose or entered. Shape declared by the upper-layer application."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Required when disposition is reject."
+            },
+            "patch": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Changes to the original parameters when disposition is edit."
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/UuidV4"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentRef"
+                  }
+                ]
+              },
+              "maxItems": 64,
+              "description": "Record ids or content references the disposition relied on."
+            },
+            "seen_digest": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Digest of what the person saw when deciding."
+            },
+            "gate_kind": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Checkpoint type, defined by the upper-layer application."
+            },
+            "policy_snapshot": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Policy in force at the time, or a content reference to it."
+            },
+            "effects": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "Side effects of the disposition in the upper-layer application, e.g. configuration or rule changes."
+            },
+            "written_by": {
+              "$ref": "#/$defs/WrittenBy"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "disposition": {
+                    "const": "reject"
+                  }
+                },
+                "required": [
+                  "disposition"
+                ]
+              },
+              "then": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          ]
         }
       ],
       "unevaluatedProperties": false
@@ -502,6 +820,9 @@
           "$ref": "#/$defs/ReflectingRecord"
         },
         {
+          "$ref": "#/$defs/AttestingRecord"
+        },
+        {
           "$ref": "#/$defs/OtherRecord"
         }
       ],
@@ -514,6 +835,7 @@
           "Thinking": "#/$defs/ThinkingRecord",
           "Acting": "#/$defs/ActingRecord",
           "Reflecting": "#/$defs/ReflectingRecord",
+          "Attesting": "#/$defs/AttestingRecord",
           "Other": "#/$defs/OtherRecord"
         }
       }

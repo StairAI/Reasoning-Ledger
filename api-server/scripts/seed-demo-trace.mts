@@ -7,7 +7,7 @@
  *
  * Idempotent: fixed UUIDs + upsert; re-running replaces the demo trace.
  *
- * Run:  pnpm -C api-server exec tsx scripts/seed-demo-trace.mts
+ * Run:  pnpm --dir api-server exec node scripts/seed-demo-trace.mts
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -22,7 +22,8 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 const OWNER_ID = "d0000000-0000-4000-8000-000000000001";
 const AGENT_ID = "a0000000-0000-4000-8000-000000000001";
 const SESSION_ID = "PREMATCH: 19609127:20260610T105502Z";
-const SCHEMA_VERSION = "1.0.0";
+// The demo records use the 0.3 shape (text in records, ToolCalling.success).
+const SCHEMA_VERSION = "0.3";
 const BASE_TS = Date.parse("2026-06-10T10:55:05.164Z");
 
 const rid = (n: number) => `e${String(n).padStart(7, "0")}-0000-4000-8000-000000000001`;
@@ -313,10 +314,11 @@ async function main() {
   console.log(`Seeded ${count} records for session "${SESSION_ID}" (agent ${AGENT_ID}).`);
 }
 
-main()
-  .then(() => prisma.$disconnect())
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+try {
+  await main();
+  await prisma.$disconnect();
+} catch (error) {
+  console.error(error);
+  await prisma.$disconnect();
+  process.exit(1);
+}

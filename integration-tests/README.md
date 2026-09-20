@@ -1,30 +1,28 @@
 # integration-tests
 
-End-to-end tests that exercise the **published** Reasoning Ledger SDKs (`reasoning-ledger-sdk` on npm, `reasoning-ledger` on PyPI) against a live deployment of the `api-server`.
+End-to-end tests that exercise the workspace Reasoning Ledger SDKs (`typescript-sdk/`, `python-sdk/`) against a running `api-server`.
 
 These tests are isolated from the per-package unit suites (`typescript-sdk/src/*.test.ts`, `python-sdk/tests/*`) so that:
 
-- the default `pnpm -r test` / `pytest` runs stay hermetic (no network, no staging key needed),
-- CI can opt into the staging suite with a single env var,
+- the unit runs stay hermetic (no network, no server),
 - a regression in the HTTP contract between SDK and server is caught before it reaches users.
 
 ## Layout
 
 ```
 integration-tests/
-├─ typescript/          # Vitest suite that pulls reasoning-ledger-sdk from npm
+├─ typescript/          # Vitest suite against the workspace reasoning-ledger-sdk
 │  ├─ src/
 │  │  ├─ env.ts                 # env-var resolution
-│  │  ├─ stagingTransport.ts    # HttpTransport that rewrites prod→staging URL
-│  │  ├─ lifecycle.test.ts      # register → submit → get{Record,Session,Trace}
+│  │  ├─ lifecycle.test.ts      # register → submit → get{Record,Session,Trace}, content, Attesting
 │  │  └─ crossSdk.test.ts       # Python writes, TS reads
 │  ├─ package.json
 │  ├─ tsconfig.json
 │  └─ vitest.config.ts
 │
-├─ python/              # pytest suite that pulls reasoning-ledger from PyPI
+├─ python/              # pytest suite against the workspace reasoning-ledger package
 │  ├─ tests/
-│  │  ├─ staging_transport.py   # HttpTransport wrapper, env resolution
+│  │  ├─ staging_env.py         # env-var resolution
 │  │  ├─ conftest.py            # session-scoped fixtures
 │  │  ├─ test_lifecycle.py      # register → submit → get_{record,session,trace}
 │  │  └─ test_cross_sdk.py      # TS writes, Python reads
@@ -43,52 +41,69 @@ integration-tests/
 | ---------------------------------------------------------------- | -------------------------------------------------------------- |
 | `registerAgent` returns a UUID and is idempotent on `(owner, name)` | contract on `POST /v1/agents`                                  |
 | `resolveAgentId` round-trips the registered name                 | contract on `GET /v1/agents?name=...`                          |
-| Full Observing → ToolCalling → Thinking → Acting cycle submits   | all five behaviour schemas accepted by the server              |
+| Full Observing → ToolCalling → Thinking → Acting cycle submits   | schema 0.4 records, with `executor` and `record_phase`, accepted |
+| Raw strings and objects at content positions are uploaded first  | content library (`PUT /v1/content/{sha256}`) and reference check |
+| `submitAttesting` records a person's approval with `written_by`  | the Attesting entry point; a reject without a reason fails locally |
 | `submit` is idempotent on `record_id`                            | dedup check in `records.ts`                                    |
 | `submitBatch` of 3 returns 3 acks                                | batch endpoint contract                                        |
-| `getRecord` returns a submitted record                           | read-after-write                                               |
-| `getSession` returns every record of the session in submit order | server's ASC-by-`server_ts_utc` ordering                       |
+| `getRecord` returns the 0.4 fields and `sequence`                | read-after-write                                               |
+| `getSession` returns every record of the session in order        | the server's `sequence` order                                  |
 | `getTrace` is newest-first, paginates via `next_cursor`          | cursor pagination contract                                     |
-| Missing record → `NotFoundError`                                 | 404 → `not_found` mapping                                      |
+| `putContent` / `getContent` round-trip the bytes                 | content upload and read                                        |
+| Missing record or content → `NotFoundError`                      | 404 → `not_found` mapping                                      |
 | Bad API key → `AuthError`                                        | 401 → `auth_invalid` mapping                                   |
 
 ### Cross-SDK synergy (`typescript/crossSdk.test.ts`, `python/tests/test_cross_sdk.py`)
 
-For each direction the "writer" SDK spawns a deterministic 4-record decision cycle using fixed `record_id`s, emits the IDs as JSON on stdout, and the "reader" SDK in the other language:
+For each direction the "writer" SDK writes the same 4-record decision cycle (Observing → ToolCalling → Thinking → Acting), emits the IDs as JSON on stdout, and the "reader" SDK in the other language:
 
 1. Fetches each record by ID via `getRecord`.
 2. Confirms `agent_id`, `session_id`, and `behavior` match.
-3. Fetches the whole session and asserts the four records are returned in submit order.
-4. Confirms the `ToolCalling.upstream_record_id` edge points back at the `Observing` record and the JSON payload deserializes to the writer's value.
+3. Fetches the whole session and asserts the four records are returned in write order.
+4. Confirms the `ToolCalling.upstream_record_id` edge points back at the `Observing` record.
+5. Reads the uploaded content back: `ToolCalling.input_payload` parses as the JSON object the writer passed, and `Thinking.prompt` decodes to the writer's text.
 
-If (3) passes both directions we have high confidence that writes and reads through either SDK produce byte-identical records on the server.
+If these pass in both directions, both SDKs write records and content the server stores and serves the same way.
 
-## Prerequisites
+## Running locally (default)
 
-- An owner API key issued against **`https://staging-api.stair-ai.com`** (set via `STAIRAI_STAGING_API_KEY`).
-- Node.js 22+, pnpm 10.
-- Python 3.12+, `uv` or `pip`.
-- Network access to `staging-api.stair-ai.com`.
+From the repository root:
 
-## Environment variables
+```sh
+pnpm test:local            # static checks + unit + integration
+pnpm test:integration      # integration only
+pnpm test:unit             # unit only
+pnpm test:static           # lint, format and type checks only
+```
 
-| Variable                    | Required | Default                              | Notes                                                              |
-| --------------------------- | -------- | ------------------------------------ | ------------------------------------------------------------------ |
-| `STAIRAI_STAGING_API_KEY`   | Yes      | —                                    | Owner-level key for the staging deployment.                        |
-| `STAIRAI_STAGING_BASE_URL`  | No       | `https://staging-api.stair-ai.com`   | Override if staging moves.                                         |
-| `STAIRAI_STAGING_AGENT_NAME`| No       | auto (`it-<lang>-<ts>-<rand>`)       | Useful to pin a name across re-runs; registration is idempotent.   |
-| `PYTHON`                    | No       | `python3`                            | Interpreter invoked by the TS `crossSdk.test.ts`.                  |
-| `TSX_BIN`                   | No       | `tsx`                                | Overrides the `tsx` CLI invoked by `test_cross_sdk.py`.            |
+`scripts/test-local.mts` creates a throwaway Postgres database and a runtime role, applies the migrations and the runtime privileges, builds the SDKs and the api-server, starts the server on a free local port as the runtime role, registers a fresh owner, smoke-tests the trace viewer, runs both suites against the server, then stops it and drops the database and the role. It needs:
 
-When `STAIRAI_STAGING_API_KEY` is not set, both suites mark themselves `skip` — they are safe to leave in CI.
+- a local Postgres whose user may `CREATE DATABASE` and `CREATE ROLE`: `RL_TEST_ADMIN_URL`, or `DATABASE_URL` in `api-server/.env` (its database is swapped for `postgres`);
+- Node.js 24+, pnpm 11+, Python 3.12+ and `uv`.
 
-## Running
+Set `RL_TEST_KEEP_DB=1` to keep the database and the content directory after the run.
+
+Pull requests and pushes run this same gate on GitHub, against a PostgreSQL service container ([`.github/workflows/tests.yml`](../.github/workflows/tests.yml)).
+
+## Running against a deployed server
+
+Use this after deploying, to check that server against the SDKs on this branch. The [`Integration Tests (deployed server)`](../.github/workflows/integration-tests.yml) workflow does the same on GitHub and is started by hand, with the server's base URL as its input.
+
+| Variable                     | Required | Default                          | Notes                                                              |
+| ---------------------------- | -------- | -------------------------------- | ------------------------------------------------------------------ |
+| `STAIRAI_STAGING_API_KEY`    | Yes      | —                                | Owner-level key for the target deployment.                        |
+| `STAIRAI_STAGING_BASE_URL`   | No       | `https://stg-api.stair-ai.com`   | Target server.                                                     |
+| `STAIRAI_STAGING_AGENT_NAME` | No       | auto (`it-<lang>-<ts>-<rand>`)   | Useful to pin a name across re-runs; registration is idempotent.   |
+| `PYTHON`                     | No       | `python3`                        | Interpreter invoked by the TS `crossSdk.test.ts`.                  |
+| `TSX_BIN`                    | No       | `tsx`                            | Overrides the `tsx` CLI invoked by `test_cross_sdk.py`.            |
+
+When `STAIRAI_STAGING_API_KEY` is not set, both suites mark themselves `skip`.
 
 ### TypeScript suite
 
 ```sh
+pnpm --dir typescript-sdk build
 cd integration-tests/typescript
-pnpm install
 STAIRAI_STAGING_API_KEY=sl_... pnpm test
 ```
 
@@ -96,8 +111,8 @@ STAIRAI_STAGING_API_KEY=sl_... pnpm test
 
 ```sh
 cd integration-tests/python
-uv sync          # or: python -m pip install -e . pytest httpx
-STAIRAI_STAGING_API_KEY=sl_... uv run pytest
+uv sync --locked
+STAIRAI_STAGING_API_KEY=sl_... uv run --locked pytest
 ```
 
 ### Cross-SDK tests only
@@ -109,11 +124,11 @@ STAIRAI_STAGING_API_KEY=sl_... pnpm vitest run src/crossSdk.test.ts
 
 # TS writes, Python reads (requires tsx on PATH or pnpm in integration-tests/typescript)
 cd integration-tests/python
-STAIRAI_STAGING_API_KEY=sl_... uv run pytest tests/test_cross_sdk.py
+STAIRAI_STAGING_API_KEY=sl_... uv run --locked pytest tests/test_cross_sdk.py
 ```
 
-## Known quirks
+## Notes
 
-- The shipped v0.1.0 SDKs hard-code `ENDPOINTS.production` for `registerAgent` and `resolveAgentId`. The `StagingTransport` helper (in both languages) rewrites those URLs to the staging base transparently — this is why every test wires the custom transport through. Once the SDKs honour `endpoint`/`environment` for the static factory methods, the transport shim can be deleted.
-- The staging URL the user deployed to (`https://staging-api.stair-ai.com`) does **not** match the SDK's built-in `ENDPOINTS.staging` (`https://staging.api.stairai.com`). The `STAIRAI_STAGING_BASE_URL` env var (default `https://staging-api.stair-ai.com`) is what both suites resolve against.
+- The suites pass the base URL to the SDKs as `endpoint`; the SDKs have no built-in hosts.
+- A deployed server must run the same api-server version as the SDKs under test: SDK 1.0 writes schema `0.4`, which older servers reject.
 - Each test run registers a fresh agent name by default; runs share no state. Set `STAIRAI_STAGING_AGENT_NAME` if you want re-runs to accumulate records under one agent.

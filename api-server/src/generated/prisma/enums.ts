@@ -23,6 +23,33 @@ export const BehaviorType = {
   Acting: "Acting",
   Reflecting: "Reflecting",
   Other: "Other",
+  Attesting: "Attesting",
 } as const;
 
 export type BehaviorType = (typeof BehaviorType)[keyof typeof BehaviorType];
+
+export const Executor = {
+  ai: "ai",
+  det: "det",
+  human: "human",
+} as const;
+
+export type Executor = (typeof Executor)[keyof typeof Executor];
+
+export const RecordPhase = {
+  pre_execution: "pre_execution",
+  concurrent: "concurrent",
+  post_execution: "post_execution",
+} as const;
+
+export type RecordPhase = (typeof RecordPhase)[keyof typeof RecordPhase];
+
+export const Outcome = {
+  success: "success",
+  failure: "failure",
+  denied: "denied",
+  escalated: "escalated",
+  timeout: "timeout",
+} as const;
+
+export type Outcome = (typeof Outcome)[keyof typeof Outcome];

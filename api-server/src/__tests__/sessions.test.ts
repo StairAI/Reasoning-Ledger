@@ -38,7 +38,7 @@ describe("Sessions — getSession", () => {
     await Promise.all([owner.cleanup(), ownerB.cleanup()]);
   });
 
-  it("returns all records in the session ordered by server_ts_utc asc", async () => {
+  it("returns all records in the session in the order the server received them", async () => {
     const { records, session_id } = await call(
       getSession,
       { agent_id: agentId, session_id: sessionId },
@@ -50,6 +50,7 @@ describe("Sessions — getSession", () => {
 
     // Ascending order check.
     for (let i = 1; i < records.length; i += 1) {
+      expect(Number(records[i].sequence)).toBeGreaterThan(Number(records[i - 1].sequence));
       expect(Number(records[i].server_ts_utc)).toBeGreaterThanOrEqual(
         Number(records[i - 1].server_ts_utc),
       );

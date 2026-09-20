@@ -1,0 +1,44 @@
+---
+import Layout from "#/layouts/Layout.astro";
+
+export const prerender = false;
+
+// The form posts to /session, which signs the visitor in and redirects back.
+const next = Astro.url.searchParams.get("next") ?? "/";
+const error = Astro.url.searchParams.get("error") ? "That token is not valid." : null;
+---
+
+<Layout title="Reasoning Ledger · Sign in">
+  <div class="flex min-h-screen items-center justify-center dot-grid px-6">
+    <form method="post" action="/session" class="flex w-full max-w-[360px] flex-col gap-4">
+      <input type="hidden" name="next" value={next} />
+      <h1 class="font-sans text-[22px] font-medium text-ink">Sign in to Reasoning Ledger</h1>
+      <p class="text-[13px] text-ink/50">
+        Use your owner API token. You will see only your own agents' traces.
+      </p>
+      <label class="flex flex-col gap-1 text-[12px] text-ink/60">
+        API token
+        <input
+          type="password"
+          name="token"
+          required
+          autocomplete="off"
+          class="rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-[13px] text-ink focus:border-accent focus:outline-none"
+        />
+      </label>
+      {
+        error && (
+          <p role="alert" class="text-[12px] text-fail">
+            {error}
+          </p>
+        )
+      }
+      <button
+        type="submit"
+        class="rounded-md bg-accent px-3 py-2 text-[13px] font-medium text-canvas hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        Sign in
+      </button>
+    </form>
+  </div>
+</Layout>

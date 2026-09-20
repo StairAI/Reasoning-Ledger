@@ -20,7 +20,7 @@ describe("Agents", () => {
   // POST /v1/agents — registerAgent
   // -------------------------------------------------------------------------
 
-  describe(registerAgent, () => {
+  describe("POST /v1/agents — registerAgent", () => {
     it("creates an agent and returns registration info", async () => {
       const result = await call(
         registerAgent,
@@ -76,7 +76,7 @@ describe("Agents", () => {
   // GET /v1/agents?name= — resolveAgent
   // -------------------------------------------------------------------------
 
-  describe(resolveAgent, () => {
+  describe("GET /v1/agents?name= — resolveAgent", () => {
     it("resolves a registered agent by name", async () => {
       const name = `resolve-${crypto.randomUUID()}`;
       const reg = await call(registerAgent, { name }, ctx(owner.apiKey));
@@ -108,7 +108,7 @@ describe("Agents", () => {
   // GET /v1/agents/:agent_id — getAgent
   // -------------------------------------------------------------------------
 
-  describe(getAgent, () => {
+  describe("GET /v1/agents/{agent_id} — getAgent", () => {
     it("fetches agent metadata by id", async () => {
       const name = `get-${crypto.randomUUID()}`;
       const reg = await call(registerAgent, { name }, ctx(owner.apiKey));
@@ -142,7 +142,7 @@ describe("Agents", () => {
   // PATCH /v1/agents/:agent_id — updateAgent
   // -------------------------------------------------------------------------
 
-  describe(updateAgent, () => {
+  describe("PATCH /v1/agents/{agent_id} — updateAgent", () => {
     it("updates agent name", async () => {
       const original = `upd-${crypto.randomUUID()}`;
       const reg = await call(registerAgent, { name: original }, ctx(owner.apiKey));

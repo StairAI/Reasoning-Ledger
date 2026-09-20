@@ -8,8 +8,8 @@
  * 🟢 You can import this file directly.
  */
 import type * as runtime from "@prisma/client/runtime/client";
-import type * as $Enums from "../enums";
-import type * as Prisma from "../internal/prismaNamespace";
+import type * as $Enums from "../enums.ts";
+import type * as Prisma from "../internal/prismaNamespace.ts";
 
 /**
  * Model Owner
@@ -181,7 +181,7 @@ export type OwnerGroupByOutputType = {
   email: string;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
-  owner_wallet_address: string;
+  owner_wallet_address: string | null;
   display_name: string | null;
   website: string | null;
   contact_email: string | null;
@@ -212,13 +212,15 @@ export type OwnerWhereInput = {
   email?: Prisma.StringFilter<"Owner"> | string;
   api_key_hash?: Prisma.StringFilter<"Owner"> | string;
   wallet_mode?: Prisma.EnumWalletModeFilter<"Owner"> | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFilter<"Owner"> | string;
+  owner_wallet_address?: Prisma.StringNullableFilter<"Owner"> | string | null;
   display_name?: Prisma.StringNullableFilter<"Owner"> | string | null;
   website?: Prisma.StringNullableFilter<"Owner"> | string | null;
   contact_email?: Prisma.StringNullableFilter<"Owner"> | string | null;
   created_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
   updated_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
   agents?: Prisma.AgentListRelationFilter;
+  content?: Prisma.ContentObjectListRelationFilter;
+  viz_sessions?: Prisma.VizSessionListRelationFilter;
 };
 
 export type OwnerOrderByWithRelationInput = {
@@ -226,13 +228,15 @@ export type OwnerOrderByWithRelationInput = {
   email?: Prisma.SortOrder;
   api_key_hash?: Prisma.SortOrder;
   wallet_mode?: Prisma.SortOrder;
-  owner_wallet_address?: Prisma.SortOrder;
+  owner_wallet_address?: Prisma.SortOrderInput | Prisma.SortOrder;
   display_name?: Prisma.SortOrderInput | Prisma.SortOrder;
   website?: Prisma.SortOrderInput | Prisma.SortOrder;
   contact_email?: Prisma.SortOrderInput | Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
   agents?: Prisma.AgentOrderByRelationAggregateInput;
+  content?: Prisma.ContentObjectOrderByRelationAggregateInput;
+  viz_sessions?: Prisma.VizSessionOrderByRelationAggregateInput;
 };
 
 export type OwnerWhereUniqueInput = Prisma.AtLeast<
@@ -244,13 +248,15 @@ export type OwnerWhereUniqueInput = Prisma.AtLeast<
     OR?: Prisma.OwnerWhereInput[];
     NOT?: Prisma.OwnerWhereInput | Prisma.OwnerWhereInput[];
     wallet_mode?: Prisma.EnumWalletModeFilter<"Owner"> | $Enums.WalletMode;
-    owner_wallet_address?: Prisma.StringFilter<"Owner"> | string;
+    owner_wallet_address?: Prisma.StringNullableFilter<"Owner"> | string | null;
     display_name?: Prisma.StringNullableFilter<"Owner"> | string | null;
     website?: Prisma.StringNullableFilter<"Owner"> | string | null;
     contact_email?: Prisma.StringNullableFilter<"Owner"> | string | null;
     created_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
     updated_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
     agents?: Prisma.AgentListRelationFilter;
+    content?: Prisma.ContentObjectListRelationFilter;
+    viz_sessions?: Prisma.VizSessionListRelationFilter;
   },
   "id" | "email" | "api_key_hash"
 >;
@@ -260,7 +266,7 @@ export type OwnerOrderByWithAggregationInput = {
   email?: Prisma.SortOrder;
   api_key_hash?: Prisma.SortOrder;
   wallet_mode?: Prisma.SortOrder;
-  owner_wallet_address?: Prisma.SortOrder;
+  owner_wallet_address?: Prisma.SortOrderInput | Prisma.SortOrder;
   display_name?: Prisma.SortOrderInput | Prisma.SortOrder;
   website?: Prisma.SortOrderInput | Prisma.SortOrder;
   contact_email?: Prisma.SortOrderInput | Prisma.SortOrder;
@@ -279,7 +285,7 @@ export type OwnerScalarWhereWithAggregatesInput = {
   email?: Prisma.StringWithAggregatesFilter<"Owner"> | string;
   api_key_hash?: Prisma.StringWithAggregatesFilter<"Owner"> | string;
   wallet_mode?: Prisma.EnumWalletModeWithAggregatesFilter<"Owner"> | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringWithAggregatesFilter<"Owner"> | string;
+  owner_wallet_address?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   display_name?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   website?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   contact_email?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
@@ -292,13 +298,15 @@ export type OwnerCreateInput = {
   email: string;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
-  owner_wallet_address: string;
+  owner_wallet_address?: string | null;
   display_name?: string | null;
   website?: string | null;
   contact_email?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateInput = {
@@ -306,13 +314,15 @@ export type OwnerUncheckedCreateInput = {
   email: string;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
-  owner_wallet_address: string;
+  owner_wallet_address?: string | null;
   display_name?: string | null;
   website?: string | null;
   contact_email?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUpdateInput = {
@@ -320,13 +330,15 @@ export type OwnerUpdateInput = {
   email?: Prisma.StringFieldUpdateOperationsInput | string;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateInput = {
@@ -334,13 +346,15 @@ export type OwnerUncheckedUpdateInput = {
   email?: Prisma.StringFieldUpdateOperationsInput | string;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateManyInput = {
@@ -348,7 +362,7 @@ export type OwnerCreateManyInput = {
   email: string;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
-  owner_wallet_address: string;
+  owner_wallet_address?: string | null;
   display_name?: string | null;
   website?: string | null;
   contact_email?: string | null;
@@ -361,7 +375,7 @@ export type OwnerUpdateManyMutationInput = {
   email?: Prisma.StringFieldUpdateOperationsInput | string;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -374,7 +388,7 @@ export type OwnerUncheckedUpdateManyInput = {
   email?: Prisma.StringFieldUpdateOperationsInput | string;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -468,17 +482,71 @@ export type OwnerUpdateOneRequiredWithoutAgentsNestedInput = {
   >;
 };
 
+export type OwnerCreateNestedOneWithoutContentInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutContentInput,
+    Prisma.OwnerUncheckedCreateWithoutContentInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutContentInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+};
+
+export type OwnerUpdateOneRequiredWithoutContentNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutContentInput,
+    Prisma.OwnerUncheckedCreateWithoutContentInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutContentInput;
+  upsert?: Prisma.OwnerUpsertWithoutContentInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.OwnerUpdateToOneWithWhereWithoutContentInput,
+      Prisma.OwnerUpdateWithoutContentInput
+    >,
+    Prisma.OwnerUncheckedUpdateWithoutContentInput
+  >;
+};
+
+export type OwnerCreateNestedOneWithoutViz_sessionsInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutViz_sessionsInput,
+    Prisma.OwnerUncheckedCreateWithoutViz_sessionsInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutViz_sessionsInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+};
+
+export type OwnerUpdateOneRequiredWithoutViz_sessionsNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutViz_sessionsInput,
+    Prisma.OwnerUncheckedCreateWithoutViz_sessionsInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutViz_sessionsInput;
+  upsert?: Prisma.OwnerUpsertWithoutViz_sessionsInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.OwnerUpdateToOneWithWhereWithoutViz_sessionsInput,
+      Prisma.OwnerUpdateWithoutViz_sessionsInput
+    >,
+    Prisma.OwnerUncheckedUpdateWithoutViz_sessionsInput
+  >;
+};
+
 export type OwnerCreateWithoutAgentsInput = {
   id?: string;
   email: string;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
-  owner_wallet_address: string;
+  owner_wallet_address?: string | null;
   display_name?: string | null;
   website?: string | null;
   contact_email?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
+  content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutAgentsInput = {
@@ -486,12 +554,14 @@ export type OwnerUncheckedCreateWithoutAgentsInput = {
   email: string;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
-  owner_wallet_address: string;
+  owner_wallet_address?: string | null;
   display_name?: string | null;
   website?: string | null;
   contact_email?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
+  content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutAgentsInput = {
@@ -527,12 +597,14 @@ export type OwnerUpdateWithoutAgentsInput = {
   email?: Prisma.StringFieldUpdateOperationsInput | string;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutAgentsInput = {
@@ -540,12 +612,190 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
   email?: Prisma.StringFieldUpdateOperationsInput | string;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
-  owner_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerCreateWithoutContentInput = {
+  id?: string;
+  email: string;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerUncheckedCreateWithoutContentInput = {
+  id?: string;
+  email: string;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerCreateOrConnectWithoutContentInput = {
+  where: Prisma.OwnerWhereUniqueInput;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutContentInput,
+    Prisma.OwnerUncheckedCreateWithoutContentInput
+  >;
+};
+
+export type OwnerUpsertWithoutContentInput = {
+  update: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutContentInput,
+    Prisma.OwnerUncheckedUpdateWithoutContentInput
+  >;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutContentInput,
+    Prisma.OwnerUncheckedCreateWithoutContentInput
+  >;
+  where?: Prisma.OwnerWhereInput;
+};
+
+export type OwnerUpdateToOneWithWhereWithoutContentInput = {
+  where?: Prisma.OwnerWhereInput;
+  data: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutContentInput,
+    Prisma.OwnerUncheckedUpdateWithoutContentInput
+  >;
+};
+
+export type OwnerUpdateWithoutContentInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerUncheckedUpdateWithoutContentInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerCreateWithoutViz_sessionsInput = {
+  id?: string;
+  email: string;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
+  id?: string;
+  email: string;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerCreateOrConnectWithoutViz_sessionsInput = {
+  where: Prisma.OwnerWhereUniqueInput;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutViz_sessionsInput,
+    Prisma.OwnerUncheckedCreateWithoutViz_sessionsInput
+  >;
+};
+
+export type OwnerUpsertWithoutViz_sessionsInput = {
+  update: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutViz_sessionsInput,
+    Prisma.OwnerUncheckedUpdateWithoutViz_sessionsInput
+  >;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutViz_sessionsInput,
+    Prisma.OwnerUncheckedCreateWithoutViz_sessionsInput
+  >;
+  where?: Prisma.OwnerWhereInput;
+};
+
+export type OwnerUpdateToOneWithWhereWithoutViz_sessionsInput = {
+  where?: Prisma.OwnerWhereInput;
+  data: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutViz_sessionsInput,
+    Prisma.OwnerUncheckedUpdateWithoutViz_sessionsInput
+  >;
+};
+
+export type OwnerUpdateWithoutViz_sessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 /**
@@ -554,12 +804,16 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
 
 export type OwnerCountOutputType = {
   agents: number;
+  content: number;
+  viz_sessions: number;
 };
 
 export type OwnerCountOutputTypeSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
   agents?: boolean | OwnerCountOutputTypeCountAgentsArgs;
+  content?: boolean | OwnerCountOutputTypeCountContentArgs;
+  viz_sessions?: boolean | OwnerCountOutputTypeCountViz_sessionsArgs;
 };
 
 /**
@@ -583,6 +837,24 @@ export type OwnerCountOutputTypeCountAgentsArgs<
   where?: Prisma.AgentWhereInput;
 };
 
+/**
+ * OwnerCountOutputType without action
+ */
+export type OwnerCountOutputTypeCountContentArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.ContentObjectWhereInput;
+};
+
+/**
+ * OwnerCountOutputType without action
+ */
+export type OwnerCountOutputTypeCountViz_sessionsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.VizSessionWhereInput;
+};
+
 export type OwnerSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = runtime.Types.Extensions.GetSelect<
@@ -598,6 +870,8 @@ export type OwnerSelect<
     created_at?: boolean;
     updated_at?: boolean;
     agents?: boolean | Prisma.Owner$agentsArgs<ExtArgs>;
+    content?: boolean | Prisma.Owner$contentArgs<ExtArgs>;
+    viz_sessions?: boolean | Prisma.Owner$viz_sessionsArgs<ExtArgs>;
     _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
   },
   ExtArgs["result"]["owner"]
@@ -671,6 +945,8 @@ export type OwnerInclude<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
   agents?: boolean | Prisma.Owner$agentsArgs<ExtArgs>;
+  content?: boolean | Prisma.Owner$contentArgs<ExtArgs>;
+  viz_sessions?: boolean | Prisma.Owner$viz_sessionsArgs<ExtArgs>;
   _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
 };
 export type OwnerIncludeCreateManyAndReturn<
@@ -686,6 +962,8 @@ export type $OwnerPayload<
   name: "Owner";
   objects: {
     agents: Prisma.$AgentPayload<ExtArgs>[];
+    content: Prisma.$ContentObjectPayload<ExtArgs>[];
+    viz_sessions: Prisma.$VizSessionPayload<ExtArgs>[];
   };
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -696,7 +974,10 @@ export type $OwnerPayload<
        */
       api_key_hash: string;
       wallet_mode: $Enums.WalletMode;
-      owner_wallet_address: string;
+      /**
+       * Optional since v1.0; no chain anchoring.
+       */
+      owner_wallet_address: string | null;
       display_name: string | null;
       website: string | null;
       contact_email: string | null;
@@ -1223,6 +1504,28 @@ export interface Prisma__OwnerClient<
       >
     | Null
   >;
+  content<T extends Prisma.Owner$contentArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Owner$contentArgs<ExtArgs>>,
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$ContentObjectPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >;
+  viz_sessions<T extends Prisma.Owner$viz_sessionsArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Owner$viz_sessionsArgs<ExtArgs>>,
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$VizSessionPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >;
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1707,6 +2010,60 @@ export type Owner$agentsArgs<
   take?: number;
   skip?: number;
   distinct?: Prisma.AgentScalarFieldEnum | Prisma.AgentScalarFieldEnum[];
+};
+
+/**
+ * Owner.content
+ */
+export type Owner$contentArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the ContentObject
+   */
+  select?: Prisma.ContentObjectSelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the ContentObject
+   */
+  omit?: Prisma.ContentObjectOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentObjectInclude<ExtArgs> | null;
+  where?: Prisma.ContentObjectWhereInput;
+  orderBy?:
+    | Prisma.ContentObjectOrderByWithRelationInput
+    | Prisma.ContentObjectOrderByWithRelationInput[];
+  cursor?: Prisma.ContentObjectWhereUniqueInput;
+  take?: number;
+  skip?: number;
+  distinct?: Prisma.ContentObjectScalarFieldEnum | Prisma.ContentObjectScalarFieldEnum[];
+};
+
+/**
+ * Owner.viz_sessions
+ */
+export type Owner$viz_sessionsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the VizSession
+   */
+  select?: Prisma.VizSessionSelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the VizSession
+   */
+  omit?: Prisma.VizSessionOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.VizSessionInclude<ExtArgs> | null;
+  where?: Prisma.VizSessionWhereInput;
+  orderBy?: Prisma.VizSessionOrderByWithRelationInput | Prisma.VizSessionOrderByWithRelationInput[];
+  cursor?: Prisma.VizSessionWhereUniqueInput;
+  take?: number;
+  skip?: number;
+  distinct?: Prisma.VizSessionScalarFieldEnum | Prisma.VizSessionScalarFieldEnum[];
 };
 
 /**

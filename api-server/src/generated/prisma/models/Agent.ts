@@ -8,8 +8,8 @@
  * 🟢 You can import this file directly.
  */
 import type * as runtime from "@prisma/client/runtime/client";
-import type * as $Enums from "../enums";
-import type * as Prisma from "../internal/prismaNamespace";
+import type * as $Enums from "../enums.ts";
+import type * as Prisma from "../internal/prismaNamespace.ts";
 
 /**
  * Model Agent
@@ -170,7 +170,7 @@ export type AgentGroupByOutputType = {
   id: string;
   owner_id: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address: string | null;
   description: string | null;
   website: string | null;
   tags: string[];
@@ -200,7 +200,7 @@ export type AgentWhereInput = {
   id?: Prisma.StringFilter<"Agent"> | string;
   owner_id?: Prisma.StringFilter<"Agent"> | string;
   name?: Prisma.StringFilter<"Agent"> | string;
-  agent_wallet_address?: Prisma.StringFilter<"Agent"> | string;
+  agent_wallet_address?: Prisma.StringNullableFilter<"Agent"> | string | null;
   description?: Prisma.StringNullableFilter<"Agent"> | string | null;
   website?: Prisma.StringNullableFilter<"Agent"> | string | null;
   tags?: Prisma.StringNullableListFilter<"Agent">;
@@ -214,7 +214,7 @@ export type AgentOrderByWithRelationInput = {
   id?: Prisma.SortOrder;
   owner_id?: Prisma.SortOrder;
   name?: Prisma.SortOrder;
-  agent_wallet_address?: Prisma.SortOrder;
+  agent_wallet_address?: Prisma.SortOrderInput | Prisma.SortOrder;
   description?: Prisma.SortOrderInput | Prisma.SortOrder;
   website?: Prisma.SortOrderInput | Prisma.SortOrder;
   tags?: Prisma.SortOrder;
@@ -233,7 +233,7 @@ export type AgentWhereUniqueInput = Prisma.AtLeast<
     NOT?: Prisma.AgentWhereInput | Prisma.AgentWhereInput[];
     owner_id?: Prisma.StringFilter<"Agent"> | string;
     name?: Prisma.StringFilter<"Agent"> | string;
-    agent_wallet_address?: Prisma.StringFilter<"Agent"> | string;
+    agent_wallet_address?: Prisma.StringNullableFilter<"Agent"> | string | null;
     description?: Prisma.StringNullableFilter<"Agent"> | string | null;
     website?: Prisma.StringNullableFilter<"Agent"> | string | null;
     tags?: Prisma.StringNullableListFilter<"Agent">;
@@ -249,7 +249,7 @@ export type AgentOrderByWithAggregationInput = {
   id?: Prisma.SortOrder;
   owner_id?: Prisma.SortOrder;
   name?: Prisma.SortOrder;
-  agent_wallet_address?: Prisma.SortOrder;
+  agent_wallet_address?: Prisma.SortOrderInput | Prisma.SortOrder;
   description?: Prisma.SortOrderInput | Prisma.SortOrder;
   website?: Prisma.SortOrderInput | Prisma.SortOrder;
   tags?: Prisma.SortOrder;
@@ -267,7 +267,7 @@ export type AgentScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"Agent"> | string;
   owner_id?: Prisma.StringWithAggregatesFilter<"Agent"> | string;
   name?: Prisma.StringWithAggregatesFilter<"Agent"> | string;
-  agent_wallet_address?: Prisma.StringWithAggregatesFilter<"Agent"> | string;
+  agent_wallet_address?: Prisma.StringNullableWithAggregatesFilter<"Agent"> | string | null;
   description?: Prisma.StringNullableWithAggregatesFilter<"Agent"> | string | null;
   website?: Prisma.StringNullableWithAggregatesFilter<"Agent"> | string | null;
   tags?: Prisma.StringNullableListFilter<"Agent">;
@@ -278,7 +278,7 @@ export type AgentScalarWhereWithAggregatesInput = {
 export type AgentCreateInput = {
   id?: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -292,7 +292,7 @@ export type AgentUncheckedCreateInput = {
   id?: string;
   owner_id: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -304,7 +304,7 @@ export type AgentUncheckedCreateInput = {
 export type AgentUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -318,7 +318,7 @@ export type AgentUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   owner_id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -331,7 +331,7 @@ export type AgentCreateManyInput = {
   id?: string;
   owner_id: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -342,7 +342,7 @@ export type AgentCreateManyInput = {
 export type AgentUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -354,7 +354,7 @@ export type AgentUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   owner_id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -536,7 +536,7 @@ export type AgentUpdateOneRequiredWithoutRecordsNestedInput = {
 export type AgentCreateWithoutOwnerInput = {
   id?: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -548,7 +548,7 @@ export type AgentCreateWithoutOwnerInput = {
 export type AgentUncheckedCreateWithoutOwnerInput = {
   id?: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -605,7 +605,7 @@ export type AgentScalarWhereInput = {
   id?: Prisma.StringFilter<"Agent"> | string;
   owner_id?: Prisma.StringFilter<"Agent"> | string;
   name?: Prisma.StringFilter<"Agent"> | string;
-  agent_wallet_address?: Prisma.StringFilter<"Agent"> | string;
+  agent_wallet_address?: Prisma.StringNullableFilter<"Agent"> | string | null;
   description?: Prisma.StringNullableFilter<"Agent"> | string | null;
   website?: Prisma.StringNullableFilter<"Agent"> | string | null;
   tags?: Prisma.StringNullableListFilter<"Agent">;
@@ -616,7 +616,7 @@ export type AgentScalarWhereInput = {
 export type AgentCreateWithoutRecordsInput = {
   id?: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -629,7 +629,7 @@ export type AgentUncheckedCreateWithoutRecordsInput = {
   id?: string;
   owner_id: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -668,7 +668,7 @@ export type AgentUpdateToOneWithWhereWithoutRecordsInput = {
 export type AgentUpdateWithoutRecordsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -681,7 +681,7 @@ export type AgentUncheckedUpdateWithoutRecordsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   owner_id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -692,7 +692,7 @@ export type AgentUncheckedUpdateWithoutRecordsInput = {
 export type AgentCreateManyOwnerInput = {
   id?: string;
   name: string;
-  agent_wallet_address: string;
+  agent_wallet_address?: string | null;
   description?: string | null;
   website?: string | null;
   tags?: Prisma.AgentCreatetagsInput | string[];
@@ -703,7 +703,7 @@ export type AgentCreateManyOwnerInput = {
 export type AgentUpdateWithoutOwnerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -715,7 +715,7 @@ export type AgentUpdateWithoutOwnerInput = {
 export type AgentUncheckedUpdateWithoutOwnerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -727,7 +727,7 @@ export type AgentUncheckedUpdateWithoutOwnerInput = {
 export type AgentUncheckedUpdateManyWithoutOwnerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   name?: Prisma.StringFieldUpdateOperationsInput | string;
-  agent_wallet_address?: Prisma.StringFieldUpdateOperationsInput | string;
+  agent_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   tags?: Prisma.AgentUpdatetagsInput | string[];
@@ -886,7 +886,10 @@ export type $AgentPayload<
        * Human-readable name; unique within owner; mutable metadata only — never on records.
        */
       name: string;
-      agent_wallet_address: string;
+      /**
+       * Optional since v1.0; no chain anchoring.
+       */
+      agent_wallet_address: string | null;
       description: string | null;
       website: string | null;
       tags: string[];

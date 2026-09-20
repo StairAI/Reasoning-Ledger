@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .types import BatchAck, RecordAck, SubmitInput
+from .types import AttestingInput, BatchAck, RecordAck, SubmitInput
 from .utils import new_record_id
 
 if TYPE_CHECKING:
@@ -29,8 +29,11 @@ class Session:
         """Submit a single record, auto-injecting session_id = self.id."""
         return self._client._submit({**input_record, "session_id": self.id})
 
+    def submit_attesting(self, input_record: AttestingInput) -> RecordAck:
+        """Submit an Attesting record (see LedgerClient.submit_attesting),
+        auto-injecting session_id = self.id."""
+        return self._client._submit_attesting({**input_record, "session_id": self.id})
+
     def submit_batch(self, inputs: list[SubmitInput]) -> BatchAck:
         """Submit a batch, auto-injecting session_id = self.id on each record."""
-        return self._client._submit_batch(
-            [{**inp, "session_id": self.id} for inp in inputs]
-        )
+        return self._client._submit_batch([{**inp, "session_id": self.id} for inp in inputs])

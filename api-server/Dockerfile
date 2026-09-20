@@ -64,4 +64,7 @@ ENV HOST=0.0.0.0
 ENV PORT=4321
 EXPOSE 4321
 
-CMD ["sh", "-c", "pnpm --filter \"{./api-server}\" exec prisma db push && node api-server/dist/server/entry.mjs"]
+# Migrate with the migration account, re-apply the runtime account's privileges,
+# then serve with the runtime account (MIGRATION_DATABASE_URL, RL_RUNTIME_ROLE,
+# DATABASE_URL; see api-server/scripts/db-deploy.mts).
+CMD ["sh", "-c", "pnpm --filter \"{./api-server}\" db:deploy && node api-server/dist/server/entry.mjs"]

@@ -1,7 +1,8 @@
 import { call } from "@orpc/server";
 import { afterAll, beforeAll, describe, expect, it, expectTypeOf } from "vitest";
 import { registerOwner, rotateKey, updateOwner } from "#/routes/owners";
-import { ctx, makeTestOwner } from "./helpers";
+import { resetRegistrationAttempts } from "#/lib/registration";
+import { adminCtx, ctx, makeTestOwner } from "./helpers";
 import type { TestOwner } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -22,7 +23,7 @@ describe("POST /v1/owners — registerOwner", () => {
     const email = `test-reg-${crypto.randomUUID()}@example.com`;
     emails.push(email);
 
-    const result = await call(registerOwner, { email, wallet_mode: "custodial" }, ctx());
+    const result = await call(registerOwner, { email, wallet_mode: "custodial" }, adminCtx());
 
     expect(result.owner_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(result.api_key).toMatch(/^sl_[0-9a-f]{64}$/);
@@ -35,8 +36,8 @@ describe("POST /v1/owners — registerOwner", () => {
     const email = `test-idem-${crypto.randomUUID()}@example.com`;
     emails.push(email);
 
-    const first = await call(registerOwner, { email, wallet_mode: "custodial" }, ctx());
-    const second = await call(registerOwner, { email, wallet_mode: "custodial" }, ctx());
+    const first = await call(registerOwner, { email, wallet_mode: "custodial" }, adminCtx());
+    const second = await call(registerOwner, { email, wallet_mode: "custodial" }, adminCtx());
 
     expect(second.owner_id).toBe(first.owner_id);
     expect(second.api_key).toBeUndefined();
@@ -50,7 +51,7 @@ describe("POST /v1/owners — registerOwner", () => {
     const result = await call(
       registerOwner,
       { email, owner_wallet_address: walletAddress, wallet_mode: "byow" },
-      ctx(),
+      adminCtx(),
     );
 
     expect(result.wallet_mode).toBe("byow");
@@ -62,7 +63,9 @@ describe("POST /v1/owners — registerOwner", () => {
     const email = `test-byow-nw-${crypto.randomUUID()}@example.com`;
     emails.push(email);
 
-    await expect(call(registerOwner, { email, wallet_mode: "byow" }, ctx())).rejects.toMatchObject({
+    await expect(
+      call(registerOwner, { email, wallet_mode: "byow" }, adminCtx()),
+    ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
   });
@@ -80,7 +83,7 @@ describe("POST /v1/owners — registerOwner", () => {
         wallet_mode: "custodial",
         website: "https://example.com",
       },
-      ctx(),
+      adminCtx(),
     );
 
     expect(result.display_name).toBe("Test Corp");
@@ -170,5 +173,62 @@ describe("POST /v1/owners/me/rotate-key — rotateKey", () => {
 
     // Keep in sync so afterAll cleanup works without issues.
     owner = { ...owner, apiKey: result2.api_key };
+  });
+});
+
+/** Context for a request arriving from the given client address. */
+function from(ip: string) {
+  return { context: { headers: { "cf-connecting-ip": ip } } };
+}
+
+describe("owner registration policy", () => {
+  const cleanupEmails: string[] = [];
+
+  afterAll(async () => {
+    const { prisma } = await import("#/lib/prisma");
+    await prisma.owner.deleteMany({ where: { email: { in: cleanupEmails } } });
+    delete process.env.RL_REGISTRATION;
+    delete process.env.RL_REGISTRATION_RATE;
+    resetRegistrationAttempts();
+  });
+
+  function email() {
+    const value = `policy-${crypto.randomUUID()}@example.com`;
+    cleanupEmails.push(value);
+    return value;
+  }
+
+  it("refuses registration without the administrator token by default", async () => {
+    await expect(
+      call(registerOwner, { email: email(), wallet_mode: "custodial" }, ctx()),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("refuses a wrong administrator token", async () => {
+    const wrong = { context: { headers: { "x-admin-token": "not-the-token" } } };
+    await expect(
+      call(registerOwner, { email: email(), wallet_mode: "custodial" }, wrong),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("checks the policy before looking up the e-mail, so it cannot be used to probe accounts", async () => {
+    const known = email();
+    await call(registerOwner, { email: known, wallet_mode: "custodial" }, adminCtx());
+    await expect(
+      call(registerOwner, { email: known, wallet_mode: "custodial" }, ctx()),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("allows self-service in open mode, rate-limited per client address", async () => {
+    process.env.RL_REGISTRATION = "open";
+    process.env.RL_REGISTRATION_RATE = "2";
+    resetRegistrationAttempts();
+
+    await call(registerOwner, { email: email(), wallet_mode: "custodial" }, from("203.0.113.1"));
+    await call(registerOwner, { email: email(), wallet_mode: "custodial" }, from("203.0.113.1"));
+    await expect(
+      call(registerOwner, { email: email(), wallet_mode: "custodial" }, from("203.0.113.1")),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    await call(registerOwner, { email: email(), wallet_mode: "custodial" }, from("203.0.113.2"));
   });
 });
