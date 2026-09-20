@@ -1,6 +1,6 @@
 {
   "name": "reasoning-ledger-sdk",
-  "version": "1.0.0",
+  "version": "1.0.0-rc.1",
   "description": "reasoning-ledger-sdk is a TypeScript SDK for interacting with the Reasoning Ledger.",
   "keywords": [
     "demo",
