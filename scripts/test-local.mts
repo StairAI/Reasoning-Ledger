@@ -202,6 +202,8 @@ async function viewerSmoke(baseUrl: string, apiKey: string): Promise<boolean> {
     anonymous.status === 302 && (anonymous.headers.get("location") ?? "").startsWith("/login"),
     `/ without a session: expected a redirect to /login, got ${anonymous.status}`,
   );
+  const health = await request("/health");
+  want(health.status === 200, `/health: expected 200, got ${health.status}`);
   const reference = await request("/v1");
   want(reference.status === 200, `/v1 API reference: expected 200, got ${reference.status}`);
   const spec = await request("/v1/spec.json");

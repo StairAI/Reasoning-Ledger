@@ -159,6 +159,10 @@ Every read is limited to the calling owner's data: another owner's agent, record
 
 Records are written only as schema `0.4`. The server checks each record against the schema and the [cross-field rules](../schema/SCHEMA.md#cross-field-rules), and checks that the content it references was uploaded by the same owner.
 
+## Health check
+
+`GET /health` answers `200` while the server can reach its database and `503` when it cannot. It needs no API key: point the platform's health check at it. A check on `/` would follow the viewer's redirect to the login page and look unhealthy.
+
 ## Trace viewer
 
 The pages at `/` list the signed-in owner's sessions and render each session as a graph. Sign in at `/login` with an API key; the viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and shows only that owner's data. The `/v1` API does not use the cookie.
