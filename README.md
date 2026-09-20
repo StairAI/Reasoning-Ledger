@@ -208,6 +208,19 @@ The schema version is numbered separately from the SDK and server versions. SDK 
 
 ---
 
+## Releasing the SDKs
+
+Both SDKs are published from GitHub by hand (`workflow_dispatch`), and the version in the manifest decides where the release lands:
+
+| Branch | Version | Published as |
+|---|---|---|
+| `develop` (deployed to staging) | `1.1.0-rc.1` / `1.1.0rc1` | npm tag `next`, a PyPI pre-release — `npm install` and `pip install` do not pick these up |
+| `master` (deployed to production) | `1.1.0` | npm tag `latest`, a PyPI release |
+
+So the version people install by default always matches the production server, and what is released is the same artifact that was already exercised against staging. The workflows refuse a version that is already published, a pre-release from `master`, or a release from `develop`.
+
+---
+
 ## License
 
 MIT

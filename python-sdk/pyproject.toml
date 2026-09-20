@@ -1,6 +1,6 @@
 [project]
 name = "reasoning-ledger"
-version = "1.0.0"
+version = "1.0.0rc1"
 license = "MIT"
 description = "Python SDK for interacting with the Reasoning Ledger."
 readme = "README.md"

@@ -32,6 +32,29 @@ jobs:
         working-directory: typescript-sdk
         run: pnpm build
 
+      # develop publishes pre-releases under the `next` tag, master publishes
+      # releases under `latest`, and a version already on npm is an error — not
+      # a silent skip, and never an overwrite.
+      - name: Check the version against this branch and npm
+        id: release
+        working-directory: typescript-sdk
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          case "$VERSION" in
+            *-*) TAG=next; EXPECTED=develop ;;
+            *)   TAG=latest; EXPECTED=master ;;
+          esac
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED" ]; then
+            echo "::error::version $VERSION publishes to '$TAG', which is only allowed from $EXPECTED (this run is on $GITHUB_REF_NAME)"
+            exit 1
+          fi
+          if npm view "reasoning-ledger-sdk@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::reasoning-ledger-sdk@$VERSION is already on npm; bump the version"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Publishing $VERSION to the '$TAG' tag"
+
       - name: Publish to npm
         working-directory: typescript-sdk
-        run: npm publish --access public
+        run: npm publish --access public --tag "${{ steps.release.outputs.tag }}"

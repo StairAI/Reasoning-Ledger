@@ -18,6 +18,22 @@ jobs:
         with:
           enable-cache: true
 
+      # develop publishes pre-releases (PEP 440: `pip install` skips them unless
+      # asked), master publishes releases. PyPI itself refuses a version twice.
+      - name: Check the version against this branch
+        working-directory: python-sdk
+        run: |
+          VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          case "$VERSION" in
+            *a[0-9]*|*b[0-9]*|*rc[0-9]*) KIND=pre-release; EXPECTED=develop ;;
+            *)                           KIND=release; EXPECTED=master ;;
+          esac
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED" ]; then
+            echo "::error::version $VERSION is a $KIND, which is only published from $EXPECTED (this run is on $GITHUB_REF_NAME)"
+            exit 1
+          fi
+          echo "Publishing $VERSION ($KIND)"
+
       - name: Build distribution
         working-directory: python-sdk
         run: uv build --wheel --sdist
