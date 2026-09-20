@@ -144,7 +144,7 @@ export type VizSessionGroupByArgs<
 
 export type VizSessionGroupByOutputType = {
   id: string;
-  owner_id: string;
+  owner_id: string | null;
   created_at: Date;
   expires_at: Date;
   _count: VizSessionCountAggregateOutputType | null;
@@ -169,15 +169,15 @@ export type VizSessionWhereInput = {
   OR?: Prisma.VizSessionWhereInput[];
   NOT?: Prisma.VizSessionWhereInput | Prisma.VizSessionWhereInput[];
   id?: Prisma.StringFilter<"VizSession"> | string;
-  owner_id?: Prisma.StringFilter<"VizSession"> | string;
+  owner_id?: Prisma.StringNullableFilter<"VizSession"> | string | null;
   created_at?: Prisma.DateTimeFilter<"VizSession"> | Date | string;
   expires_at?: Prisma.DateTimeFilter<"VizSession"> | Date | string;
-  owner?: Prisma.XOR<Prisma.OwnerScalarRelationFilter, Prisma.OwnerWhereInput>;
+  owner?: Prisma.XOR<Prisma.OwnerNullableScalarRelationFilter, Prisma.OwnerWhereInput> | null;
 };
 
 export type VizSessionOrderByWithRelationInput = {
   id?: Prisma.SortOrder;
-  owner_id?: Prisma.SortOrder;
+  owner_id?: Prisma.SortOrderInput | Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   expires_at?: Prisma.SortOrder;
   owner?: Prisma.OwnerOrderByWithRelationInput;
@@ -189,17 +189,17 @@ export type VizSessionWhereUniqueInput = Prisma.AtLeast<
     AND?: Prisma.VizSessionWhereInput | Prisma.VizSessionWhereInput[];
     OR?: Prisma.VizSessionWhereInput[];
     NOT?: Prisma.VizSessionWhereInput | Prisma.VizSessionWhereInput[];
-    owner_id?: Prisma.StringFilter<"VizSession"> | string;
+    owner_id?: Prisma.StringNullableFilter<"VizSession"> | string | null;
     created_at?: Prisma.DateTimeFilter<"VizSession"> | Date | string;
     expires_at?: Prisma.DateTimeFilter<"VizSession"> | Date | string;
-    owner?: Prisma.XOR<Prisma.OwnerScalarRelationFilter, Prisma.OwnerWhereInput>;
+    owner?: Prisma.XOR<Prisma.OwnerNullableScalarRelationFilter, Prisma.OwnerWhereInput> | null;
   },
   "id"
 >;
 
 export type VizSessionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder;
-  owner_id?: Prisma.SortOrder;
+  owner_id?: Prisma.SortOrderInput | Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   expires_at?: Prisma.SortOrder;
   _count?: Prisma.VizSessionCountOrderByAggregateInput;
@@ -216,7 +216,7 @@ export type VizSessionScalarWhereWithAggregatesInput = {
     | Prisma.VizSessionScalarWhereWithAggregatesInput
     | Prisma.VizSessionScalarWhereWithAggregatesInput[];
   id?: Prisma.StringWithAggregatesFilter<"VizSession"> | string;
-  owner_id?: Prisma.StringWithAggregatesFilter<"VizSession"> | string;
+  owner_id?: Prisma.StringNullableWithAggregatesFilter<"VizSession"> | string | null;
   created_at?: Prisma.DateTimeWithAggregatesFilter<"VizSession"> | Date | string;
   expires_at?: Prisma.DateTimeWithAggregatesFilter<"VizSession"> | Date | string;
 };
@@ -225,12 +225,12 @@ export type VizSessionCreateInput = {
   id: string;
   created_at?: Date | string;
   expires_at: Date | string;
-  owner: Prisma.OwnerCreateNestedOneWithoutViz_sessionsInput;
+  owner?: Prisma.OwnerCreateNestedOneWithoutViz_sessionsInput;
 };
 
 export type VizSessionUncheckedCreateInput = {
   id: string;
-  owner_id: string;
+  owner_id?: string | null;
   created_at?: Date | string;
   expires_at: Date | string;
 };
@@ -239,19 +239,19 @@ export type VizSessionUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
-  owner?: Prisma.OwnerUpdateOneRequiredWithoutViz_sessionsNestedInput;
+  owner?: Prisma.OwnerUpdateOneWithoutViz_sessionsNestedInput;
 };
 
 export type VizSessionUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  owner_id?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
 
 export type VizSessionCreateManyInput = {
   id: string;
-  owner_id: string;
+  owner_id?: string | null;
   created_at?: Date | string;
   expires_at: Date | string;
 };
@@ -264,7 +264,7 @@ export type VizSessionUpdateManyMutationInput = {
 
 export type VizSessionUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  owner_id?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   expires_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -444,7 +444,7 @@ export type VizSessionScalarWhereInput = {
   OR?: Prisma.VizSessionScalarWhereInput[];
   NOT?: Prisma.VizSessionScalarWhereInput | Prisma.VizSessionScalarWhereInput[];
   id?: Prisma.StringFilter<"VizSession"> | string;
-  owner_id?: Prisma.StringFilter<"VizSession"> | string;
+  owner_id?: Prisma.StringNullableFilter<"VizSession"> | string | null;
   created_at?: Prisma.DateTimeFilter<"VizSession"> | Date | string;
   expires_at?: Prisma.DateTimeFilter<"VizSession"> | Date | string;
 };
@@ -481,7 +481,7 @@ export type VizSessionSelect<
     owner_id?: boolean;
     created_at?: boolean;
     expires_at?: boolean;
-    owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+    owner?: boolean | Prisma.VizSession$ownerArgs<ExtArgs>;
   },
   ExtArgs["result"]["vizSession"]
 >;
@@ -494,7 +494,7 @@ export type VizSessionSelectCreateManyAndReturn<
     owner_id?: boolean;
     created_at?: boolean;
     expires_at?: boolean;
-    owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+    owner?: boolean | Prisma.VizSession$ownerArgs<ExtArgs>;
   },
   ExtArgs["result"]["vizSession"]
 >;
@@ -507,7 +507,7 @@ export type VizSessionSelectUpdateManyAndReturn<
     owner_id?: boolean;
     created_at?: boolean;
     expires_at?: boolean;
-    owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+    owner?: boolean | Prisma.VizSession$ownerArgs<ExtArgs>;
   },
   ExtArgs["result"]["vizSession"]
 >;
@@ -528,17 +528,17 @@ export type VizSessionOmit<
 export type VizSessionInclude<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
-  owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+  owner?: boolean | Prisma.VizSession$ownerArgs<ExtArgs>;
 };
 export type VizSessionIncludeCreateManyAndReturn<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
-  owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+  owner?: boolean | Prisma.VizSession$ownerArgs<ExtArgs>;
 };
 export type VizSessionIncludeUpdateManyAndReturn<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
-  owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+  owner?: boolean | Prisma.VizSession$ownerArgs<ExtArgs>;
 };
 
 export type $VizSessionPayload<
@@ -546,12 +546,15 @@ export type $VizSessionPayload<
 > = {
   name: "VizSession";
   objects: {
-    owner: Prisma.$OwnerPayload<ExtArgs>;
+    owner: Prisma.$OwnerPayload<ExtArgs> | null;
   };
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
       id: string;
-      owner_id: string;
+      /**
+       * Null for the instance administrator's session, which is not an owner's.
+       */
+      owner_id: string | null;
       created_at: Date;
       expires_at: Date;
     },
@@ -1092,17 +1095,16 @@ export interface Prisma__VizSessionClient<
   GlobalOmitOptions = {},
 > extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise";
-  owner<T extends Prisma.OwnerDefaultArgs<ExtArgs> = {}>(
-    args?: Prisma.Subset<T, Prisma.OwnerDefaultArgs<ExtArgs>>,
+  owner<T extends Prisma.VizSession$ownerArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.VizSession$ownerArgs<ExtArgs>>,
   ): Prisma.Prisma__OwnerClient<
-    | runtime.Types.Result.GetResult<
-        Prisma.$OwnerPayload<ExtArgs>,
-        T,
-        "findUniqueOrThrow",
-        GlobalOmitOptions
-      >
-    | Null,
-    Null,
+    runtime.Types.Result.GetResult<
+      Prisma.$OwnerPayload<ExtArgs>,
+      T,
+      "findUniqueOrThrow",
+      GlobalOmitOptions
+    > | null,
+    null,
     ExtArgs,
     GlobalOmitOptions
   >;
@@ -1572,6 +1574,27 @@ export type VizSessionDeleteManyArgs<
    * Limit how many VizSessions to delete.
    */
   limit?: number;
+};
+
+/**
+ * VizSession.owner
+ */
+export type VizSession$ownerArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the Owner
+   */
+  select?: Prisma.OwnerSelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the Owner
+   */
+  omit?: Prisma.OwnerOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OwnerInclude<ExtArgs> | null;
+  where?: Prisma.OwnerWhereInput;
 };
 
 /**

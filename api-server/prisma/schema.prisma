@@ -203,8 +203,9 @@ model ContentDeletion {
 
 model VizSession {
   id         String   @id
-  owner_id   String
-  owner      Owner    @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  /// Null for the instance administrator's session, which is not an owner's.
+  owner_id   String?
+  owner      Owner?   @relation(fields: [owner_id], references: [id], onDelete: Cascade)
   created_at DateTime @default(now())
   expires_at DateTime
 

@@ -7,12 +7,14 @@
  *   GET  /v1/content/{sha256}   read this owner's content
  *
  * All three need X-API-Key and only see the caller's own namespace: another
- * owner's content answers 404, deleted content answers 410.
+ * owner's content answers 404, deleted content answers 410. Reads also accept
+ * the administrator's token, which sees every owner's content (lib/admin.ts).
  */
 
 import type { APIRoute } from "astro";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
+import { isAdminToken, logAdminRead } from "#/lib/admin";
 import { ownerForApiKey } from "#/lib/auth";
 import { ContentStoreError, SHA256_HEX, verifiedObject, writeObject } from "#/lib/content-store";
 import { prisma } from "#/lib/prisma";
@@ -86,8 +88,34 @@ export const PUT: APIRoute = async ({ request, params }) => {
   return Response.json(ref(row), { status: 201 });
 };
 
+/**
+ * Whose namespace to read from: the caller's own, or — for the administrator —
+ * whichever owner holds this content. Content is addressed by hash, so every
+ * copy has the same bytes.
+ */
+async function readFrom(
+  request: Request,
+  sha256: string | undefined,
+): Promise<{ ownerId: string; sha256: string } | Response> {
+  if (!isAdminToken(request.headers.get("x-admin-token"))) {
+    return caller(request, sha256);
+  }
+  if (!sha256 || !SHA256_HEX.test(sha256)) {
+    return fail(400, "sha256 must be 64 lowercase hex characters");
+  }
+  const row = await prisma.contentObject.findFirst({
+    orderBy: { deleted_at: { nulls: "first", sort: "asc" } },
+    where: { sha256 },
+  });
+  if (!row) {
+    return fail(404, "Content not found");
+  }
+  logAdminRead("content", { owner_id: row.owner_id, sha256 });
+  return { ownerId: row.owner_id, sha256 };
+}
+
 async function read(request: Request, sha256: string | undefined, withBody: boolean) {
-  const who = await caller(request, sha256);
+  const who = await readFrom(request, sha256);
   if (who instanceof Response) {
     return who;
   }

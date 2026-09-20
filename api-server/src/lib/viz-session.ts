@@ -1,8 +1,10 @@
 /**
  * Visualiser login sessions (design §4.3). A visitor signs in with their own
- * owner token; the page then reads as that owner. The token itself is never
- * kept: the cookie carries only a random session id (HttpOnly, Secure,
- * SameSite=Strict), and sessions expire after VIZ_SESSION_TTL_HOURS (default 12).
+ * owner token; the page then reads as that owner. The instance administrator
+ * signs in with RL_ADMIN_TOKEN and reads across owners (lib/admin.ts). The
+ * token itself is never kept: the cookie carries only a random session id
+ * (HttpOnly, Secure, SameSite=Strict), and sessions expire after
+ * VIZ_SESSION_TTL_HOURS (default 12).
  */
 
 import { randomBytes } from "node:crypto";
@@ -15,15 +17,24 @@ function ttlMs(): number {
   return (Number.isFinite(hours) && hours > 0 ? hours : 12) * 60 * 60 * 1000;
 }
 
-export async function startVizSession(ownerId: string): Promise<{ id: string; expiresAt: Date }> {
+/** Who a viewer session reads as: one owner, or the administrator (ownerId null). */
+export interface Viewer {
+  ownerId: string | null;
+  admin: boolean;
+}
+
+/** Start a session for an owner, or for the administrator when ownerId is null. */
+export async function startVizSession(
+  ownerId: string | null,
+): Promise<{ id: string; expiresAt: Date }> {
   const id = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + ttlMs());
   await prisma.vizSession.create({ data: { expires_at: expiresAt, id, owner_id: ownerId } });
   return { expiresAt, id };
 }
 
-/** The owner behind a session cookie, or undefined when missing, unknown or expired. */
-export async function ownerForVizSession(id?: string): Promise<string | undefined> {
+/** The viewer behind a session cookie, or undefined when missing, unknown or expired. */
+export async function viewerForSession(id?: string): Promise<Viewer | undefined> {
   if (!id) {
     return undefined;
   }
@@ -35,7 +46,7 @@ export async function ownerForVizSession(id?: string): Promise<string | undefine
     await prisma.vizSession.deleteMany({ where: { id } });
     return undefined;
   }
-  return session.owner_id;
+  return { admin: session.owner_id === null, ownerId: session.owner_id };
 }
 
 export async function endVizSession(id?: string): Promise<void> {

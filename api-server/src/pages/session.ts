@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { isAdminToken } from "#/lib/admin";
 import { ownerForApiKey } from "#/lib/auth";
 import {
   VIZ_COOKIE,
@@ -18,11 +19,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const form = await request.formData();
   const next = safeNext(form.get("next"));
   const token = String(form.get("token") ?? "").trim();
-  const owner = token ? await ownerForApiKey(token) : undefined;
-  if (!owner) {
+  const admin = isAdminToken(token);
+  const owner = admin || !token ? undefined : await ownerForApiKey(token);
+  if (!(admin || owner)) {
     return redirect(`/login?error=1&next=${encodeURIComponent(next)}`, 303);
   }
-  const session = await startVizSession(owner.ownerId);
+  const session = await startVizSession(owner?.ownerId ?? null);
   cookies.set(VIZ_COOKIE, session.id, vizCookieOptions(session.expiresAt));
   return redirect(next, 303);
 };

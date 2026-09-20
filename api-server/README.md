@@ -25,18 +25,19 @@ pnpm install
 
 ### Environment
 
-| Variable                 | Required | Description                                                                                        |
-| ------------------------ | -------- | -------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | Yes      | `postgres://` connection string the server uses (the runtime account)                              |
-| `MIGRATION_DATABASE_URL` | No       | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                   |
-| `RL_RUNTIME_ROLE`        | No       | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating     |
-| `CONTENT_DIR`            | No       | Where uploaded content is stored (default `data/content`, relative to `api-server/`)               |
-| `CONTENT_MAX_BYTES`      | No       | Largest accepted upload, in bytes (default 64 MiB)                                                 |
-| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default) or `open`                                               |
-| `RL_ADMIN_TOKEN`         | No       | With `RL_REGISTRATION=admin`, owner registration needs this value in the `X-Admin-Token` header    |
-| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open`, registration attempts allowed per client address per hour (default 5) |
-| `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                    |
-| `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                               |
+| Variable                 | Required | Description                                                                                                 |
+| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | Yes      | `postgres://` connection string the server uses (the runtime account)                                       |
+| `MIGRATION_DATABASE_URL` | No       | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                            |
+| `RL_RUNTIME_ROLE`        | No       | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating              |
+| `CONTENT_DIR`            | No       | Where uploaded content is stored (default `data/content`, relative to `api-server/`)                        |
+| `CONTENT_MAX_BYTES`      | No       | Largest accepted upload, in bytes (default 64 MiB)                                                          |
+| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default) or `open`                                                        |
+| `RL_ADMIN_TOKEN`         | No       | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator |
+| `RL_REGISTRATION_TOKEN`  | No       | Registers owners and reads nothing. Give this one to the application that signs people up                   |
+| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open`, registration attempts allowed per client address per hour (default 5)          |
+| `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                             |
+| `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                                        |
 
 Uploaded content lives on the server's filesystem, so `CONTENT_DIR` needs storage that survives a restart or redeploy (a mounted volume in a container), and belongs in the same backup schedule as the database: a record keeps the hash of content whose bytes are gone, but the bytes cannot be recovered from it.
 
@@ -137,6 +138,8 @@ Records written as schema `0.1`–`0.3` keep their original shape. A database co
 
 Authenticate with the owner's API key in the `X-API-Key` header. The API reference is served at `/v1` and the OpenAPI document at `/v1/spec.json`.
 
+The read endpoints also accept the administrator's token in `X-Admin-Token`, which reads across every owner; each such read is logged as one `admin_read` line on stdout. Writes always need an owner's API key: a record belongs to an owner, so there is nobody to attribute an administrator's write to.
+
 | Method         | Path                        | Description                                                                    |
 | -------------- | --------------------------- | ------------------------------------------------------------------------------ |
 | `POST`         | `/v1/owners`                | Register an owner (see `RL_REGISTRATION`; not SDK surface)                     |
@@ -165,9 +168,9 @@ Records are written only as schema `0.4`. The server checks each record against 
 
 ## Trace viewer
 
-The pages at `/` list the signed-in owner's sessions and render each session as a graph. Sign in at `/login` with an API key; the viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie and shows only that owner's data. The `/v1` API does not use the cookie.
+The pages at `/` list the signed-in visitor's sessions and render each session as a graph. Sign in at `/login` with an owner's API key, which shows that owner's data and nothing else, or with `RL_ADMIN_TOKEN`, which lists every owner's sessions and opens any trace — the header then reads "Administrator · all owners". The viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie; the `/v1` API does not use the cookie.
 
-Content that records reference is read from the signed-in owner's content store and shown inline when it is text or JSON of up to 256 KiB; other content is described by its size and media type, and deleted content is marked as deleted. Sign-in and sign-out accept form posts only from the site's own pages (Astro's global origin check is off because it also blocks API clients; see `astro.config.mjs`).
+Content that records reference is read from the content store of the owner those records belong to, and shown inline when it is text or JSON of up to 256 KiB; other content is described by its size and media type, and deleted content is marked as deleted. Sign-in and sign-out accept form posts only from the site's own pages (Astro's global origin check is off because it also blocks API clients; see `astro.config.mjs`).
 
 ## License
 

@@ -16,8 +16,10 @@ export const prerender = false;
 
 const agentId = decodeURIComponent(Astro.params.agent ?? "");
 const sessionId = decodeURIComponent(Astro.params.session ?? "");
-// Set by src/middleware.ts from the visitor's login session.
-const ownerId = Astro.locals.ownerId ?? "";
+// Set by src/middleware.ts from the visitor's login session: one owner, or
+// the administrator, who may open any owner's trace.
+const {viewer} = Astro.locals;
+const scope = viewer?.ownerId ?? null;
 
 let trace: {
   agent_id: string;
@@ -31,7 +33,7 @@ let contents: ContentMap = {};
 let loadError: string | null = null;
 
 try {
-  const session = await ownedSession(ownerId, agentId, sessionId);
+  const session = await ownedSession(scope, agentId, sessionId);
   if (session && session.rows.length > 0) {
     trace = {
       agent_id: session.agent.id,
@@ -40,11 +42,12 @@ try {
       session_id: sessionId,
       stats: sessionStats(session.rows),
     };
-    contents = await contentForViewer(ownerId, trace.records);
+    // Content belongs to the agent's owner, which is the viewer unless they are the administrator.
+    contents = await contentForViewer(session.agent.owner_id, trace.records);
   } else {
     loadError = "Trace (session) not found";
   }
-  sessions = await ownedSessionSummaries(ownerId, 200);
+  sessions = await ownedSessionSummaries(scope, 200);
 } catch (error) {
   loadError = error instanceof Error ? error.message : "Failed to load trace";
 }

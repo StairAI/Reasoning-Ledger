@@ -440,6 +440,11 @@ export type OwnerScalarRelationFilter = {
   isNot?: Prisma.OwnerWhereInput;
 };
 
+export type OwnerNullableScalarRelationFilter = {
+  is?: Prisma.OwnerWhereInput | null;
+  isNot?: Prisma.OwnerWhereInput | null;
+};
+
 export type StringFieldUpdateOperationsInput = {
   set?: string;
 };
@@ -517,13 +522,15 @@ export type OwnerCreateNestedOneWithoutViz_sessionsInput = {
   connect?: Prisma.OwnerWhereUniqueInput;
 };
 
-export type OwnerUpdateOneRequiredWithoutViz_sessionsNestedInput = {
+export type OwnerUpdateOneWithoutViz_sessionsNestedInput = {
   create?: Prisma.XOR<
     Prisma.OwnerCreateWithoutViz_sessionsInput,
     Prisma.OwnerUncheckedCreateWithoutViz_sessionsInput
   >;
   connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutViz_sessionsInput;
   upsert?: Prisma.OwnerUpsertWithoutViz_sessionsInput;
+  disconnect?: Prisma.OwnerWhereInput | boolean;
+  delete?: Prisma.OwnerWhereInput | boolean;
   connect?: Prisma.OwnerWhereUniqueInput;
   update?: Prisma.XOR<
     Prisma.XOR<
