@@ -1,6 +1,10 @@
-declare namespace App {
-  interface Locals {
-    /** Owner of the visitor's login session, set by src/middleware.ts. */
-    ownerId?: string;
+import type { Viewer } from "#/lib/viz-session";
+
+declare global {
+  namespace App {
+    interface Locals {
+      /** The visitor's login session: one owner, or the administrator (ownerId null). */
+      viewer?: Viewer;
+    }
   }
 }

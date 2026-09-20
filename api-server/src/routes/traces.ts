@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import * as z from "zod";
-import { authed } from "#/lib/auth";
+import { ADMIN_READS, logAdminRead } from "#/lib/admin";
+import { reader } from "#/lib/auth";
 import { reconstructRecord } from "#/lib/record";
 import { ownedSessionSummaries, ownedTracePage } from "#/lib/repository";
 
@@ -16,13 +17,13 @@ const MAX_LIMIT = 500;
 // records are appended.
 // ---------------------------------------------------------------------------
 
-export const getTrace = authed
+export const getTrace = reader
   .route({
     description:
-      "Paginated read of one of your agents' traces, newest first (by the server-assigned `sequence`). " +
-      "Pass the `next_cursor` from a previous response as `before` to fetch the next page; `next_cursor` is `null` on the last page. " +
-      "`limit` defaults to 100 and is capped at 500. " +
-      "An agent that is not yours answers 404, the same as one that does not exist.",
+      `Paginated read of one of your agents' traces, newest first (by the server-assigned \`sequence\`). ` +
+      `Pass the \`next_cursor\` from a previous response as \`before\` to fetch the next page; \`next_cursor\` is \`null\` on the last page. ` +
+      `\`limit\` defaults to 100 and is capped at 500. ` +
+      `An agent that is not yours answers 404, the same as one that does not exist.${ADMIN_READS}`,
     method: "GET",
     path: "/traces/{agent_id}",
     summary: "Get agent trace",
@@ -45,6 +46,9 @@ export const getTrace = authed
     }),
   )
   .handler(async ({ input, context }) => {
+    if (context.admin) {
+      logAdminRead("trace", { agent_id: input.agent_id });
+    }
     const page = await ownedTracePage(context.ownerId, input.agent_id, {
       before: input.before === undefined ? undefined : BigInt(input.before),
       limit: input.limit,
@@ -68,16 +72,19 @@ const SessionSummary = z.object({
   first_ts: z.number(),
   last_ts: z.number(),
   llm_calls: z.number(),
+  owner_id: z.string(),
   record_count: z.number(),
   session_id: z.string(),
   tokens: z.number(),
 });
 
-export const listSessions = authed
+export const listSessions = reader
   .route({
     description:
-      "List your reasoning traces grouped by agent and `session_id`, most recently active first, with aggregate stats " +
-      "(record count, LLM calls, total tokens, distinct behaviours, first/last timestamps). Only your own agents are listed.",
+      `List your reasoning traces grouped by agent and \`session_id\`, most recently active first, with aggregate stats ` +
+      `(record count, LLM calls, total tokens, distinct behaviours, first/last timestamps). Only your own agents are listed.${
+        ADMIN_READS
+      }`,
     method: "GET",
     path: "/traces",
     summary: "List traces (sessions)",
@@ -89,9 +96,12 @@ export const listSessions = authed
     }),
   )
   .output(z.object({ sessions: z.array(SessionSummary) }))
-  .handler(async ({ input, context }) => ({
-    sessions: await ownedSessionSummaries(context.ownerId, input.limit),
-  }));
+  .handler(async ({ input, context }) => {
+    if (context.admin) {
+      logAdminRead("sessions", { limit: input.limit });
+    }
+    return { sessions: await ownedSessionSummaries(context.ownerId, input.limit) };
+  });
 
 // ---------------------------------------------------------------------------
 // Router group

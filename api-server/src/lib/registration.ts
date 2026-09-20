@@ -2,7 +2,8 @@
  * Who may register owners (design §4.1).
  *
  *   RL_REGISTRATION=admin (default)  only requests carrying X-Admin-Token equal to
- *                                    RL_ADMIN_TOKEN; without RL_ADMIN_TOKEN nobody can
+ *                                    RL_ADMIN_TOKEN or RL_REGISTRATION_TOKEN; with
+ *                                    neither configured, nobody can
  *   RL_REGISTRATION=open             self-service, for a hosted instance; limited to
  *                                    RL_REGISTRATION_RATE attempts per client address
  *                                    per hour (default 5)
@@ -13,27 +14,16 @@
  */
 
 import { ORPCError } from "@orpc/server";
-import { timingSafeEqual } from "node:crypto";
+import { headerValue, mayRegisterOwners } from "#/lib/admin";
 
 type Headers = Record<string, string | string[] | undefined>;
 
 const WINDOW_MS = 60 * 60 * 1000;
 const attempts = new Map<string, number[]>();
 
-function header(headers: Headers, name: string): string | undefined {
-  const value = headers[name];
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function sameSecret(given: string, expected: string): boolean {
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 function clientAddress(headers: Headers): string {
-  const forwarded = header(headers, "x-forwarded-for")?.split(",")[0]?.trim();
-  return header(headers, "cf-connecting-ip") ?? forwarded ?? "unknown";
+  const forwarded = headerValue(headers, "x-forwarded-for")?.split(",")[0]?.trim();
+  return headerValue(headers, "cf-connecting-ip") ?? forwarded ?? "unknown";
 }
 
 export function assertRegistrationAllowed(headers: Headers, now = Date.now()): void {
@@ -51,9 +41,7 @@ export function assertRegistrationAllowed(headers: Headers, now = Date.now()): v
     return;
   }
 
-  const expected = process.env.RL_ADMIN_TOKEN;
-  const given = header(headers, "x-admin-token");
-  if (!expected || !given || !sameSecret(given, expected)) {
+  if (!mayRegisterOwners(headers)) {
     throw new ORPCError("FORBIDDEN", {
       message: "Owner registration is restricted to administrators",
     });

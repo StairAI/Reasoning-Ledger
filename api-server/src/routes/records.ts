@@ -1,7 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import * as z from "zod";
 import { prisma } from "#/lib/prisma";
-import { authed } from "#/lib/auth";
+import { ADMIN_READS, logAdminRead } from "#/lib/admin";
+import { authed, reader } from "#/lib/auth";
 import { assertContentPresent, contentRefsOf } from "#/lib/content-refs";
 import { reconstructRecord } from "#/lib/record";
 import { ownedRecord } from "#/lib/repository";
@@ -326,10 +327,11 @@ export const submitBatch = batchVersionGuard
 // Fetch one of the caller's records by record_id.
 // ---------------------------------------------------------------------------
 
-export const getRecord = authed
+export const getRecord = reader
   .route({
-    description:
-      "Fetch one of your records by `record_id`. A record whose agent is not yours answers 404, the same as one that does not exist.",
+    description: `Fetch one of your records by \`record_id\`. A record whose agent is not yours answers 404, the same as one that does not exist.${
+      ADMIN_READS
+    }`,
     method: "GET",
     path: "/records/{record_id}",
     summary: "Get record",
@@ -341,6 +343,9 @@ export const getRecord = authed
     const row = await ownedRecord(context.ownerId, input.record_id);
     if (!row) {
       throw new ORPCError("NOT_FOUND", { message: "Record not found" });
+    }
+    if (context.admin) {
+      logAdminRead("record", { agent_id: row.agent_id, record_id: input.record_id });
     }
     return reconstructRecord(row);
   });

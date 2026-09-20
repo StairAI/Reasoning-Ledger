@@ -1,22 +1,35 @@
 /**
- * Owner-scoped reads (design §4.2). Every read path — the /v1 API and the
- * visualiser pages — goes through these functions, so "only this owner's data"
- * is enforced in one place. Anything outside the owner's namespace looks the
- * same as something that does not exist; callers answer 404.
+ * Scoped reads (design §4.2). Every read path — the /v1 API and the visualiser
+ * pages — goes through these functions, so "only this owner's data" is
+ * enforced in one place. Anything outside the scope looks the same as
+ * something that does not exist; callers answer 404.
+ *
+ * The scope is one owner's id, or null for the instance administrator, who
+ * reads across owners (see lib/admin.ts).
  */
 
 import { prisma } from "#/lib/prisma";
 
-export function ownedAgent(ownerId: string, agentId: string) {
+/** An owner's id, or null for the administrator: no owner filter at all. */
+export type ReadScope = string | null;
+
+function ofOwner(scope: ReadScope) {
+  return scope === null ? {} : { owner_id: scope };
+}
+
+export function ownedAgent(scope: ReadScope, agentId: string) {
   return prisma.agent.findFirst({
-    select: { id: true, name: true },
-    where: { id: agentId, owner_id: ownerId },
+    select: { id: true, name: true, owner_id: true },
+    where: { id: agentId, ...ofOwner(scope) },
   });
 }
 
-export function ownedRecord(ownerId: string, recordId: string) {
+export function ownedRecord(scope: ReadScope, recordId: string) {
   return prisma.traceRecord.findFirst({
-    where: { agent: { owner_id: ownerId }, record_id: recordId },
+    where: {
+      record_id: recordId,
+      ...(scope === null ? {} : { agent: { owner_id: scope } }),
+    },
   });
 }
 
@@ -25,11 +38,11 @@ export function ownedRecord(ownerId: string, recordId: string) {
  * with the previous page: the record `sequence` to continue below.
  */
 export async function ownedTracePage(
-  ownerId: string,
+  scope: ReadScope,
   agentId: string,
   opts: { before?: bigint; limit: number },
 ) {
-  if (!(await ownedAgent(ownerId, agentId))) {
+  if (!(await ownedAgent(scope, agentId))) {
     return;
   }
   const rows = await prisma.traceRecord.findMany({
@@ -47,8 +60,8 @@ export async function ownedTracePage(
 }
 
 /** Every record of one (agent, session), in the order the server received them. */
-export async function ownedSession(ownerId: string, agentId: string, sessionId: string) {
-  const agent = await ownedAgent(ownerId, agentId);
+export async function ownedSession(scope: ReadScope, agentId: string, sessionId: string) {
+  const agent = await ownedAgent(scope, agentId);
   if (!agent) {
     return;
   }
@@ -66,14 +79,15 @@ export interface SessionSummary {
   first_ts: number;
   last_ts: number;
   llm_calls: number;
+  owner_id: string;
   record_count: number;
   session_id: string;
   tokens: number;
 }
 
-/** The owner's sessions with aggregate stats, most recently active first. */
+/** The scope's sessions with aggregate stats, most recently active first. */
 export async function ownedSessionSummaries(
-  ownerId: string,
+  scope: ReadScope,
   limit: number,
 ): Promise<SessionSummary[]> {
   // Token totals live inside the model_invocation JSONB, so a raw query is the
@@ -82,6 +96,7 @@ export async function ownedSessionSummaries(
     {
       agent_id: string;
       agent_name: string;
+      owner_id: string;
       session_id: string;
       record_count: bigint;
       llm_calls: bigint;
@@ -94,6 +109,7 @@ export async function ownedSessionSummaries(
     SELECT
       tr.agent_id,
       a.name AS agent_name,
+      a.owner_id,
       tr.session_id,
       count(*) AS record_count,
       count(*) FILTER (WHERE tr.model_invocation IS NOT NULL) AS llm_calls,
@@ -106,8 +122,8 @@ export async function ownedSessionSummaries(
       max(tr.server_ts_utc) AS last_ts
     FROM trace_records tr
     JOIN agents a ON a.id = tr.agent_id
-    WHERE a.owner_id = ${ownerId}
-    GROUP BY tr.agent_id, a.name, tr.session_id
+    WHERE (${scope}::text IS NULL OR a.owner_id = ${scope})
+    GROUP BY tr.agent_id, a.name, a.owner_id, tr.session_id
     ORDER BY max(tr.sequence) DESC
     LIMIT ${limit}
   `;
@@ -118,6 +134,7 @@ export async function ownedSessionSummaries(
     first_ts: Number(r.first_ts),
     last_ts: Number(r.last_ts),
     llm_calls: Number(r.llm_calls),
+    owner_id: r.owner_id,
     record_count: Number(r.record_count),
     session_id: r.session_id,
     tokens: Number(r.tokens),

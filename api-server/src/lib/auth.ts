@@ -1,4 +1,5 @@
 import { ORPCError, os } from "@orpc/server";
+import { isAdminRequest } from "#/lib/admin";
 import { prisma } from "#/lib/prisma";
 import { hashApiKey } from "#/lib/crypto";
 
@@ -45,4 +46,36 @@ export const authed = base.use(async ({ context, next }) => {
   }
 
   return next({ context: owner });
+});
+
+/**
+ * Who a read is made as: one owner, or the instance administrator, who reads
+ * across owners (see lib/admin.ts). Routes that write stay on `authed`: a
+ * record belongs to an owner, so there is nobody to attribute it to.
+ */
+export interface ReadContext {
+  /** The owner whose data may be read, or null for the administrator. */
+  ownerId: string | null;
+  admin: boolean;
+}
+
+/**
+ * Read procedure builder: `X-API-Key` for an owner, `X-Administrator-Token`
+ * for the whole instance.
+ */
+export const reader = base.use(async ({ context, next }) => {
+  if (isAdminRequest(context.headers)) {
+    return next({ context: { admin: true, ownerId: null } as ReadContext });
+  }
+  const raw = Array.isArray(context.headers["x-api-key"])
+    ? context.headers["x-api-key"][0]
+    : context.headers["x-api-key"];
+  if (!raw) {
+    throw new ORPCError("UNAUTHORIZED", { message: "Missing X-API-Key header" });
+  }
+  const owner = await ownerForApiKey(raw);
+  if (!owner) {
+    throw new ORPCError("UNAUTHORIZED", { message: "Invalid API key" });
+  }
+  return next({ context: { admin: false, ownerId: owner.ownerId } as ReadContext });
 });

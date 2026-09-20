@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import * as z from "zod";
-import { authed } from "#/lib/auth";
+import { ADMIN_READS, logAdminRead } from "#/lib/admin";
+import { reader } from "#/lib/auth";
 import { reconstructRecord } from "#/lib/record";
 import { ownedSession } from "#/lib/repository";
 
@@ -9,13 +10,15 @@ import { ownedSession } from "#/lib/repository";
 // Fetch all records in a session, in the order the server received them.
 // ---------------------------------------------------------------------------
 
-export const getSession = authed
+export const getSession = reader
   .route({
     description:
-      "Fetch every record submitted under a given `(agent_id, session_id)` pair, in the order the server received them (`sequence` ascending). " +
-      "Sessions have no server-side lifecycle — this is a filtered view of the agent's trace. `session_id` is scoped per agent. " +
-      "An agent that is not yours answers 404, the same as one that does not exist. " +
-      "Returns an empty `records` array when the session exists but contains no records.",
+      `Fetch every record submitted under a given \`(agent_id, session_id)\` pair, in the order the server received them (\`sequence\` ascending). ` +
+      `Sessions have no server-side lifecycle — this is a filtered view of the agent's trace. \`session_id\` is scoped per agent. ` +
+      `An agent that is not yours answers 404, the same as one that does not exist. ` +
+      `Returns an empty \`records\` array when the session exists but contains no records.${
+        ADMIN_READS
+      }`,
     method: "GET",
     path: "/sessions/{session_id}",
     summary: "Get session records",
@@ -37,6 +40,9 @@ export const getSession = authed
     const session = await ownedSession(context.ownerId, input.agent_id, input.session_id);
     if (!session) {
       throw new ORPCError("NOT_FOUND", { message: "Agent not found" });
+    }
+    if (context.admin) {
+      logAdminRead("session", { agent_id: input.agent_id, session_id: input.session_id });
     }
     return {
       records: session.rows.map(reconstructRecord),

@@ -175,7 +175,7 @@ async function registerOwner(baseUrl: string, adminToken: string): Promise<strin
  * session pages render with their referenced content, sign-out ends the
  * session. Runs after the integration suites, whose sessions it opens.
  */
-async function viewerSmoke(baseUrl: string, apiKey: string): Promise<boolean> {
+async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string): Promise<boolean> {
   console.log("\n▶ smoke: trace viewer");
   const started = Date.now();
   const problems: string[] = [];
@@ -250,6 +250,24 @@ async function viewerSmoke(baseUrl: string, apiKey: string): Promise<boolean> {
     !rendered.includes("[content not available") && !rendered.includes("[content failed"),
     "session pages: some referenced content could not be shown",
   );
+  // The administrator's token signs in too, and sees every owner's sessions.
+  const adminSignIn = await request("/session", form({ next: "/", token: adminToken }));
+  const adminCookie = (adminSignIn.headers.get("set-cookie") ?? "").split(";")[0];
+  want(
+    adminSignIn.status === 303 && adminCookie.startsWith("rl_viz="),
+    `sign-in with the administrator token: expected a session, got ${adminSignIn.status}`,
+  );
+  const adminIndex = await request("/", { headers: { cookie: adminCookie } });
+  const adminHtml = await adminIndex.text();
+  want(
+    adminIndex.status === 200 && adminHtml.includes("Administrator"),
+    "/ as the administrator: expected the administrator's view",
+  );
+  want(
+    [...adminHtml.matchAll(/href="(\/traces\/[^"]+)"/g)].length >= links.length,
+    "/ as the administrator: expected at least the owner's own sessions",
+  );
+
   const signOut = await request("/logout", { headers: { cookie }, method: "POST" });
   want(signOut.status === 303, `sign-out: expected 303, got ${signOut.status}`);
   const afterSignOut = await request("/", { headers: { cookie } });
@@ -388,7 +406,7 @@ async function databaseSuites(): Promise<void> {
           ["run", "--locked", "--directory", "integration-tests/python", "pytest", "-q"],
           itEnv,
         );
-        await viewerSmoke(baseUrl, apiKey);
+        await viewerSmoke(baseUrl, apiKey, adminToken);
       }
     }
   } finally {

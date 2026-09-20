@@ -3,7 +3,7 @@ import { prisma } from "#/lib/prisma";
 import {
   endVizSession,
   fromThisSite,
-  ownerForVizSession,
+  viewerForSession,
   safeNext,
   startVizSession,
   vizCookieOptions,
@@ -25,15 +25,18 @@ describe("Visualiser login sessions", () => {
   it("resolves a started session to its owner until it ends", async () => {
     const session = await startVizSession(owner.ownerId);
     expect(session.id).toMatch(/^[0-9a-f]{64}$/);
-    await expect(ownerForVizSession(session.id)).resolves.toBe(owner.ownerId);
+    await expect(viewerForSession(session.id)).resolves.toStrictEqual({
+      admin: false,
+      ownerId: owner.ownerId,
+    });
 
     await endVizSession(session.id);
-    await expect(ownerForVizSession(session.id)).resolves.toBeUndefined();
+    await expect(viewerForSession(session.id)).resolves.toBeUndefined();
   });
 
   it("treats a missing or unknown cookie as signed out", async () => {
-    await expect(ownerForVizSession()).resolves.toBeUndefined();
-    await expect(ownerForVizSession("0".repeat(64))).resolves.toBeUndefined();
+    await expect(viewerForSession()).resolves.toBeUndefined();
+    await expect(viewerForSession("0".repeat(64))).resolves.toBeUndefined();
   });
 
   it("drops an expired session", async () => {
@@ -42,8 +45,17 @@ describe("Visualiser login sessions", () => {
       data: { expires_at: new Date(Date.now() - 1000) },
       where: { id: session.id },
     });
-    await expect(ownerForVizSession(session.id)).resolves.toBeUndefined();
+    await expect(viewerForSession(session.id)).resolves.toBeUndefined();
     await expect(prisma.vizSession.findUnique({ where: { id: session.id } })).resolves.toBeNull();
+  });
+
+  it("resolves a session started without an owner to the administrator", async () => {
+    const session = await startVizSession(null);
+    await expect(viewerForSession(session.id)).resolves.toStrictEqual({
+      admin: true,
+      ownerId: null,
+    });
+    await endVizSession(session.id);
   });
 
   it("sets the cookie HttpOnly, Secure and SameSite=Strict", () => {
