@@ -193,7 +193,7 @@ export interface LedgerClientConfig {
    */
   defaultModelInvocation?: ModelInvocation;
   /**
-   * Base URL of the Reasoning Ledger API, e.g. "https://stg-api.stair-ai.com".
+   * Base URL of the Reasoning Ledger API, e.g. "https://api.stair-ai.com".
    * Required; a trailing slash is ignored.
    */
   endpoint: string;

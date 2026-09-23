@@ -37,7 +37,7 @@ function resolveEndpoint(endpoint: unknown): string {
   const base = typeof endpoint === "string" ? endpoint.trim().replace(/\/+$/, "") : "";
   if (base === "") {
     throw new ValidationError(
-      "endpoint is required: pass the base URL of the Reasoning Ledger API, e.g. https://stg-api.stair-ai.com",
+      "endpoint is required: pass the base URL of the Reasoning Ledger API, e.g. https://api.stair-ai.com",
       { field: "endpoint", reason: "missing" },
     );
   }
