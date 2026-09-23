@@ -1,4 +1,4 @@
-import dagre from "@dagrejs/dagre";
+import { graphlib, layout } from "@dagrejs/dagre";
 
 /**
  * Client-side controller for the reasoning-trace digraph.
@@ -31,14 +31,22 @@ interface EdgeObj {
 }
 
 export function initGraph() {
-  const viewport = document.querySelector("#graph-viewport");
-  const world = document.querySelector("#graph-world");
+  const viewport = document.querySelector<HTMLElement>("#graph-viewport");
+  const world = document.querySelector<HTMLElement>("#graph-world");
   const svg = document.querySelector("#graph-edges") as SVGSVGElement | null;
-  const dock = document.querySelector("#inspector-dock");
+  const dock = document.querySelector<HTMLElement>("#inspector-dock");
   if (!(viewport && world && svg)) {
     return;
   }
+  mountGraph(viewport, world, svg, dock);
+}
 
+function mountGraph(
+  viewport: HTMLElement,
+  world: HTMLElement,
+  svg: SVGSVGElement,
+  dock: HTMLElement | null,
+) {
   const cards = [...world.querySelectorAll<HTMLElement>("[data-node]")];
   const byId = new Map<string, HTMLElement>();
   for (const c of cards) {
@@ -49,7 +57,7 @@ export function initGraph() {
   }
 
   // --- layout ---------------------------------------------------------------
-  const g = new dagre.graphlib.Graph();
+  const g = new graphlib.Graph();
   g.setGraph({ marginx: 40, marginy: 40, nodesep: 48, rankdir: "TB", ranksep: 84 });
   g.setDefaultEdgeLabel(() => ({}));
 
@@ -58,29 +66,9 @@ export function initGraph() {
     g.setNode(id, { height: c.offsetHeight, width: c.offsetWidth });
   }
 
-  const edgePairs: [string, string][] = [];
-  for (const c of cards) {
-    const id = c.dataset.recordId as string;
-    const deps = new Set<string>();
-    try {
-      for (const u of JSON.parse(c.dataset.upstream || "[]") as string[]) {
-        deps.add(u);
-      }
-    } catch {
-      /* ignore malformed */
-    }
-    if (c.dataset.parent) {
-      deps.add(c.dataset.parent);
-    }
-    for (const dep of deps) {
-      if (byId.has(dep)) {
-        g.setEdge(dep, id);
-        edgePairs.push([dep, id]);
-      }
-    }
-  }
+  const edgePairs = addDependencyEdges(g, cards, byId);
 
-  dagre.layout(g);
+  layout(g);
 
   const pos = new Map<string, NodePos>();
   for (const c of cards) {
@@ -109,7 +97,7 @@ export function initGraph() {
       return "";
     }
     let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 1; i < pts.length - 1; i++) {
+    for (let i = 1; i < pts.length - 1; i += 1) {
       const mx = (pts[i].x + pts[i + 1].x) / 2;
       const my = (pts[i].y + pts[i + 1].y) / 2;
       d += ` Q ${pts[i].x} ${pts[i].y} ${mx} ${my}`;
@@ -169,11 +157,11 @@ export function initGraph() {
   const MAX = 2.5;
 
   function apply() {
-    world!.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+    world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
   }
 
   function fit() {
-    const rect = viewport!.getBoundingClientRect();
+    const rect = viewport.getBoundingClientRect();
     const scale = Math.min(rect.width / worldW, rect.height / worldH, 1) * 0.9;
     view.scale = Math.max(MIN, Math.min(MAX, scale || 1));
     view.x = (rect.width - worldW * view.scale) / 2;
@@ -185,7 +173,7 @@ export function initGraph() {
   // the root is visible and the user pans downward through the trace. A tall
   // graph shouldn't be shrunk to fit its full height on load.
   function initialView() {
-    const rect = viewport!.getBoundingClientRect();
+    const rect = viewport.getBoundingClientRect();
     const scale = Math.max(0.6, Math.min(1, (rect.width * 0.72) / worldW));
     view.scale = scale;
     view.x = (rect.width - worldW * scale) / 2;
@@ -194,7 +182,7 @@ export function initGraph() {
   }
 
   function zoomBy(factor: number, cx?: number, cy?: number) {
-    const rect = viewport!.getBoundingClientRect();
+    const rect = viewport.getBoundingClientRect();
     const px = cx ?? rect.width / 2;
     const py = cy ?? rect.height / 2;
     const next = Math.max(MIN, Math.min(MAX, view.scale * factor));
@@ -267,8 +255,14 @@ export function initGraph() {
   // A press that moves past the threshold is a drag (repositions the node and
   // its edges); a press that doesn't is a click (selects the node).
   for (const c of cards) {
-    let drag: { id: string; cx: number; cy: number; ox: number; oy: number; moved: boolean } | null =
-      null;
+    let drag: {
+      id: string;
+      cx: number;
+      cy: number;
+      ox: number;
+      oy: number;
+      moved: boolean;
+    } | null = null;
 
     c.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) {
@@ -344,15 +338,6 @@ export function initGraph() {
     }
   }
 
-  function resetTabs(ins: HTMLElement) {
-    const btns = ins.querySelectorAll<HTMLElement>("[data-tab]");
-    const panels = ins.querySelectorAll<HTMLElement>("[data-tabpanel]");
-    btns.forEach((b, i) => b.classList.toggle("tab-active", i === 0));
-    panels.forEach((p) => {
-      p.hidden = p.dataset.tabpanel !== "overview";
-    });
-  }
-
   function select(id: string) {
     for (const c of cards) {
       c.classList.toggle("selected", c.dataset.recordId === id);
@@ -407,12 +392,12 @@ export function initGraph() {
           return;
         }
         const name = tabBtn.dataset.tab;
-        ins
-          .querySelectorAll<HTMLElement>("[data-tab]")
-          .forEach((b) => b.classList.toggle("tab-active", b === tabBtn));
-        ins.querySelectorAll<HTMLElement>("[data-tabpanel]").forEach((p) => {
+        for (const b of ins.querySelectorAll<HTMLElement>("[data-tab]")) {
+          b.classList.toggle("tab-active", b === tabBtn);
+        }
+        for (const p of ins.querySelectorAll<HTMLElement>("[data-tabpanel]")) {
           p.hidden = p.dataset.tabpanel !== name;
-        });
+        }
         return;
       }
 
@@ -440,7 +425,7 @@ export function initGraph() {
     if (!p) {
       return;
     }
-    const rect = viewport!.getBoundingClientRect();
+    const rect = viewport.getBoundingClientRect();
     view.x = rect.width / 2 - p.x * view.scale;
     view.y = rect.height / 2 - p.y * view.scale;
     apply();
@@ -449,4 +434,45 @@ export function initGraph() {
   // --- init -----------------------------------------------------------------
   initialView();
   window.addEventListener("resize", initialView);
+}
+
+// One edge per dependency (upstream ids, then parent) whose node is on the graph.
+function addDependencyEdges(
+  g: graphlib.Graph,
+  cards: HTMLElement[],
+  byId: Map<string, HTMLElement>,
+): [string, string][] {
+  const edgePairs: [string, string][] = [];
+  for (const c of cards) {
+    const id = c.dataset.recordId as string;
+    const deps = new Set<string>();
+    try {
+      for (const u of JSON.parse(c.dataset.upstream || "[]") as string[]) {
+        deps.add(u);
+      }
+    } catch {
+      /* ignore malformed */
+    }
+    if (c.dataset.parent) {
+      deps.add(c.dataset.parent);
+    }
+    for (const dep of deps) {
+      if (byId.has(dep)) {
+        g.setEdge(dep, id);
+        edgePairs.push([dep, id]);
+      }
+    }
+  }
+  return edgePairs;
+}
+
+function resetTabs(ins: HTMLElement) {
+  const btns = ins.querySelectorAll<HTMLElement>("[data-tab]");
+  const panels = ins.querySelectorAll<HTMLElement>("[data-tabpanel]");
+  for (const [i, b] of btns.entries()) {
+    b.classList.toggle("tab-active", i === 0);
+  }
+  for (const p of panels) {
+    p.hidden = p.dataset.tabpanel !== "overview";
+  }
 }

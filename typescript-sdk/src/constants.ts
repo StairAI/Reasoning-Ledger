@@ -5,18 +5,10 @@
 export { SCHEMA_VERSION } from "./generated/version.js";
 
 // ---------------------------------------------------------------------------
-// Base URLs per environment.
-// ---------------------------------------------------------------------------
-
-export const ENDPOINTS = {
-  development: "http://localhost:3000",
-  production: "https://api.stairai.com",
-  staging: "https://staging.api.stairai.com",
-} as const;
-
-// ---------------------------------------------------------------------------
 // Size limits (§10.2) — enforced client-side before any network call.
 // Values are in bytes for JSON-encoded fields, or item counts for arrays.
+// Content positions (prompts, payloads, internal reasoning) hold content
+// references, so their size is enforced by the server on upload (HTTP 413).
 // ---------------------------------------------------------------------------
 
 export const SIZE_LIMITS = {
@@ -34,16 +26,8 @@ export const SIZE_LIMITS = {
   TAGS_COUNT: 32,
   /** Each individual tag string (64 chars). */
   TAG_LENGTH: 64,
-  /** `Thinking.output_payload` (32 KB). */
-  THINKING_OUTPUT: 32 * 1024,
-  /** `Thinking.prompt` (16 KB). */
-  THINKING_PROMPT: 16 * 1024,
-  /** `ToolCalling.input_payload` JSON-encoded size (16 KB). */
-  TOOL_INPUT: 16 * 1024,
   /** `ToolCalling.tool_meta` JSON-encoded size (16 KB). */
   TOOL_META: 16 * 1024,
-  /** `ToolCalling.output_payload` JSON-encoded size (32 KB). */
-  TOOL_OUTPUT: 32 * 1024,
   /** `Observing.trigger_payload_summary` (4 KB). */
   TRIGGER_PAYLOAD_SUMMARY: 4096,
 } as const;

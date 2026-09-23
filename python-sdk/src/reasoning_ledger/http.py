@@ -49,6 +49,7 @@ class HttpxTransport:
         headers: dict[str, str] = dict(res.headers)
         return HttpResponse(
             body=res.text,
+            body_bytes=res.content,
             headers=headers,
             status=res.status_code,
         )
@@ -91,8 +92,16 @@ def map_http_error(res: HttpResponse) -> None:
         raise AuthError(message, details)
     if status == 404:
         raise NotFoundError(message, details)
+    if status == 410:
+        # Content that was deleted from the content library.
+        raise NotFoundError(message, {**(details or {}), "status": status})
     if status == 409:
         raise IdempotencyConflictError(message, details)
+    if status == 413:
+        raise ValidationError(
+            f"Request too large for the server (HTTP 413): {message}",
+            {**(details or {}), "status": status},
+        )
     if status == 429:
         retry_after_raw = res["headers"].get("retry-after")
         extra: dict[str, object] | None = None

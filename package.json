@@ -7,6 +7,10 @@
     "codegen:ts": "node scripts/codegen.mts --ts-only",
     "codegen:py": "node scripts/codegen.mts --py-only",
     "prepare": "simple-git-hooks",
+    "test:local": "node scripts/test-local.mts",
+    "test:static": "node scripts/test-local.mts --static",
+    "test:unit": "node scripts/test-local.mts --unit",
+    "test:integration": "node scripts/test-local.mts --integration",
     "fix": "cd api-server && pnpm fix && cd ../typescript-sdk && pnpm fix"
   },
   "devDependencies": {

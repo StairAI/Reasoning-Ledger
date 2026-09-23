@@ -1,14 +1,16 @@
 """Tests for Session."""
+
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from reasoning_ledger.client import LedgerClient
 from reasoning_ledger.types import (
     HttpRequest,
     HttpResponse,
     LedgerClientConfig,
+    RecordAck,
 )
 from reasoning_ledger.utils import is_valid_record_id
 
@@ -57,7 +59,7 @@ def make_client(transport: MockTransport) -> LedgerClient:
         LedgerClientConfig(
             agent_id=AGENT_ID,
             api_key=API_KEY,
-            environment="development",
+            endpoint="https://ledger.test",
             http_transport=transport,
             retry={"attempts": 1, "backoff_ms": []},
         )
@@ -67,6 +69,8 @@ def make_client(transport: MockTransport) -> LedgerClient:
 def minimal_input() -> dict[str, Any]:
     return {
         "behavior": "Observing",
+        "executor": "det",
+        "record_phase": "post_execution",
         "trigger_description": "A thing happened",
         "trigger_payload_summary": "summary",
         "trigger_source": "webhook",
@@ -176,5 +180,37 @@ class TestSessionSubmitBatch:
         )
 
         ack = session.submit_batch([minimal_input(), minimal_input()])
-        assert ack["results"][0]["is_duplicate"] is False  # type: ignore[index]
-        assert ack["results"][1]["is_duplicate"] is True  # type: ignore[index]
+        assert cast(RecordAck, ack["results"][0])["is_duplicate"] is False
+        assert cast(RecordAck, ack["results"][1])["is_duplicate"] is True
+        assert transport.calls[0]["method"] == "POST"
+        assert transport.calls[0]["url"].endswith("/v1/records/batch")
+
+
+# ---------------------------------------------------------------------------
+# Session.submit_attesting
+# ---------------------------------------------------------------------------
+
+
+class TestSessionSubmitAttesting:
+    def test_injects_session_id_and_attesting_defaults(self) -> None:
+        transport = MockTransport()
+        client = make_client(transport)
+        session = client.new_session("attest-session")
+        transport.enqueue(ok({**RECORD_ACK, "session_id": "attest-session"}))
+
+        session.submit_attesting(
+            {
+                "disposition": "approve",
+                "gate_kind": "pre-send",
+                "operator_id": "reviewer-7",
+                "session_id": "caller-supplied",
+                "written_by": {"component": "review-ui", "credential": "svc-key"},
+            }
+        )
+
+        body = json.loads(transport.calls[0]["body"] or "{}")
+        assert body["session_id"] == "attest-session"
+        assert body["behavior"] == "Attesting"
+        assert body["executor"] == "human"
+        assert body["record_phase"] == "concurrent"
+        assert body["agent_id"] == AGENT_ID

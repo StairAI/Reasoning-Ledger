@@ -1,20 +1,32 @@
 import { ORPCError } from "@orpc/server";
 import * as z from "zod";
 import { prisma } from "#/lib/prisma";
-import { authed, base } from "#/lib/auth";
+import { ADMIN_READS, logAdminRead } from "#/lib/admin";
+import { authed, reader } from "#/lib/auth";
+import { assertContentPresent, contentRefsOf } from "#/lib/content-refs";
 import { reconstructRecord } from "#/lib/record";
+import { ownedRecord } from "#/lib/repository";
+import { recordRuleProblems } from "#/lib/record-rules";
+import { assertWritableBatch, assertWritableRecord } from "#/lib/schema-version";
 import { Record as LedgerRecord } from "#/generated/records";
-import { SUPPORTED_SCHEMA_VERSIONS } from "#/generated/version";
-import type { BehaviorType } from "#/generated/prisma/enums";
+import { SCHEMA_VERSION } from "#/generated/version";
+import type { BehaviorType, Executor, Outcome, RecordPhase } from "#/generated/prisma/enums";
 
 // ---------------------------------------------------------------------------
-// Supported schema versions (§10.1) — sourced from generated/version.ts,
-// which lists the current live schema plus every snapshot in schema/history/.
-// Unknown versions are rejected so partner SDKs fail loudly on a mismatch,
-// while past versions stay valid through migrations.
+// Schema version — only SCHEMA_VERSION is writable. The check runs on the raw
+// body, before schema validation, so an outdated SDK gets "upgrade" rather
+// than a list of field errors. Records with older versions stay readable.
 // ---------------------------------------------------------------------------
 
-const SUPPORTED_SCHEMA_VERSION_SET = new Set<string>(SUPPORTED_SCHEMA_VERSIONS);
+const singleVersionGuard = authed.use(({ next }, input) => {
+  assertWritableRecord(input);
+  return next();
+});
+
+const batchVersionGuard = authed.use(({ next }, input) => {
+  assertWritableBatch(input);
+  return next();
+});
 
 // ---------------------------------------------------------------------------
 // Size limits (§10.2) — per-record total enforced in bytes
@@ -62,6 +74,10 @@ function extractPayload(record: z.infer<typeof LedgerRecord>): Record<string, un
     model_invocation: _mi,
     upstream_record_id: _up,
     parent_record_id: _pr,
+    executor: _ex,
+    record_phase: _ph,
+    outcome: _oc,
+    duration_ms: _du,
     ...payload
   } = record as Record<string, unknown>;
   return payload as Record<string, unknown>;
@@ -147,11 +163,15 @@ async function persistRecord(
       agent_id: agentId,
       behavior: record.behavior as BehaviorType,
       client_ts_utc: BigInt(record.client_ts_utc),
+      duration_ms: record.duration_ms,
+      executor: record.executor as Executor,
       model_invocation: (record.model_invocation as object) ?? null,
       notes: record.notes,
+      outcome: record.outcome as Outcome | undefined,
       parent_record_id: record.parent_record_id,
       payload: extractPayload(record) as object,
       record_id: record.record_id,
+      record_phase: record.record_phase as RecordPhase,
       schema_version: record.schema_version,
       server_ts_utc: serverTs,
       session_id: record.session_id,
@@ -171,7 +191,8 @@ async function persistRecord(
 
 /**
  * Full server-side validation for a single record:
- * schema_version, agent ownership, and DAG reference integrity.
+ * cross-field rules, agent ownership, DAG reference integrity, and that every
+ * referenced piece of content has been uploaded by this owner.
  * Throws ORPCError on failure.
  */
 async function validateRecord(
@@ -179,15 +200,16 @@ async function validateRecord(
   ownerId: string,
   agentId: string,
 ) {
-  if (!SUPPORTED_SCHEMA_VERSION_SET.has(record.schema_version)) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: `Unsupported schema_version '${record.schema_version}'. Supported: ${[...SUPPORTED_SCHEMA_VERSION_SET].join(", ")}`,
-    });
+  const problems = recordRuleProblems(record as Record<string, unknown>);
+  if (problems.length > 0) {
+    throw new ORPCError("BAD_REQUEST", { message: problems.join("; ") });
   }
 
   await assertAgentOwnership(agentId, ownerId);
 
   await validateRecordRefs(agentId, record.upstream_record_id ?? [], record.parent_record_id);
+
+  await assertContentPresent(ownerId, contentRefsOf(record as Record<string, unknown>));
 }
 
 // ---------------------------------------------------------------------------
@@ -195,11 +217,12 @@ async function validateRecord(
 // Submit a single record.
 // ---------------------------------------------------------------------------
 
-export const submitRecord = authed
+export const submitRecord = singleVersionGuard
   .route({
     description:
       "Submit a single reasoning record. " +
-      "The server validates `schema_version` against the supported set (current live schema plus archived snapshots), verifies that `agent_id` belongs to the calling owner, " +
+      `Only \`schema_version\` ${SCHEMA_VERSION} is accepted; records stamped with older versions stay readable but cannot be written. ` +
+      "The server verifies that `agent_id` belongs to the calling owner, " +
       "checks that any `upstream_record_id` and `parent_record_id` references resolve to existing records under the same agent, " +
       "stamps `server_ts_utc` on receipt, and persists the record. " +
       "Submission is idempotent on `(agent_id, record_id)`: a duplicate returns the original ack with `is_duplicate: true` without creating a second row.",
@@ -224,12 +247,12 @@ export const submitRecord = authed
   });
 
 // ---------------------------------------------------------------------------
-// POST /v1/records:batch
+// POST /v1/records/batch
 // Submit up to 50 records in one request.
 // Per-record failures do NOT abort the batch — inspect results[].
 // ---------------------------------------------------------------------------
 
-export const submitBatch = authed
+export const submitBatch = batchVersionGuard
   .route({
     description:
       "Submit up to 50 reasoning records in a single request. " +
@@ -301,32 +324,29 @@ export const submitBatch = authed
 
 // ---------------------------------------------------------------------------
 // GET /v1/records/:id
-// Fetch a single record by record_id.
-// Verifies the record's agent belongs to the calling owner.
+// Fetch one of the caller's records by record_id.
 // ---------------------------------------------------------------------------
 
-export const getRecord = base
+export const getRecord = reader
   .route({
-    description:
-      "Fetch a single reasoning record by `record_id`. Public read — no API key required.",
+    description: `Fetch one of your records by \`record_id\`. A record whose agent is not yours answers 404, the same as one that does not exist.${
+      ADMIN_READS
+    }`,
     method: "GET",
     path: "/records/{record_id}",
-    // Public read: keep the generated operation, only clear security.
-    spec: (current) => ({ ...current, security: [] }),
     summary: "Get record",
     tags: ["Records"],
   })
   .input(z.object({ record_id: z.string().uuid() }))
   .output(z.record(z.string(), z.unknown()))
-  .handler(async ({ input }) => {
-    const row = await prisma.traceRecord.findUnique({
-      where: { record_id: input.record_id },
-    });
-
+  .handler(async ({ input, context }) => {
+    const row = await ownedRecord(context.ownerId, input.record_id);
     if (!row) {
       throw new ORPCError("NOT_FOUND", { message: "Record not found" });
     }
-
+    if (context.admin) {
+      logAdminRead("record", { agent_id: row.agent_id, record_id: input.record_id });
+    }
     return reconstructRecord(row);
   });
 

@@ -3,6 +3,7 @@ import { CORSPlugin } from "@orpc/server/plugins";
 import { onError } from "@orpc/server";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
+import { version } from "../../package.json";
 
 import { ownersRouter } from "./owners";
 import { agentsRouter } from "./agents";
@@ -55,7 +56,7 @@ export const handler = new OpenAPIHandler(router, {
           description:
             "Trace Service API for the Reasoning Ledger SDK — record submission, retrieval, and agent/owner lifecycle management.",
           title: "Reasoning Ledger API",
-          version: "0.1.0",
+          version,
         },
         // Default: every operation requires an API key.
         // Individual public endpoints override this with `spec: { security: [] }`.

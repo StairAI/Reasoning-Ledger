@@ -1,12 +1,13 @@
 """
 Cross-SDK synergy from the Python side.
 
-The TypeScript SDK writes a deterministic 4-record decision cycle via the
+The TypeScript SDK writes the shared 4-record cross-SDK fixture via the
 ``cross-sdk/runners/typescript_writer.ts`` runner; this test then uses the
-Python SDK to read those records back and verify integrity.
+Python SDK to read those records, and their content, back.
 
-Skipped unless staging credentials AND a working ``tsx`` CLI are available on
-PATH. Override with the ``TSX_BIN`` env var if it lives somewhere non-standard.
+Skipped unless an API key is set AND ``tsx`` or ``pnpm`` is available on PATH.
+Override the ``tsx`` binary with the ``TSX_BIN`` env var if it lives somewhere
+non-standard.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import os
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -23,7 +25,7 @@ import pytest
 from reasoning_ledger import LedgerClient, LedgerClientConfig
 
 from .conftest import requires_staging
-from .staging_transport import StagingTransport, resolve_staging_env
+from .staging_env import resolve_staging_env
 
 pytestmark = [requires_staging]
 
@@ -31,6 +33,15 @@ TSX_BIN = os.environ.get("TSX_BIN", "tsx")
 RUNNER = (
     Path(__file__).resolve().parent.parent.parent / "cross-sdk" / "runners" / "typescript_writer.ts"
 )
+STEPS = ("observing", "toolcalling", "thinking", "acting")
+
+
+@dataclass(frozen=True)
+class WriterOutput:
+    agent_id: str
+    session_id: str
+    # record_id per step: observing, toolcalling, thinking, acting.
+    records: dict[str, str]
 
 
 def _tsx_available() -> bool:
@@ -41,7 +52,7 @@ def _tsx_available() -> bool:
 
 
 @pytest.fixture(scope="module")
-def ts_writer_output() -> dict[str, object]:
+def ts_writer_output() -> WriterOutput:
     if not _tsx_available():
         pytest.skip("neither 'tsx' nor 'pnpm' is on PATH; skipping cross-SDK test")
 
@@ -80,80 +91,71 @@ def ts_writer_output() -> dict[str, object]:
         )
         raise RuntimeError(msg)
 
-    last_line = result.stdout.strip().splitlines()[-1]
-    return json.loads(last_line)
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    assert out["session_id"] == env["SESSION_ID"]
+    return WriterOutput(
+        agent_id=str(out["agent_id"]),
+        session_id=str(out["session_id"]),
+        records={str(step): str(rid) for step, rid in out["records"].items()},
+    )
 
 
 @pytest.fixture(scope="module")
-def read_client(ts_writer_output: dict[str, object]) -> LedgerClient:
+def read_client(ts_writer_output: WriterOutput) -> LedgerClient:
     env = resolve_staging_env()
-    transport = StagingTransport(env.base_url)
     return LedgerClient(
         LedgerClientConfig(
-            agent_id=str(ts_writer_output["agent_id"]),
+            agent_id=ts_writer_output.agent_id,
             api_key=env.api_key,
             endpoint=env.base_url,
-            http_transport=transport,
         )
     )
 
 
 class TestTsWritesPyReads:
-    def test_writer_output_shape(self, ts_writer_output: dict[str, object]) -> None:
-        assert "agent_id" in ts_writer_output
-        assert "session_id" in ts_writer_output
-        records = ts_writer_output["records"]
-        assert isinstance(records, dict)
-        assert set(records.keys()) == {"observing", "toolcalling", "thinking", "acting"}
+    def test_writer_output_shape(self, ts_writer_output: WriterOutput) -> None:
+        assert set(ts_writer_output.records) == set(STEPS)
 
     def test_get_record_for_each_record_id(
-        self,
-        read_client: LedgerClient,
-        ts_writer_output: dict[str, object],
+        self, read_client: LedgerClient, ts_writer_output: WriterOutput
     ) -> None:
-        records = ts_writer_output["records"]
-        assert isinstance(records, dict)
         expected_behavior = {
             "observing": "Observing",
             "toolcalling": "ToolCalling",
             "thinking": "Thinking",
             "acting": "Acting",
         }
-        for kind, rid in records.items():
-            record = read_client.get_record(str(rid))
+        for step, rid in ts_writer_output.records.items():
+            record = read_client.get_record(rid)
             assert record["record_id"] == rid
-            assert record["session_id"] == ts_writer_output["session_id"]
-            assert record["agent_id"] == ts_writer_output["agent_id"]
-            assert record["behavior"] == expected_behavior[kind]
+            assert record["agent_id"] == ts_writer_output.agent_id
+            assert record["session_id"] == ts_writer_output.session_id
+            assert record["behavior"] == expected_behavior[step]
 
-    def test_get_session_returns_all_four_in_order(
-        self,
-        read_client: LedgerClient,
-        ts_writer_output: dict[str, object],
+    def test_get_session_returns_all_four_in_write_order(
+        self, read_client: LedgerClient, ts_writer_output: WriterOutput
     ) -> None:
-        records = ts_writer_output["records"]
-        assert isinstance(records, dict)
-        fetched = read_client.get_session(str(ts_writer_output["session_id"]))
-        assert fetched["session_id"] == ts_writer_output["session_id"]
-        assert len(fetched["records"]) == 4
-
-        order = [r["record_id"] for r in fetched["records"]]
-        assert order == [
-            records["observing"],
-            records["toolcalling"],
-            records["thinking"],
-            records["acting"],
+        fetched = read_client.get_session(ts_writer_output.session_id)
+        assert fetched["session_id"] == ts_writer_output.session_id
+        assert [r["record_id"] for r in fetched["records"]] == [
+            ts_writer_output.records[step] for step in STEPS
         ]
 
     def test_toolcalling_upstream_edge_survives(
-        self,
-        read_client: LedgerClient,
-        ts_writer_output: dict[str, object],
+        self, read_client: LedgerClient, ts_writer_output: WriterOutput
     ) -> None:
-        records = ts_writer_output["records"]
-        assert isinstance(records, dict)
-        tc = read_client.get_record(str(records["toolcalling"]))
-        assert tc["upstream_record_id"] == [records["observing"]]
+        tc = read_client.get_record(ts_writer_output.records["toolcalling"])
+        assert tc["upstream_record_id"] == [ts_writer_output.records["observing"]]
 
-        payload = json.loads(str(tc["input_payload"]))
-        assert payload == {"from": "typescript"}
+    def test_toolcalling_input_payload_is_the_uploaded_json(
+        self, read_client: LedgerClient, ts_writer_output: WriterOutput
+    ) -> None:
+        tc = read_client.get_record(ts_writer_output.records["toolcalling"])
+        payload = json.loads(read_client.get_content(tc["input_payload"]))
+        assert payload == {"query": "cross-sdk", "n": 1}
+
+    def test_thinking_prompt_is_the_uploaded_text(
+        self, read_client: LedgerClient, ts_writer_output: WriterOutput
+    ) -> None:
+        th = read_client.get_record(ts_writer_output.records["thinking"])
+        assert read_client.get_content(th["prompt"]).decode("utf-8") == "Should we act?"

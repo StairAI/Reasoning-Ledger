@@ -17,11 +17,104 @@ class BehaviorType(StrEnum):
     Thinking = "Thinking"
     Acting = "Acting"
     Reflecting = "Reflecting"
+    Attesting = "Attesting"
     Other = "Other"
 
 
 class UuidV4(RootModel[UUID]):
     root: UUID
+
+
+class ContentRef(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    sha256: Annotated[
+        str,
+        Field(
+            description="SHA-256 of the raw bytes, lowercase hex.",
+            pattern="^[0-9a-f]{64}$",
+        ),
+    ]
+    bytes: Annotated[int, Field(ge=0)]
+    media_type: Annotated[
+        str,
+        Field(examples=["text/plain; charset=utf-8", "application/json"], min_length=1),
+    ]
+
+
+class Executor(StrEnum):
+    ai = "ai"
+    det = "det"
+    human = "human"
+
+
+class RecordPhase(StrEnum):
+    pre_execution = "pre_execution"
+    concurrent = "concurrent"
+    post_execution = "post_execution"
+
+
+class Outcome(StrEnum):
+    success = "success"
+    failure = "failure"
+    denied = "denied"
+    escalated = "escalated"
+    timeout = "timeout"
+
+
+class SourceDescriptor(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    kind: Annotated[
+        str,
+        Field(
+            examples=["model", "rule", "reference_data", "api", "document", "human"],
+            min_length=1,
+        ),
+    ]
+    ref: Annotated[
+        str, Field(description="Stable reference to the source.", min_length=1)
+    ]
+    fetched_at: Annotated[int | None, Field(ge=0)] = None
+    sha256: Annotated[
+        str | None,
+        Field(
+            description="Content hash of what was fetched.", pattern="^[0-9a-f]{64}$"
+        ),
+    ] = None
+    record_id: Annotated[UUID | None, Field(description="Record that fetched it.")] = (
+        None
+    )
+
+
+class RuleRefItem(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
+class Verdict(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    conclusion: Annotated[
+        Any, Field(description="The judgment itself (any JSON value).")
+    ]
+    decided_by: Annotated[str, Field(min_length=1)]
+    signals: list[dict[str, Any]] | None = None
+    rule_ref: list[RuleRefItem] | None = None
+    confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+    sources: list[SourceDescriptor] | None = None
+    counterfactual: str | None = None
+    dissent: list[dict[str, Any]] | None = None
+
+
+class WrittenBy(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    component: Annotated[str, Field(min_length=1)]
+    credential: Annotated[str, Field(min_length=1)]
 
 
 class ModelInvocation(BaseModel):
@@ -37,9 +130,9 @@ class ModelInvocation(BaseModel):
     temperature: float | None = None
     finish_reason: str | None = None
     internal_reasoning: Annotated[
-        str | None,
+        ContentRef | None,
         Field(
-            description="Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
+            description="Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output, stored in the content library. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
         ),
     ] = None
 
@@ -49,7 +142,7 @@ class Tag(RootModel[str]):
 
 
 class BaseRecord(BaseModel):
-    schema_version: Annotated[str, Field(examples=["0.3"], min_length=1)]
+    schema_version: Annotated[str, Field(examples=["0.4"], min_length=1)]
     agent_id: UUID
     session_id: Annotated[str, Field(min_length=1)]
     record_id: UUID
@@ -71,6 +164,12 @@ class BaseRecord(BaseModel):
             description="Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
         ),
     ] = None
+    executor: Executor
+    record_phase: RecordPhase
+    outcome: Outcome | None = None
+    duration_ms: Annotated[int | None, Field(ge=0)] = None
+    sources: Annotated[list[SourceDescriptor] | None, Field(max_length=64)] = None
+    verdict: Verdict | None = None
 
 
 class ThinkingInput(BaseModel):
@@ -78,7 +177,7 @@ class ThinkingInput(BaseModel):
         extra="forbid",
     )
     input_record_id: UUID | None = None
-    input_payload: str
+    input_payload: ContentRef
 
 
 class ReflectingInput(ThinkingInput):
@@ -123,9 +222,12 @@ class ToolCallingRecord(BaseRecord):
     behavior: Literal["ToolCalling"]
     tool_meta: dict[str, Any]
     description: Annotated[str, Field(min_length=1)]
-    input_payload: Any
-    output_payload: Any
-    success: bool
+    input_payload: ContentRef
+    output_payload: ContentRef
+    outcome: Annotated[
+        Outcome,
+        Field(description="Result of the call; replaces the 0.3 'success' flag."),
+    ]
 
 
 class PlanningRecord(BaseRecord):
@@ -143,9 +245,9 @@ class ThinkingRecord(BaseRecord):
         extra="forbid",
     )
     behavior: Literal["Thinking"]
-    prompt: Annotated[str, Field(min_length=1)]
+    prompt: ContentRef
     inputs: list[ThinkingInput]
-    output_payload: Annotated[str, Field(min_length=1)]
+    output_payload: ContentRef
 
 
 class ExecutionStatus(StrEnum):
@@ -175,7 +277,80 @@ class ReflectingRecord(BaseRecord):
     )
     behavior: Literal["Reflecting"]
     inputs: list[ReflectingInput]
-    output_payload: Annotated[str, Field(min_length=1)]
+    output_payload: ContentRef
+
+
+class Disposition(StrEnum):
+    approve = "approve"
+    reject = "reject"
+    edit = "edit"
+
+
+class AttestingRecord(BaseRecord):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    behavior: Literal["Attesting"]
+    executor: Annotated[
+        Literal["human"],
+        Field(
+            description="Who performed the step: a model (ai), deterministic code (det) or a person (human)."
+        ),
+    ]
+    operator_id: Annotated[
+        str, Field(description="The person who made the disposition.", min_length=1)
+    ]
+    disposition: Annotated[
+        Disposition,
+        Field(
+            description="For value-choosing decisions: approve = accepted the default suggestion, edit = changed it."
+        ),
+    ]
+    decision: Annotated[
+        Any | None,
+        Field(
+            description="Structured decision content: the value the person chose or entered. Shape declared by the upper-layer application."
+        ),
+    ] = None
+    reason: Annotated[
+        str | None,
+        Field(description="Required when disposition is reject.", min_length=1),
+    ] = None
+    patch: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description="Changes to the original parameters when disposition is edit."
+        ),
+    ] = None
+    evidence_refs: Annotated[
+        list[ContentRef | UUID] | None,
+        Field(
+            description="Record ids or content references the disposition relied on.",
+            max_length=64,
+        ),
+    ] = None
+    seen_digest: Annotated[
+        str | None,
+        Field(description="Digest of what the person saw when deciding.", min_length=1),
+    ] = None
+    gate_kind: Annotated[
+        str,
+        Field(
+            description="Checkpoint type, defined by the upper-layer application.",
+            min_length=1,
+        ),
+    ]
+    policy_snapshot: Annotated[
+        dict[str, Any] | None,
+        Field(description="Policy in force at the time, or a content reference to it."),
+    ] = None
+    effects: Annotated[
+        ContentRef | None,
+        Field(
+            description="Side effects of the disposition in the upper-layer application, e.g. configuration or rule changes."
+        ),
+    ] = None
+    written_by: WrittenBy
 
 
 class OtherRecord(BaseRecord):
@@ -195,6 +370,7 @@ class ReasoningLedgerRecordSchemas(
         | ThinkingRecord
         | ActingRecord
         | ReflectingRecord
+        | AttestingRecord
         | OtherRecord
     ]
 ):
@@ -205,9 +381,10 @@ class ReasoningLedgerRecordSchemas(
         | ThinkingRecord
         | ActingRecord
         | ReflectingRecord
+        | AttestingRecord
         | OtherRecord,
         Field(
-            description="Canonical record schemas for sections 4.1-4.8 of Reasoning_Ledger_SDK_Design_v1.",
+            description="Canonical record schemas for the Reasoning Ledger. Prose reference: SCHEMA.md.",
             discriminator="behavior",
             title="Reasoning Ledger Record Schemas",
         ),

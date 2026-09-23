@@ -97,14 +97,14 @@ importers:
   integration-tests/cross-sdk:
     dependencies:
       reasoning-ledger-sdk:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../typescript-sdk
 
   integration-tests/typescript:
     dependencies:
       reasoning-ledger-sdk:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../typescript-sdk
     devDependencies:
       '@types/node':
         specifier: ^25.6.0
@@ -2593,9 +2593,6 @@ packages:
   readdirp@5.0.0:
     resolution: {integrity: sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ==}
     engines: {node: '>= 20.19.0'}
-
-  reasoning-ledger-sdk@0.1.0:
-    resolution: {integrity: sha512-dBFB1gWJ93CHRFetKmlTYe1yENnZ2CXGnU3sSjD6w0IoahH/y2j6xxkTVr20v1sM9TXU+1eolHgZpzsRJ9533g==}
 
   regex-recursion@6.0.2:
     resolution: {integrity: sha512-0YCaSCq2VRIebiaUviZNs0cBz1kg5kVS2UKUfNIx8YVs1cN3AV7NTctO5FOKBA+UT2BPJIWZauYHPqJODG50cg==}
@@ -5250,10 +5247,6 @@ snapshots:
   react@19.2.5: {}
 
   readdirp@5.0.0: {}
-
-  reasoning-ledger-sdk@0.1.0:
-    dependencies:
-      zod: 4.3.6
 
   regex-recursion@6.0.2:
     dependencies:

@@ -22,24 +22,40 @@ export const DEFAULT_RETRY: RetryConfig = {
 
 // ---------------------------------------------------------------------------
 // FetchTransport — default HttpTransport backed by the native fetch API.
+// Sends string or binary bodies; returns the body as text and as raw bytes.
 // ---------------------------------------------------------------------------
+
+const decoder = new TextDecoder();
+
+function describeFailure(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  const { cause } = error;
+  return cause instanceof Error ? `${error.message} (${cause.message})` : error.message;
+}
 
 export class FetchTransport implements HttpTransport {
   async request(req: HttpRequest): Promise<HttpResponse> {
-    const res = await fetch(req.url, {
-      body: req.body,
-      headers: req.headers,
-      method: req.method,
-    });
-
-    // Read the body text; headers → plain object.
-    const body = await res.text();
-    const headers: Record<string, string> = {};
-    for (const [key, value] of res.headers.entries()) {
-      headers[key] = value;
+    try {
+      const res = await fetch(req.url, {
+        // fetch sends any Uint8Array; TypeScript's BodyInit only admits ArrayBuffer-backed ones.
+        body: req.body as string | Uint8Array<ArrayBuffer> | undefined,
+        headers: req.headers,
+        method: req.method,
+      });
+      const bodyBytes = new Uint8Array(await res.arrayBuffer());
+      return {
+        body: decoder.decode(bodyBytes),
+        bodyBytes,
+        headers: Object.fromEntries(res.headers.entries()),
+        status: res.status,
+      };
+    } catch (error) {
+      // fetch rejects only when no complete HTTP response arrived (DNS failure,
+      // connection refused or reset, malformed URL). Retryable.
+      throw new NetworkError(`Network error: ${describeFailure(error)}`);
     }
-
-    return { body, headers, status: res.status };
   }
 }
 
@@ -78,11 +94,20 @@ export function mapHttpError(res: HttpResponse): never {
     case 401: {
       throw new AuthError(message, details);
     }
-    case 404: {
+    case 404:
+    case 410: {
+      // 410: the content existed but was deleted.
       throw new NotFoundError(message, details);
     }
     case 409: {
       throw new IdempotencyConflictError(message, details);
+    }
+    case 413: {
+      throw new ValidationError(`Payload too large for the server: ${message}`, {
+        ...details,
+        reason: "payload too large",
+        status: res.status,
+      });
     }
     case 429: {
       const retryAfter =
@@ -140,6 +165,45 @@ export async function withRetry<T>(
   }
 
   throw lastErr;
+}
+
+// ---------------------------------------------------------------------------
+// sendRequest — one API call: X-API-Key header, retries on transient errors,
+// and a LedgerError for any non-2xx response. Bodies may be text or bytes.
+// ---------------------------------------------------------------------------
+
+export interface ApiRequest {
+  apiKey: string;
+  body?: string | Uint8Array;
+  contentType?: string;
+  method: string;
+  url: string;
+}
+
+export function sendRequest(
+  transport: HttpTransport,
+  retry: RetryConfig,
+  req: ApiRequest,
+): Promise<HttpResponse> {
+  const headers: Record<string, string> = { "x-api-key": req.apiKey };
+  if (req.contentType !== undefined) {
+    headers["content-type"] = req.contentType;
+  }
+
+  return withRetry(async () => {
+    const res = await transport.request({
+      body: req.body,
+      headers,
+      method: req.method,
+      url: req.url,
+    });
+
+    if (res.status < 200 || res.status >= 300) {
+      mapHttpError(res);
+    }
+
+    return res;
+  }, retry);
 }
 
 // ---------------------------------------------------------------------------

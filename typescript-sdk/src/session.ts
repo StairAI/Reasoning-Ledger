@@ -1,5 +1,5 @@
 import type { LedgerClient } from "./client.js";
-import type { BatchAck, RecordAck, SessionSubmitInput } from "./types.js";
+import type { BatchAck, RecordAck, SessionAttestingInput, SessionSubmitInput } from "./types.js";
 import { newRecordId } from "./utils.js";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ export class Session {
   /**
    * Submit a single record, auto-injecting `session_id = this.id`.
    * All other auto-fill rules (agent_id, record_id, schema_version,
-   * client_ts_utc) apply as on LedgerClient.submit.
+   * client_ts_utc) and raw content uploads apply as on LedgerClient.submit.
    */
   submit(input: SessionSubmitInput): Promise<RecordAck> {
     return this.client._submit({ ...input, session_id: this.id });
@@ -36,5 +36,14 @@ export class Session {
    */
   submitBatch(inputs: SessionSubmitInput[]): Promise<BatchAck> {
     return this.client._submitBatch(inputs.map((input) => ({ ...input, session_id: this.id })));
+  }
+
+  /**
+   * Submit an Attesting record, auto-injecting `session_id = this.id`.
+   * Otherwise as LedgerClient.submitAttesting: behavior `Attesting`,
+   * executor `human`, record_phase `concurrent` unless given.
+   */
+  submitAttesting(input: SessionAttestingInput): Promise<RecordAck> {
+    return this.client.submitAttesting({ ...input, session_id: this.id });
   }
 }

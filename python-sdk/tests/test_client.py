@@ -1,11 +1,14 @@
 """Tests for LedgerClient using a mock HttpTransport."""
+
 from __future__ import annotations
 
 import json
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
 
+import reasoning_ledger
 from reasoning_ledger.client import LedgerClient
 from reasoning_ledger.errors import AuthError, ServerError, ValidationError
 from reasoning_ledger.types import (
@@ -57,6 +60,7 @@ def err(status: int, message: str) -> HttpResponse:
 
 AGENT_ID = "550e8400-e29b-41d4-a716-446655440000"
 API_KEY = f"sl_{'a' * 64}"
+ENDPOINT = "https://ledger.test"
 
 RECORD_ACK = {
     "is_duplicate": False,
@@ -70,7 +74,7 @@ def make_config(transport: HttpTransport) -> LedgerClientConfig:
     return LedgerClientConfig(
         agent_id=AGENT_ID,
         api_key=API_KEY,
-        environment="development",
+        endpoint=ENDPOINT,
         http_transport=transport,
         retry={"attempts": 1, "backoff_ms": []},
     )
@@ -83,6 +87,8 @@ def make_client(transport: MockTransport) -> LedgerClient:
 def minimal_observing_input() -> dict[str, Any]:
     return {
         "behavior": "Observing",
+        "executor": "det",
+        "record_phase": "post_execution",
         "session_id": "session-001",
         "trigger_description": "A thing happened",
         "trigger_payload_summary": "summary",
@@ -108,13 +114,24 @@ class TestSubmit:
         assert len(transport.calls) == 1
         call = transport.calls[0]
         assert call["method"] == "POST"
-        assert "/v1/records" in call["url"]
+        assert call["url"] == f"{ENDPOINT}/v1/records"
 
         body = json.loads(call["body"] or "{}")
         assert body["agent_id"] == AGENT_ID
-        assert body["schema_version"] == "0.3"
+        assert body["schema_version"] == "0.4"
         assert isinstance(body["record_id"], str)
         assert isinstance(body["client_ts_utc"], int)
+
+    def test_does_not_default_executor_or_record_phase(self) -> None:
+        transport = MockTransport()
+        client = make_client(transport)
+        for field in ("executor", "record_phase"):
+            record = minimal_observing_input()
+            del record[field]
+            with pytest.raises(ValidationError) as exc_info:
+                client.submit(record)
+            assert exc_info.value.details == {"field": f"Observing.{field}", "reason": ANY}
+        assert transport.calls == []
 
     def test_sends_x_api_key_header(self) -> None:
         transport = MockTransport()
@@ -137,7 +154,7 @@ class TestSubmit:
         config = LedgerClientConfig(
             agent_id=AGENT_ID,
             api_key=API_KEY,
-            environment="development",
+            endpoint=ENDPOINT,
             http_transport=transport,
             retry={"attempts": 1, "backoff_ms": []},
             default_model_invocation={"model_name": "claude-opus-4", "provider": "anthropic"},
@@ -153,7 +170,7 @@ class TestSubmit:
         config = LedgerClientConfig(
             agent_id=AGENT_ID,
             api_key=API_KEY,
-            environment="development",
+            endpoint=ENDPOINT,
             http_transport=transport,
             retry={"attempts": 1, "backoff_ms": []},
             default_model_invocation={"model_name": "claude-opus-4", "provider": "anthropic"},
@@ -246,6 +263,14 @@ class TestSubmitBatch:
             client.submit_batch(records)
         assert len(transport.calls) == 0
 
+    def test_posts_to_records_batch_path(self) -> None:
+        transport = MockTransport()
+        client = make_client(transport)
+        transport.enqueue(ok({"batch_id": "b", "results": [RECORD_ACK]}))
+        client.submit_batch([minimal_observing_input()])
+        assert transport.calls[0]["method"] == "POST"
+        assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/records/batch"
+
 
 # ---------------------------------------------------------------------------
 # get_record
@@ -261,7 +286,54 @@ class TestGetRecord:
         record = client.get_record(record_id)
         assert record["record_id"] == record_id
         assert transport.calls[0]["method"] == "GET"
-        assert f"/v1/records/{record_id}" in transport.calls[0]["url"]
+        assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/records/{record_id}"
+
+    def test_returns_0_4_fields_and_sequence(self) -> None:
+        transport = MockTransport()
+        client = make_client(transport)
+        stored = {
+            **minimal_observing_input(),
+            "agent_id": AGENT_ID,
+            "duration_ms": 12,
+            "outcome": "success",
+            "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
+            "sequence": 42,
+            "server_ts_utc": 1_700_000_000_123,
+        }
+        transport.enqueue(ok(stored))
+        record = client.get_record(stored["record_id"])
+        assert record["sequence"] == 42
+        assert record["executor"] == "det"
+        assert record["record_phase"] == "post_execution"
+        assert record["outcome"] == "success"
+        assert record["duration_ms"] == 12
+
+
+# ---------------------------------------------------------------------------
+# Reads send the API key (the server requires it on every read)
+# ---------------------------------------------------------------------------
+
+
+class TestReadsSendApiKey:
+    @pytest.mark.parametrize(
+        ("read", "response"),
+        [
+            ("get_record", {"record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8"}),
+            ("get_session", {"records": [], "session_id": "session-001"}),
+            ("get_trace", {"next_cursor": None, "records": []}),
+        ],
+    )
+    def test_sends_x_api_key(self, read: str, response: dict[str, Any]) -> None:
+        transport = MockTransport()
+        client = make_client(transport)
+        transport.enqueue(ok(response))
+        if read == "get_record":
+            client.get_record("6ba7b810-9dad-41d1-80b4-00c04fd430c8")
+        elif read == "get_session":
+            client.get_session("session-001")
+        else:
+            client.get_trace()
+        assert transport.calls[0]["headers"]["x-api-key"] == API_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +348,7 @@ class TestGetSession:
         transport.enqueue(ok({"records": [], "session_id": "session-001"}))
         client.get_session("session-001")
         url = transport.calls[0]["url"]
-        assert "/v1/sessions/session-001" in url
+        assert url.startswith(f"{ENDPOINT}/v1/sessions/session-001?")
         assert f"agent_id={AGENT_ID}" in url
 
 
@@ -292,18 +364,31 @@ class TestGetTrace:
         transport.enqueue(ok({"next_cursor": None, "records": []}))
         client.get_trace()
         url = transport.calls[0]["url"]
-        assert f"/v1/traces/{AGENT_ID}" in url
+        assert url == f"{ENDPOINT}/v1/traces/{AGENT_ID}"
         assert transport.calls[0]["method"] == "GET"
 
     def test_includes_before_and_limit_params(self) -> None:
         transport = MockTransport()
         client = make_client(transport)
-        cursor_id = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
         transport.enqueue(ok({"next_cursor": None, "records": []}))
-        client.get_trace(GetTraceOpts(before=cursor_id, limit=25))
+        client.get_trace(GetTraceOpts(before="1042", limit=25))
         url = transport.calls[0]["url"]
-        assert f"before={cursor_id}" in url
+        assert "before=1042" in url
         assert "limit=25" in url
+
+    def test_before_is_the_opaque_next_cursor_not_a_uuid(self) -> None:
+        transport = MockTransport()
+        client = make_client(transport)
+        transport.enqueue(ok({"next_cursor": "1042", "records": [{"sequence": 1043}]}))
+        transport.enqueue(ok({"next_cursor": None, "records": [{"sequence": 1041}]}))
+
+        first = client.get_trace(GetTraceOpts(limit=1))
+        second = client.get_trace(GetTraceOpts(before=first["next_cursor"], limit=1))
+
+        assert first["next_cursor"] == "1042"
+        assert "before" not in transport.calls[0]["url"]
+        assert "before=1042" in transport.calls[1]["url"]
+        assert second["next_cursor"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +403,7 @@ class TestRetry:
             LedgerClientConfig(
                 agent_id=AGENT_ID,
                 api_key=API_KEY,
-                environment="development",
+                endpoint=ENDPOINT,
                 http_transport=transport,
                 retry={"attempts": 3, "backoff_ms": [0, 0]},
             )
@@ -337,7 +422,7 @@ class TestRetry:
             LedgerClientConfig(
                 agent_id=AGENT_ID,
                 api_key=API_KEY,
-                environment="development",
+                endpoint=ENDPOINT,
                 http_transport=transport,
                 retry={"attempts": 2, "backoff_ms": [0]},
             )
@@ -353,7 +438,7 @@ class TestRetry:
             LedgerClientConfig(
                 agent_id=AGENT_ID,
                 api_key=API_KEY,
-                environment="development",
+                endpoint=ENDPOINT,
                 http_transport=transport,
                 retry={"attempts": 3, "backoff_ms": [0, 0]},
             )
@@ -382,7 +467,7 @@ class TestRetry:
             LedgerClientConfig(
                 agent_id=AGENT_ID,
                 api_key=API_KEY,
-                environment="development",
+                endpoint=ENDPOINT,
                 http_transport=transport2,
                 retry={"attempts": 3, "backoff_ms": [0, 0]},
             )
@@ -408,12 +493,12 @@ class TestRegisterAgent:
         transport.enqueue(ok(registration))
 
         result = LedgerClient.register_agent(
-            RegisterAgentOpts(api_key=API_KEY, name="my-agent"),
+            RegisterAgentOpts(api_key=API_KEY, endpoint=ENDPOINT, name="my-agent"),
             _transport=transport,
         )
         assert result["agent_id"] == AGENT_ID
         assert transport.calls[0]["method"] == "POST"
-        assert "/v1/agents" in transport.calls[0]["url"]
+        assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/agents"
 
     def test_includes_wallet_address_in_body(self) -> None:
         transport = MockTransport()
@@ -422,6 +507,7 @@ class TestRegisterAgent:
         LedgerClient.register_agent(
             RegisterAgentOpts(
                 api_key=API_KEY,
+                endpoint=ENDPOINT,
                 name="n",
                 wallet=AgentWalletInput(address="0xABC"),
             ),
@@ -437,6 +523,7 @@ class TestRegisterAgent:
         LedgerClient.register_agent(
             RegisterAgentOpts(
                 api_key=API_KEY,
+                endpoint=ENDPOINT,
                 name="n",
                 wallet=AgentWalletInput(address="0xABC", signer=lambda b: b),
             ),
@@ -452,8 +539,11 @@ class TestRegisterAgent:
         LedgerClient.register_agent(
             RegisterAgentOpts(
                 api_key=API_KEY,
+                endpoint=ENDPOINT,
                 name="n",
-                metadata=AgentMetadata(description="my bot", tags=["ai"], website="https://example.com"),
+                metadata=AgentMetadata(
+                    description="my bot", tags=["ai"], website="https://example.com"
+                ),
             ),
             _transport=transport,
         )
@@ -469,9 +559,89 @@ class TestResolveAgentId:
         transport.enqueue(ok({"agent_id": AGENT_ID, "name": "my-agent"}))
 
         agent_id = LedgerClient.resolve_agent_id(
-            ResolveAgentOpts(api_key=API_KEY, name="my-agent"),
+            ResolveAgentOpts(api_key=API_KEY, endpoint=ENDPOINT, name="my-agent"),
             _transport=transport,
         )
         assert agent_id == AGENT_ID
         assert transport.calls[0]["method"] == "GET"
-        assert "name=my-agent" in transport.calls[0]["url"]
+        assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/agents?name=my-agent"
+
+
+# ---------------------------------------------------------------------------
+# endpoint — required, no built-in hosts
+# ---------------------------------------------------------------------------
+
+
+class TestEndpoint:
+    def test_config_has_no_default_endpoint(self) -> None:
+        kwargs: dict[str, Any] = {"agent_id": AGENT_ID, "api_key": API_KEY}
+        with pytest.raises(TypeError, match="endpoint"):
+            LedgerClientConfig(**kwargs)
+
+    @pytest.mark.parametrize("endpoint", ["", "   ", "/", None])
+    def test_missing_endpoint_raises_validation_error_before_any_request(
+        self, endpoint: str | None
+    ) -> None:
+        transport = MockTransport()
+        kwargs: dict[str, Any] = {"endpoint": endpoint}
+        with pytest.raises(ValidationError, match="endpoint is required"):
+            LedgerClient(
+                LedgerClientConfig(
+                    agent_id=AGENT_ID, api_key=API_KEY, http_transport=transport, **kwargs
+                )
+            )
+        assert transport.calls == []
+
+    def test_trailing_slash_is_trimmed(self) -> None:
+        transport = MockTransport()
+        client = LedgerClient(
+            LedgerClientConfig(
+                agent_id=AGENT_ID,
+                api_key=API_KEY,
+                endpoint=f"{ENDPOINT}/",
+                http_transport=transport,
+                retry={"attempts": 1, "backoff_ms": []},
+            )
+        )
+        transport.enqueue(ok(RECORD_ACK))
+        client.submit(minimal_observing_input())
+        assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/records"
+
+    def test_register_agent_requires_endpoint(self) -> None:
+        transport = MockTransport()
+        with pytest.raises(ValidationError, match="endpoint is required"):
+            LedgerClient.register_agent(
+                RegisterAgentOpts(api_key=API_KEY, endpoint="", name="n"),
+                _transport=transport,
+            )
+        assert transport.calls == []
+
+    def test_resolve_agent_id_requires_endpoint(self) -> None:
+        transport = MockTransport()
+        with pytest.raises(ValidationError, match="endpoint is required"):
+            LedgerClient.resolve_agent_id(
+                ResolveAgentOpts(api_key=API_KEY, endpoint="", name="n"),
+                _transport=transport,
+            )
+        assert transport.calls == []
+
+    def test_static_methods_trim_trailing_slash(self) -> None:
+        transport = MockTransport()
+        stub = {"agent_id": AGENT_ID, "agent_wallet_address": None, "created_at": 0, "name": "n"}
+        transport.enqueue(ok(stub))
+        transport.enqueue(ok(stub))
+        LedgerClient.register_agent(
+            RegisterAgentOpts(api_key=API_KEY, endpoint=f"{ENDPOINT}/", name="n"),
+            _transport=transport,
+        )
+        LedgerClient.resolve_agent_id(
+            ResolveAgentOpts(api_key=API_KEY, endpoint=f"{ENDPOINT}/", name="n"),
+            _transport=transport,
+        )
+        assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/agents"
+        assert transport.calls[1]["url"] == f"{ENDPOINT}/v1/agents?name=n"
+
+    def test_environment_presets_are_gone(self) -> None:
+        assert not hasattr(reasoning_ledger, "ENDPOINTS")
+        assert "ENDPOINTS" not in reasoning_ledger.__all__
+        assert "environment" not in LedgerClientConfig.__dataclass_fields__

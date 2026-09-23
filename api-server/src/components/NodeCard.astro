@@ -3,26 +3,18 @@ import Icon from "./Icon.astro";
 import TypeBadge from "./TypeBadge.astro";
 import StatusTag from "./StatusTag.astro";
 import { behaviorMeta, cardView, formatClock } from '#/lib/trace';
-import type { TraceRecord } from '#/lib/trace';
+import type { ContentMap, TraceRecord } from '#/lib/trace';
 
 interface Props {
   record: TraceRecord;
+  /** Content the record references, resolved for the signed-in owner. */
+  contents?: ContentMap;
 }
 
-const { record } = Astro.props;
+const { record, contents = {} } = Astro.props;
 const meta = behaviorMeta(record.behavior);
-const view = cardView(record);
-
-const COLOR: Record<string, string> = {
-  acting: "#00b2a4",
-  observing: "#ebb447",
-  other: "#9a9a9a",
-  planning: "#7ee055",
-  reflecting: "#e06c7f",
-  thinking: "#bf80ff",
-  toolcalling: "#3c9add",
-};
-const tc = COLOR[meta.token] ?? COLOR.other;
+const view = cardView(record, contents);
+const tc = meta.color;
 ---
 
 <button

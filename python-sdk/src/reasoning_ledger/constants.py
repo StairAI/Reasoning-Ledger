@@ -2,21 +2,13 @@
 # Schema version — stamped on every submitted record.
 # ---------------------------------------------------------------------------
 
-from .generated.version import SCHEMA_VERSION
-
-# ---------------------------------------------------------------------------
-# Base URLs per environment.
-# ---------------------------------------------------------------------------
-
-ENDPOINTS: dict[str, str] = {
-    "development": "http://localhost:3000",
-    "production": "https://api.stairai.com",
-    "staging": "https://staging.api.stairai.com",
-}
+from .generated.version import SCHEMA_VERSION as SCHEMA_VERSION
 
 # ---------------------------------------------------------------------------
 # Size limits (§10.2) — enforced client-side before any network call.
 # Values are in bytes for JSON-encoded fields, or item counts for arrays.
+# Content positions (prompts, payloads) hold ContentRefs; the size of the
+# content itself is enforced by the server on upload (HTTP 413).
 # ---------------------------------------------------------------------------
 
 SIZE_LIMITS: dict[str, int] = {
@@ -34,16 +26,8 @@ SIZE_LIMITS: dict[str, int] = {
     "TAGS_COUNT": 32,
     # Each individual tag string (64 chars).
     "TAG_LENGTH": 64,
-    # Thinking.output_payload (32 KB).
-    "THINKING_OUTPUT": 32 * 1024,
-    # Thinking.prompt (16 KB).
-    "THINKING_PROMPT": 16 * 1024,
-    # ToolCalling.input_payload JSON-encoded size (16 KB).
-    "TOOL_INPUT": 16 * 1024,
     # ToolCalling.tool_meta JSON-encoded size (16 KB).
     "TOOL_META": 16 * 1024,
-    # ToolCalling.output_payload JSON-encoded size (32 KB).
-    "TOOL_OUTPUT": 32 * 1024,
     # Observing.trigger_payload_summary (4 KB).
     "TRIGGER_PAYLOAD_SUMMARY": 4096,
 }

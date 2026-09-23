@@ -2,18 +2,21 @@
 import Layout from "#/layouts/Layout.astro";
 import Icon from "#/components/Icon.astro";
 import TypeBadge from "#/components/TypeBadge.astro";
-import { createTraceClient } from "#/lib/rpc";
+import { ownedSessionSummaries } from "#/lib/repository";
+import type { SessionSummary } from "#/lib/repository";
 import { formatNumber } from "#/lib/trace";
 
 export const prerender = false;
 
-const client = createTraceClient();
+// Set by src/middleware.ts from the visitor's login session: one owner, or
+// the administrator, who sees every owner's traces.
+const {viewer} = Astro.locals;
+const admin = viewer?.admin ?? false;
 
-let sessions: Awaited<ReturnType<typeof client.traces.listSessions>>["sessions"] = [];
+let sessions: SessionSummary[] = [];
 let loadError: string | null = null;
 try {
-  const list = await client.traces.listSessions({ limit: 200 });
-  ({ sessions } = list);
+  sessions = await ownedSessionSummaries(viewer?.ownerId ?? null, 200);
 } catch (error) {
   loadError = error instanceof Error ? error.message : "Failed to load traces";
 }
@@ -34,6 +37,16 @@ function formatDate(ms: number): string {
         <div class="flex items-center gap-2 text-ink/50">
           <Icon name="git-fork" size={16} />
           <span class="font-sans text-[13px] uppercase tracking-wider">Reasoning Ledger</span>
+          {
+            admin && (
+              <span class="rounded-sm border border-line-strong px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-ink/70">
+                Administrator · all owners
+              </span>
+            )
+          }
+          <form method="post" action="/logout" class="ml-auto">
+            <button type="submit" class="text-[12px] text-ink/50 hover:text-ink">Sign out</button>
+          </form>
         </div>
         <h1 class="font-sans text-[28px] font-medium text-ink">Reasoning Traces</h1>
         <p class="text-[13px] text-ink/50">
@@ -76,6 +89,12 @@ function formatDate(ms: number): string {
                       <Icon name="folder" size={12} />
                       {s.session_id}
                     </span>
+                    {admin && (
+                      <span class="inline-flex items-center gap-1.5 truncate text-[12px] text-ink/40">
+                        <Icon name="hash" size={12} />
+                        owner {s.owner_id}
+                      </span>
+                    )}
                   </div>
                   <span class="shrink-0 text-[12px] text-ink/40">{formatDate(s.last_ts)}</span>
                 </div>

@@ -7,7 +7,10 @@
  *
  * 🟢 You can import this file directly.
  */
-export type * from "./models/Owner";
-export type * from "./models/Agent";
-export type * from "./models/TraceRecord";
-export type * from "./commonInputTypes";
+export type * from "./models/Owner.ts";
+export type * from "./models/Agent.ts";
+export type * from "./models/TraceRecord.ts";
+export type * from "./models/ContentObject.ts";
+export type * from "./models/ContentDeletion.ts";
+export type * from "./models/VizSession.ts";
+export type * from "./commonInputTypes.ts";

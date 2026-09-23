@@ -3,7 +3,7 @@ reasoning-ledger — Python SDK for the Reasoning Ledger API.
 """
 
 from .client import LedgerClient
-from .constants import ENDPOINTS, SCHEMA_VERSION, SIZE_LIMITS
+from .constants import SCHEMA_VERSION, SIZE_LIMITS
 from .errors import (
     AuthError,
     IdempotencyConflictError,
@@ -20,7 +20,9 @@ from .types import (
     AgentMetadata,
     AgentRegistration,
     AgentWalletInput,
+    AttestingInput,
     BatchAck,
+    ContentRef,
     GetTraceOpts,
     HttpRequest,
     HttpResponse,
@@ -40,14 +42,15 @@ from .validate import validate_batch, validate_record
 
 __all__ = [
     "DEFAULT_RETRY",
-    "ENDPOINTS",
     "SCHEMA_VERSION",
     "SIZE_LIMITS",
     "AgentMetadata",
     "AgentRegistration",
     "AgentWalletInput",
+    "AttestingInput",
     "AuthError",
     "BatchAck",
+    "ContentRef",
     "GetTraceOpts",
     "HttpRequest",
     "HttpResponse",

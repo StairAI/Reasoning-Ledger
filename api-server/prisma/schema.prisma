@@ -27,6 +27,29 @@ enum BehaviorType {
   Acting
   Reflecting
   Other
+  Attesting
+}
+
+/// Who performed the step (schema 0.4+).
+enum Executor {
+  ai
+  det
+  human
+}
+
+/// When the record was written relative to the action it describes (schema 0.4+).
+enum RecordPhase {
+  pre_execution
+  concurrent
+  post_execution
+}
+
+enum Outcome {
+  success
+  failure
+  denied
+  escalated
+  timeout
 }
 
 // ---------------------------------------------------------------------------
@@ -40,14 +63,17 @@ model Owner {
   /// SHA-256 hex digest of the raw api_key. Never store the raw key.
   api_key_hash         String     @unique
   wallet_mode          WalletMode
-  owner_wallet_address String
+  /// Optional since v1.0; no chain anchoring.
+  owner_wallet_address String?
   display_name         String?
   website              String?
   contact_email        String?
   created_at           DateTime   @default(now())
   updated_at           DateTime   @updatedAt
 
-  agents Agent[]
+  agents       Agent[]
+  content      ContentObject[]
+  viz_sessions VizSession[]
 
   @@map("owners")
 }
@@ -63,7 +89,8 @@ model Agent {
   owner                Owner    @relation(fields: [owner_id], references: [id], onDelete: Cascade)
   /// Human-readable name; unique within owner; mutable metadata only — never on records.
   name                 String
-  agent_wallet_address String
+  /// Optional since v1.0; no chain anchoring.
+  agent_wallet_address String?
   description          String?
   website              String?
   tags                 String[]
@@ -97,6 +124,14 @@ model TraceRecord {
   client_ts_utc      BigInt
   /// Server-stamped epoch milliseconds on receipt; authoritative for trust purposes.
   server_ts_utc      BigInt
+  /// Server-assigned total order within this deployment: pagination cursor and export range key.
+  sequence           BigInt       @unique @default(autoincrement())
+
+  /// Required for schema 0.4+ records, empty for 0.1–0.3 (database CHECK constraint).
+  executor           Executor?
+  record_phase       RecordPhase?
+  outcome            Outcome?
+  duration_ms        Int?
 
   /// Optional free-text annotation (≤2 048 chars, enforced at app layer).
   notes              String?
@@ -118,5 +153,62 @@ model TraceRecord {
 
   @@index([agent_id, session_id])
   @@index([agent_id, server_ts_utc(sort: Desc)])
+  @@index([agent_id, sequence])
   @@map("trace_records")
+}
+
+// ---------------------------------------------------------------------------
+// ContentObject — raw content referenced by records (design §3).
+// Namespaced per owner: identical bytes from two owners are two objects, so
+// neither can probe the other's uploads. The bytes live in the content store
+// ({CONTENT_DIR}/{owner_id}/{sha256}); this row records ownership and state.
+// ---------------------------------------------------------------------------
+
+model ContentObject {
+  owner_id   String
+  owner      Owner     @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  /// SHA-256 of the raw bytes, lowercase hex.
+  sha256     String
+  bytes      BigInt
+  media_type String
+  created_at DateTime  @default(now())
+  /// Set when the bytes were deleted. The row stays: the hash still shows the content existed.
+  deleted_at DateTime?
+
+  @@id([owner_id, sha256])
+  @@map("content_objects")
+}
+
+// ---------------------------------------------------------------------------
+// ContentDeletion — append-only log of content deletions, written by the
+// operator command. Not tied to owners by foreign key so the log outlives them.
+// ---------------------------------------------------------------------------
+
+model ContentDeletion {
+  id         String   @id @default(uuid())
+  owner_id   String
+  sha256     String
+  reason     String
+  operator   String
+  deleted_at DateTime @default(now())
+
+  @@index([owner_id, sha256])
+  @@map("content_deletions")
+}
+
+// ---------------------------------------------------------------------------
+// VizSession — visualiser login (design §4.3). The browser cookie carries only
+// this id; the owner token used to sign in is never stored.
+// ---------------------------------------------------------------------------
+
+model VizSession {
+  id         String   @id
+  /// Null for the instance administrator's session, which is not an owner's.
+  owner_id   String?
+  owner      Owner?   @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now())
+  expires_at DateTime
+
+  @@index([owner_id])
+  @@map("viz_sessions")
 }

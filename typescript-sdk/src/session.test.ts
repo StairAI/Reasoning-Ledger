@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { LedgerClient } from "./client.js";
+import { ValidationError } from "./errors.js";
 import type { HttpRequest, HttpResponse, HttpTransport, LedgerClientConfig } from "./types.js";
 import { isValidRecordId } from "./utils.js";
 
 // ---------------------------------------------------------------------------
-// Mock transport
+// Mock transport — answers content uploads like the server; everything else
+// from the queue.
 // ---------------------------------------------------------------------------
 
 class MockTransport implements HttpTransport {
@@ -17,6 +19,11 @@ class MockTransport implements HttpTransport {
 
   request(req: HttpRequest): Promise<HttpResponse> {
     this.calls.push(req);
+    if (req.method === "PUT") {
+      const bytes = req.body instanceof Uint8Array ? req.body.byteLength : 0;
+      const sha256 = req.url.split("/").at(-1);
+      return Promise.resolve(ok({ bytes, media_type: req.headers["content-type"], sha256 }, 201));
+    }
     const res = this.responses.shift();
     if (res === undefined) {
       return Promise.reject(new Error("MockTransport: no response queued"));
@@ -25,8 +32,12 @@ class MockTransport implements HttpTransport {
   }
 }
 
-function ok(body: unknown): HttpResponse {
-  return { body: JSON.stringify(body), headers: {}, status: 200 };
+function ok(body: unknown, status = 200): HttpResponse {
+  return { body: JSON.stringify(body), headers: {}, status };
+}
+
+function jsonBody(req: HttpRequest | undefined): Record<string, unknown> {
+  return JSON.parse(typeof req?.body === "string" ? req.body : "{}") as Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,7 +51,7 @@ function makeConfig(transport: HttpTransport): LedgerClientConfig {
   return {
     agentId: AGENT_ID,
     apiKey: API_KEY,
-    environment: "development",
+    endpoint: "http://localhost:3000",
     httpTransport: transport,
     retry: { attempts: 1, backoffMs: [] },
   };
@@ -57,10 +68,21 @@ const RECORD_ACK = {
 function minimalInput() {
   return {
     behavior: "Observing" as const,
+    executor: "det" as const,
+    record_phase: "post_execution" as const,
     trigger_description: "A thing happened",
     trigger_payload_summary: "summary",
     trigger_source: "webhook",
     trigger_type: "signal_trigger" as const,
+  };
+}
+
+function attestingInput() {
+  return {
+    disposition: "approve" as const,
+    gate_kind: "manual-review",
+    operator_id: "operator-1",
+    written_by: { component: "review-ui", credential: "svc-review" },
   };
 }
 
@@ -113,8 +135,7 @@ describe("Session.submit", () => {
 
     await session.submit(minimalInput());
 
-    const body = JSON.parse(transport.calls[0]?.body ?? "{}") as Record<string, unknown>;
-    expect(body["session_id"]).toBe("injected-session");
+    expect(jsonBody(transport.calls[0])["session_id"]).toBe("injected-session");
   });
 
   test("caller-supplied session_id is overridden by the session's id", async () => {
@@ -123,8 +144,7 @@ describe("Session.submit", () => {
 
     await session.submit({ ...minimalInput(), session_id: "caller-supplied" });
 
-    const body = JSON.parse(transport.calls[0]?.body ?? "{}") as Record<string, unknown>;
-    expect(body["session_id"]).toBe("bound-session");
+    expect(jsonBody(transport.calls[0])["session_id"]).toBe("bound-session");
   });
 
   test("auto-fills agent_id from client config", async () => {
@@ -133,8 +153,26 @@ describe("Session.submit", () => {
 
     await session.submit(minimalInput());
 
-    const body = JSON.parse(transport.calls[0]?.body ?? "{}") as Record<string, unknown>;
-    expect(body["agent_id"]).toBe(AGENT_ID);
+    expect(jsonBody(transport.calls[0])["agent_id"]).toBe(AGENT_ID);
+  });
+
+  test("uploads raw content before the record is sent", async () => {
+    const session = client.newSession("s");
+    transport.enqueue(ok(RECORD_ACK));
+
+    await session.submit({
+      behavior: "Thinking",
+      executor: "ai",
+      inputs: [],
+      output_payload: "Yes",
+      prompt: "Should we act?",
+      record_phase: "post_execution",
+    });
+
+    expect(transport.calls.map((call) => call.method)).toStrictEqual(["PUT", "PUT", "POST"]);
+    const body = jsonBody(transport.calls[2]);
+    expect(body["session_id"]).toBe("s");
+    expect(body["prompt"]).toHaveProperty("media_type", "text/plain; charset=utf-8");
   });
 });
 
@@ -161,12 +199,11 @@ describe("Session.submitBatch", () => {
 
     await session.submitBatch([minimalInput(), minimalInput()]);
 
-    const body = JSON.parse(transport.calls[0]?.body ?? "{}") as {
-      records: Record<string, unknown>[];
-    };
-    for (const record of body.records) {
-      expect(record["session_id"]).toBe("batch-session");
-    }
+    const { records } = jsonBody(transport.calls[0]) as { records: Record<string, unknown>[] };
+    expect(records.map((record) => record["session_id"])).toStrictEqual([
+      "batch-session",
+      "batch-session",
+    ]);
   });
 
   test("returns batch results in original order", async () => {
@@ -184,5 +221,41 @@ describe("Session.submitBatch", () => {
     const ack = await session.submitBatch([minimalInput(), minimalInput()]);
     expect((ack.results[0] as { is_duplicate: boolean }).is_duplicate).toBeFalsy();
     expect((ack.results[1] as { is_duplicate: boolean }).is_duplicate).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Session.submitAttesting
+// ---------------------------------------------------------------------------
+
+describe("Session.submitAttesting", () => {
+  let transport: MockTransport;
+  let client: LedgerClient;
+
+  beforeEach(() => {
+    transport = new MockTransport();
+    client = new LedgerClient(makeConfig(transport));
+  });
+
+  test("injects session_id and sets behavior, executor and record_phase", async () => {
+    const session = client.newSession("review-session");
+    transport.enqueue(ok({ ...RECORD_ACK, session_id: "review-session" }));
+
+    await session.submitAttesting(attestingInput());
+
+    const body = jsonBody(transport.calls[0]);
+    expect(body["session_id"]).toBe("review-session");
+    expect(body["behavior"]).toBe("Attesting");
+    expect(body["executor"]).toBe("human");
+    expect(body["record_phase"]).toBe("concurrent");
+    expect(body["agent_id"]).toBe(AGENT_ID);
+  });
+
+  test("a reject without a reason fails locally", async () => {
+    const session = client.newSession("review-session");
+    await expect(
+      session.submitAttesting({ ...attestingInput(), disposition: "reject" }),
+    ).rejects.toThrow(ValidationError);
+    expect(transport.calls).toHaveLength(0);
   });
 });
