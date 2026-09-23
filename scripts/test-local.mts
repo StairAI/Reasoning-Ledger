@@ -281,6 +281,35 @@ async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string):
   return ok;
 }
 
+/**
+ * The server's own log, read after every suite has run against it, must not
+ * hold a credential: not the administrator token or the owner key this gate
+ * created, and nothing shaped like an API key (the suites register owners of
+ * their own). The suites send failing requests on purpose, so this covers the
+ * error paths too. Problems name what leaked, never the value.
+ */
+function serverLogCheck(logFile: string, known: Record<string, string>): boolean {
+  console.log("\n▶ logs: no credentials");
+  const started = Date.now();
+  const text = readFileSync(logFile, "utf8");
+  const problems: string[] = [];
+  for (const [what, secret] of Object.entries(known)) {
+    if (text.includes(secret)) {
+      problems.push(`the ${what} appears in the server log`);
+    }
+  }
+  const keyShaped = new Set(text.match(/sl_[0-9a-f]{64}/g) ?? []);
+  if (keyShaped.size > 0) {
+    problems.push(`${keyShaped.size} API key(s) appear in the server log`);
+  }
+  for (const problem of problems) {
+    console.log(`  ✗ ${problem}`);
+  }
+  const ok = problems.length === 0;
+  results.push({ label: "logs: no credentials", ok, seconds: (Date.now() - started) / 1000 });
+  return ok;
+}
+
 function stopServer(server: ChildProcess | undefined): Promise<void> {
   if (!server || server.exitCode !== null) {
     return Promise.resolve();
@@ -407,6 +436,10 @@ async function databaseSuites(): Promise<void> {
           itEnv,
         );
         await viewerSmoke(baseUrl, apiKey, adminToken);
+        serverLogCheck(serverLog, {
+          "administrator token": adminToken,
+          "owner API key": apiKey,
+        });
       }
     }
   } finally {

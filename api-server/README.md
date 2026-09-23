@@ -80,6 +80,8 @@ node api-server/dist/server/entry.mjs        # serve the build (reads HOST and P
 
 The [Dockerfile](./Dockerfile) builds from the repository root and runs `db:deploy` before starting the server.
 
+Behind a reverse proxy, let request bodies through up to `CONTENT_MAX_BYTES` (64 MiB by default); nginx, for one, stops at 1 MB unless `client_max_body_size` says otherwise, and content uploads then fail with `413` before they reach the server. Point the proxy's or platform's health check at `/health`.
+
 ## Testing
 
 Run the whole gate from the repository root:
@@ -102,7 +104,7 @@ pnpm typecheck   # TypeScript, after astro sync
 
 ## Operator commands
 
-Both run on the server's host, with the same environment as the server.
+Both run on the server's host, with the same environment as the server: they read the process environment, and `api-server/.env` when there is one (as does `db:deploy`). In a container, run them with `docker exec`.
 
 ```sh
 # Delete stored content. Records keep their reference; reading the content then answers 410.
