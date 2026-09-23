@@ -1,6 +1,14 @@
 # Changelog
 
-Versions of the server and both SDKs move together. The record schema is numbered separately: SDK and server 1.0.0 write schema `0.4`.
+The server and both SDKs share one version line; a patch release names the packages it changes. The record schema is numbered separately: SDK and server 1.0.x write schema `0.4`.
+
+## 1.0.1 — 2026-09-23
+
+Server only; the SDKs stay at 1.0.0.
+
+### Security
+
+- **The server no longer writes requests to its error log.** Every failed API call was logged together with its request, headers included, so the API key or administrator token of a failing request ended up in the log in plain text, although the database keeps only a hash of each key. The log now says the status, the error code, the method and the path, and keeps a stack only for faults in the server. If you ran an earlier version, treat keys found in its logs as exposed: restrict access to those logs and rotate the keys.
 
 ## 1.0.0 — 2026-09-23
 

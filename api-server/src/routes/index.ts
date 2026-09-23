@@ -3,6 +3,7 @@ import { CORSPlugin } from "@orpc/server/plugins";
 import { onError } from "@orpc/server";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
+import { logApiError } from "#/lib/api-log";
 import { version } from "../../package.json";
 
 import { ownersRouter } from "./owners";
@@ -35,7 +36,8 @@ export const router = {
 export type Router = typeof router;
 
 export const handler = new OpenAPIHandler(router, {
-  interceptors: [onError(console.error)],
+  // Logs what failed, never the request: its headers carry credentials.
+  interceptors: [onError(logApiError)],
   plugins: [
     new CORSPlugin(),
     new OpenAPIReferencePlugin({
