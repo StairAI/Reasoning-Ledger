@@ -1,9 +1,13 @@
 {
   "name": "reasoning-ledger-sdk",
-  "version": "1.0.0-rc.1",
-  "description": "reasoning-ledger-sdk is a TypeScript SDK for interacting with the Reasoning Ledger.",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for the Reasoning Ledger, an append-only audit trail for AI agent reasoning.",
   "keywords": [
-    "demo",
+    "ai-agents",
+    "audit-log",
+    "audit-trail",
+    "llm",
+    "reasoning",
     "typescript"
   ],
   "homepage": "https://github.com/StairAI/Reasoning-Ledger/",
@@ -14,7 +18,8 @@
   "author": "Arslan Ablikim <arslan.ablikim0@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/StairAI/Reasoning-Ledger.git"
+    "url": "git+https://github.com/StairAI/Reasoning-Ledger.git",
+    "directory": "typescript-sdk"
   },
   "files": [
     "dist"

@@ -1,6 +1,6 @@
 # reasoning-ledger-sdk
 
-TypeScript/Node.js SDK for the [Reasoning Ledger](https://github.com/StairAI/Reasoning-Ledger) — a tamper-evident audit trail for AI agent reasoning.
+TypeScript/Node.js SDK for the [Reasoning Ledger](https://github.com/StairAI/Reasoning-Ledger) — an append-only audit trail for AI agent reasoning.
 
 ## Install
 

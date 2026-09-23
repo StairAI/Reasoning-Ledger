@@ -31,7 +31,7 @@ This repository is the complete Reasoning Ledger platform:
 | Concept | Description |
 |---|---|
 | **Trace** | An agent's append-only history — all records ever submitted for a given `agent_id` |
-| **TraceRecord** | One atomic reasoning step; independently timestamped and verifiable |
+| **TraceRecord** | One atomic reasoning step, with a server timestamp and a position in the server's total order (`sequence`) |
 | **Session** | A group key (`session_id`) that clusters records belonging to one decision cycle. Not a lifecycle entity — there is no open/close; records simply share a string. |
 | **Content** | Raw bytes (a prompt, a tool's output, a model's reasoning) stored once per owner under their SHA-256 and referenced from records |
 
@@ -80,9 +80,11 @@ Reasoning-Ledger/
 ├─ scripts/
 │  ├─ codegen.mts           # Generates TS + Python bindings from the schema
 │  └─ test-local.mts        # Local test gate (pnpm test:local)
+├─ CHANGELOG.md
 ├─ pnpm-workspace.yaml
 └─ .github/workflows/
-   ├─ integration-tests.yml
+   ├─ tests.yml                 # The local gate, on every pull request
+   ├─ integration-tests.yml     # Manual: integration suites against a deployed server
    ├─ publish-typescript-sdk.yml
    └─ publish-python-sdk.yml
 ```
@@ -90,6 +92,13 @@ Reasoning-Ledger/
 ---
 
 ## Getting started
+
+```sh
+npm install reasoning-ledger-sdk   # TypeScript / Node.js
+pip install reasoning-ledger       # Python 3.12+
+```
+
+Upgrading from 0.3? See the [changelog](./CHANGELOG.md).
 
 ### 1. Get an API key and an endpoint
 
@@ -223,4 +232,4 @@ So the version people install by default always matches the production server, a
 
 ## License
 
-MIT
+[MIT](./LICENSE)

@@ -1,6 +1,6 @@
 # reasoning-ledger
 
-Python SDK for the [Reasoning Ledger](https://github.com/StairAI/Reasoning-Ledger) — a tamper-evident audit trail for AI agent reasoning.
+Python SDK for the [Reasoning Ledger](https://github.com/StairAI/Reasoning-Ledger) — an append-only audit trail for AI agent reasoning.
 
 ## Install
 
@@ -9,6 +9,13 @@ pip install reasoning-ledger
 ```
 
 Requires **Python 3.12+**. Dependencies: `pydantic>=2`, `httpx>=0.27`.
+
+### Upgrading from 0.3
+
+- `endpoint` is required — in `LedgerClientConfig`, `RegisterAgentOpts` and `ResolveAgentOpts`. The `environment` option and the `ENDPOINTS` constant are gone (their built-in hosts never resolved).
+- Records use schema 0.4: every record needs `executor` and `record_phase`; `ToolCalling.success` is replaced by `outcome`.
+- Prompts, payloads and internal reasoning are content references. Pass raw values and the SDK uploads them (see [Content](#content)); `SIZE_LIMITS` no longer caps them.
+- New: `submit_attesting`, `put_content`, `get_content`. `agent_wallet_address` may be `None`.
 
 ## Quick start
 

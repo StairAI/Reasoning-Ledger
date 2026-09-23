@@ -232,7 +232,7 @@ wheels = [
 
 [[package]]
 name = "reasoning-ledger"
-version = "1.0.0rc1"
+version = "1.0.0"
 source = { editable = "../../python-sdk" }
 dependencies = [
     { name = "httpx" },
