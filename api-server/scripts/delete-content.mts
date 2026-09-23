@@ -15,6 +15,7 @@
  * same CONTENT_DIR the server uses.
  */
 
+import "./env.mts";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";

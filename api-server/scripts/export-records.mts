@@ -17,6 +17,7 @@
  * against the database. Needs DATABASE_URL.
  */
 
+import "./env.mts";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";

@@ -4,7 +4,7 @@
  *
  *   pnpm --dir api-server db:deploy
  *
- * Environment:
+ * Environment (from the process, or from api-server/.env):
  *   MIGRATION_DATABASE_URL  migration account (falls back to DATABASE_URL)
  *   RL_RUNTIME_ROLE         role the server connects as; when set, prisma/grants.sql
  *                           is applied for it after migrating
@@ -14,6 +14,7 @@
  *   pnpm --dir api-server exec prisma migrate resolve --applied 20260428075327_init_schema
  */
 
+import "./env.mts";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
