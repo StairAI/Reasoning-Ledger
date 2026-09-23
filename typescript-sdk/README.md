@@ -28,7 +28,7 @@ Agent registration is idempotent on `(owner, name)` — calling it again with th
 ```typescript
 import { LedgerClient } from "reasoning-ledger-sdk";
 
-const endpoint = "https://stg-api.stair-ai.com"; // your Reasoning Ledger API base URL — required
+const endpoint = "https://api.stair-ai.com"; // the hosted service, or your own server — required
 
 const { agent_id, agent_wallet_address } = await LedgerClient.registerAgent({
   apiKey: process.env.STAIRAI_API_KEY!,
@@ -275,7 +275,7 @@ const config: LedgerClientConfig = {
   agentId: "uuid-v4",
 
   // Base URL of the Reasoning Ledger API — required, no default
-  endpoint: "https://stg-api.stair-ai.com",
+  endpoint: "https://api.stair-ai.com",
 
   // Default ModelInvocation stamped on every record unless overridden per-record
   defaultModelInvocation: {
