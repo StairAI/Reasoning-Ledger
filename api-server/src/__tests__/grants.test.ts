@@ -59,6 +59,24 @@ describe.skipIf(!runtimeUrl)("runtime database account", () => {
     ).rejects.toThrow(/permission denied/);
   });
 
+  it("issues, spends and clears viewer sign-in tickets", async () => {
+    const id = "f".repeat(64);
+    const issued = await runtime.query(
+      `INSERT INTO viewer_tickets (id, owner_id, next, expires_at)
+       VALUES ($1, $2, '/', now() + interval '1 minute')`,
+      [id, owner.ownerId],
+    );
+    expect(issued.rowCount).toBe(1);
+    const spent = await runtime.query(
+      `UPDATE viewer_tickets SET used_at = now()
+       WHERE id = $1 AND used_at IS NULL AND expires_at > now() RETURNING owner_id`,
+      [id],
+    );
+    expect(spent.rows).toStrictEqual([{ owner_id: owner.ownerId }]);
+    const cleared = await runtime.query("DELETE FROM viewer_tickets WHERE id = $1", [id]);
+    expect(cleared.rowCount).toBe(1);
+  });
+
   it("cannot write the content deletion log or read the migration history", async () => {
     await expect(
       runtime.query(

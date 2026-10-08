@@ -381,6 +381,7 @@ export const ModelName = {
   ContentObject: "ContentObject",
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
+  ViewerTicket: "ViewerTicket",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -406,7 +407,8 @@ export type TypeMap<
       | "traceRecord"
       | "contentObject"
       | "contentDeletion"
-      | "vizSession";
+      | "vizSession"
+      | "viewerTicket";
     txIsolationLevel: TransactionIsolationLevel;
   };
   model: {
@@ -858,6 +860,82 @@ export type TypeMap<
         };
       };
     };
+    ViewerTicket: {
+      payload: Prisma.$ViewerTicketPayload<ExtArgs>;
+      fields: Prisma.ViewerTicketFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.ViewerTicketFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.ViewerTicketFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>;
+        };
+        findFirst: {
+          args: Prisma.ViewerTicketFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.ViewerTicketFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>;
+        };
+        findMany: {
+          args: Prisma.ViewerTicketFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>[];
+        };
+        create: {
+          args: Prisma.ViewerTicketCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>;
+        };
+        createMany: {
+          args: Prisma.ViewerTicketCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.ViewerTicketCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>[];
+        };
+        delete: {
+          args: Prisma.ViewerTicketDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>;
+        };
+        update: {
+          args: Prisma.ViewerTicketUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>;
+        };
+        deleteMany: {
+          args: Prisma.ViewerTicketDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.ViewerTicketUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.ViewerTicketUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>[];
+        };
+        upsert: {
+          args: Prisma.ViewerTicketUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewerTicketPayload>;
+        };
+        aggregate: {
+          args: Prisma.ViewerTicketAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateViewerTicket>;
+        };
+        groupBy: {
+          args: Prisma.ViewerTicketGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ViewerTicketGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.ViewerTicketCountArgs<ExtArgs>;
+          result:
+            | runtime.Types.Utils.Optional<Prisma.ViewerTicketCountAggregateOutputType>
+            | number;
+        };
+      };
+    };
   };
 } & {
   other: {
@@ -984,6 +1062,18 @@ export const VizSessionScalarFieldEnum = {
 
 export type VizSessionScalarFieldEnum =
   (typeof VizSessionScalarFieldEnum)[keyof typeof VizSessionScalarFieldEnum];
+
+export const ViewerTicketScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  next: "next",
+  created_at: "created_at",
+  expires_at: "expires_at",
+  used_at: "used_at",
+} as const;
+
+export type ViewerTicketScalarFieldEnum =
+  (typeof ViewerTicketScalarFieldEnum)[keyof typeof ViewerTicketScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",
@@ -1290,6 +1380,7 @@ export type GlobalOmitConfig = {
   contentObject?: Prisma.ContentObjectOmit;
   contentDeletion?: Prisma.ContentDeletionOmit;
   vizSession?: Prisma.VizSessionOmit;
+  viewerTicket?: Prisma.ViewerTicketOmit;
 };
 
 /* Types for Logging */

@@ -37,6 +37,7 @@ pnpm install
 | `RL_REGISTRATION_TOKEN`  | No       | Registers owners and reads nothing. Give this one to the application that signs people up                   |
 | `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open`, registration attempts allowed per client address per hour (default 5)          |
 | `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                             |
+| `VIZ_TICKET_TTL_SECONDS` | No       | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                     |
 | `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                                        |
 
 Uploaded content lives on the server's filesystem, so `CONTENT_DIR` needs storage that survives a restart or redeploy (a mounted volume in a container), and belongs in the same backup schedule as the database: a record keeps the hash of content whose bytes are gone, but the bytes cannot be recovered from it.
@@ -131,6 +132,7 @@ The schema is defined in [`prisma/schema.prisma`](./prisma/schema.prisma), with 
 | `ContentObject`   | `content_objects`   | Which owner uploaded which content hash, and whether it was deleted                                          |
 | `ContentDeletion` | `content_deletions` | Append-only log of content deletions: owner, hash, reason, operator                                          |
 | `VizSession`      | `viz_sessions`      | Trace viewer sign-ins                                                                                        |
+| `ViewerTicket`    | `viewer_tickets`    | One-time viewer sign-in links; holds the SHA-256 of each ticket, never the ticket                            |
 
 `api_key` values are never stored raw — only the SHA-256 hex digest is persisted. The raw key is shown once at registration and cannot be recovered.
 
@@ -140,7 +142,7 @@ Records written as schema `0.1`–`0.3` keep their original shape. A database co
 
 Authenticate with the owner's API key in the `X-API-Key` header. The API reference is served at `/v1` and the OpenAPI document at `/v1/spec.json`.
 
-The read endpoints also accept the administrator's token in `X-Admin-Token`, which reads across every owner; each such read is logged as one `admin_read` line on stdout. Writes always need an owner's API key: a record belongs to an owner, so there is nobody to attribute an administrator's write to.
+The read endpoints also accept the administrator's token in `X-Admin-Token`, which reads across every owner; each such read is logged as one `admin_read` line on stdout. Writes always need an owner's API key: a record belongs to an owner, so there is nobody to attribute an administrator's write to. So do viewer sign-in links: the administrator signs into the viewer only at `/login`.
 
 | Method         | Path                        | Description                                                                    |
 | -------------- | --------------------------- | ------------------------------------------------------------------------------ |
@@ -159,6 +161,7 @@ The read endpoints also accept the administrator's token in `X-Admin-Token`, whi
 | `GET`          | `/v1/traces`                | The calling owner's sessions, most recent first                                |
 | `PUT`          | `/v1/content/{sha256}`      | Upload raw content; the body's SHA-256 must equal the path (SDK: `putContent`) |
 | `GET`, `HEAD`  | `/v1/content/{sha256}`      | Read uploaded content (SDK: `getContent`); `410` once deleted                  |
+| `POST`         | `/v1/viewer/tickets`        | A one-time link that signs a browser into the trace viewer as the owner        |
 
 Every read is limited to the calling owner's data: another owner's agent, record or session answers `404`.
 
@@ -170,9 +173,37 @@ Records are written only as schema `0.4`. The server checks each record against 
 
 ## Trace viewer
 
-The pages at `/` list the signed-in visitor's sessions and render each session as a graph. Sign in at `/login` with an owner's API key, which shows that owner's data and nothing else, or with `RL_ADMIN_TOKEN`, which lists every owner's sessions and opens any trace — the header then reads "Administrator · all owners". The viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie; the `/v1` API does not use the cookie.
+The pages at `/` list the signed-in visitor's sessions and render each session as a graph. Sign in at `/login` with an owner's API key, which shows that owner's data and nothing else, or with `RL_ADMIN_TOKEN`, which lists every owner's sessions and opens any trace — the header then reads "Administrator · all owners". Signed in as an owner, the header names that owner: its display name, or its e-mail when it has none. An application can also sign a person in for one owner with a one-time link ([below](#signing-a-person-into-the-viewer-from-your-application)). The viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and deletes expired sessions whenever someone signs in; the `/v1` API does not use the cookie.
 
 Content that records reference is read from the content store of the owner those records belong to, and shown inline when it is text or JSON of up to 256 KiB; other content is described by its size and media type, and deleted content is marked as deleted. Sign-in and sign-out accept form posts only from the site's own pages (Astro's global origin check is off because it also blocks API clients; see `astro.config.mjs`).
+
+### Signing a person into the viewer from your application
+
+An application that keeps an owner's API key on its server can send a person straight to that owner's traces, without the person ever seeing or pasting the key:
+
+1. When the person clicks through, the application's server asks the ledger for a ticket:
+
+   ```sh
+   curl -X POST https://<ledger>/v1/viewer/tickets \
+     -H "X-API-Key: $OWNER_API_KEY" -H "Content-Type: application/json" \
+     -d '{"next": "/traces/<agent_id>/<session_id>"}'
+   # {"ticket_url":"/session/ticket/<ticket>","expires_at":1767225600000}
+   ```
+
+2. It sends the browser to `ticket_url` straight away, prefixed with the ledger's public origin: the address people's browsers use, which may differ from the one your server calls. The browser must open it with a `GET`, so use a `302` or `303` redirect, or a link. A `307` or `308` redirect in answer to a form post makes the browser repeat the `POST`, and any method other than `GET` or `HEAD` answers `405` without signing in.
+3. The ledger exchanges the ticket for an ordinary viewer session, the same as signing in at `/login`, and opens `next`. The browser is now signed in as this owner, in place of whoever it was signed in as. It keeps the session it had only when that session is already this owner's and the browser sends the viewer's cookie along, which it does only when your application is on the same site as the ledger (two subdomains of one domain, for example). A click from another site always starts a new session.
+
+`next` is a path on the ledger's own site, and defaults to `/`; anything else, including another origin, opens `/`. `expires_at` is in epoch milliseconds.
+
+What keeps this safe:
+
+- **Single use.** Opening the link spends the ticket. Opening it again, even in a request racing the first, lands on the sign-in page with "This sign-in link has expired or was already used".
+- **Short-lived.** A ticket expires 60 seconds after it is issued (`VIZ_TICKET_TTL_SECONDS`, between 10 and 600). Mint one per click; do not email, post or store the link.
+- **Owner-scoped.** A ticket signs in as the owner whose key minted it and shows only that owner's data. The administrator token cannot mint tickets.
+- **Kept out of storage, logs and caches.** The database holds the SHA-256 of each ticket, not the ticket. The log has one `viewer_ticket` line per issuance and per use, with the owner and the outcome (`issued`, `used`, `already_used`, `expired` or `unknown`); a request with another method is answered `405` and not logged with its address. The page that spends the ticket is sent with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, so the link stays out of caches and out of the `Referer` of the page that follows.
+- **The key stays on your server.** Never put an owner's API key in a browser, a mobile app or a front-end bundle: whoever can read it can read and write that owner's records and rotate the key. The browser only ever sees the ticket.
+
+What it trades away: opening a link signs the browser in with one click and no question asked, so anyone who holds an owner's key can make a link, on any site, that signs a browser in as that owner in place of the session it had, the administrator's included. The viewer is read-only, so a person signed in this way cannot write anything into that owner's account, and every page names the account it reads as. On a private deployment, keep registration closed (`RL_REGISTRATION=admin`, the default), so that only owners you registered hold keys that can make such links.
 
 ## License
 

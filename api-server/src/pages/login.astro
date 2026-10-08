@@ -6,6 +6,11 @@ export const prerender = false;
 // The form posts to /session, which signs the visitor in and redirects back.
 const next = Astro.url.searchParams.get("next") ?? "/";
 const error = Astro.url.searchParams.get("error") ? "That token is not valid." : null;
+// Set by /session/ticket/{ticket} when a one-time sign-in link no longer works.
+// Says nothing about why: an unknown, a used and an expired link look the same.
+const expired = Astro.url.searchParams.get("expired")
+  ? "This sign-in link has expired or was already used. Sign in again."
+  : null;
 ---
 
 <Layout title="Reasoning Ledger · Sign in">
@@ -16,6 +21,13 @@ const error = Astro.url.searchParams.get("error") ? "That token is not valid." :
       <p class="text-[13px] text-ink/50">
         Use your owner API token. You will see only your own agents' traces.
       </p>
+      {
+        expired && (
+          <p role="status" class="text-[12px] text-ink/60">
+            {expired}
+          </p>
+        )
+      }
       <label class="flex flex-col gap-1 text-[12px] text-ink/60">
         API token
         <input

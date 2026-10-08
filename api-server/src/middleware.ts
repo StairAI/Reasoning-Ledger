@@ -4,6 +4,7 @@
  * or the instance administrator, who reads across owners.
  * The /v1 API (and its reference page at /v1) authenticates each request with
  * its own API key and is not affected; /health answers the platform's check; the login page and built assets stay reachable.
+ * A one-time sign-in link (/session/ticket/{ticket}) is open too: the ticket is the credential.
  */
 
 import { defineMiddleware } from "astro:middleware";
@@ -14,6 +15,7 @@ const OPEN_PATHS = [
   /^\/health$/,
   /^\/login\/?$/,
   /^\/session$/,
+  /^\/session\/ticket\/[^/]+\/?$/,
   /^\/_astro\//,
   /^\/favicon/,
 ];

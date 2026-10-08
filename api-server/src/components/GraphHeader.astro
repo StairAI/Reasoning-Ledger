@@ -19,4 +19,12 @@ const { title, backHref = "/" } = Astro.props;
   </a>
   <span class="h-4 w-px bg-line-strong"></span>
   <span class="font-sans font-medium text-ink">{title}</span>
+  {
+    Astro.slots.has("default") && (
+      <>
+        <span class="h-4 w-px bg-line-strong"></span>
+        <slot />
+      </>
+    )
+  }
 </div>

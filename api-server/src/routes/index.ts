@@ -11,6 +11,7 @@ import { agentsRouter } from "./agents";
 import { recordsRouter } from "./records";
 import { sessionsRouter } from "./sessions";
 import { tracesRouter } from "./traces";
+import { viewerRouter } from "./viewer";
 
 /**
  * Root oRPC router for the Reasoning Ledger API.
@@ -21,6 +22,7 @@ import { tracesRouter } from "./traces";
  *   - records:  Data plane   — record submission and retrieval
  *   - sessions: Data plane   — session record retrieval
  *   - traces:   Data plane   — paginated agent trace retrieval
+ *   - viewer:   Control plane — one-time sign-in links into the trace viewer
  *
  * Tags are declared per-procedure via .route({ tags }) so the Scalar/Swagger
  * UI renders them in labelled, collapsible sections.
@@ -31,6 +33,7 @@ export const router = {
   records: recordsRouter,
   sessions: sessionsRouter,
   traces: tracesRouter,
+  viewer: viewerRouter,
 };
 
 export type Router = typeof router;
@@ -92,6 +95,12 @@ export const handler = new OpenAPIHandler(router, {
             description:
               "Data plane — paginated read of an agent's full append-only reasoning trace, newest first.",
             name: "Traces",
+          },
+          {
+            description:
+              "Trace viewer sign-in — one-time links an application mints with its owner API key, on its server, " +
+              "to send a person straight into the viewer without the key ever reaching a browser.",
+            name: "Viewer",
           },
         ],
       },

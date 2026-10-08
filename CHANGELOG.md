@@ -2,6 +2,25 @@
 
 The server and both SDKs share one version line; a patch release names the packages it changes. The record schema is numbered separately: SDK and server 1.0.x write schema `0.4`.
 
+## Unreleased
+
+Server only.
+
+### Added
+
+- **One-time sign-in links for the trace viewer.** `POST /v1/viewer/tickets`, called with an owner's API key, returns a `ticket_url` that signs a browser into the viewer as that owner and opens the page given as `next`. An application that keeps the key on its server can send people to their traces without the key ever reaching a browser. A link works once and expires after 60 seconds (`VIZ_TICKET_TTL_SECONDS`, between 10 and 600); only an owner's key mints one, never the administrator token. The database keeps the SHA-256 of each ticket, and every issuance and use is logged as one `viewer_ticket` line with the owner and the outcome. See [Signing a person into the viewer from your application](./api-server/README.md#signing-a-person-into-the-viewer-from-your-application).
+- The sign-in page says when it was reached through a link that has expired or was already used.
+- Signed in as an owner, the viewer's header names the owner, as it already did for the administrator. A one-time link signs a browser in with one click, so the account a page reads as is always in view; see what this [trades away](./api-server/README.md#signing-a-person-into-the-viewer-from-your-application).
+
+### Fixed
+
+- **Signing in can no longer send a person to another site.** The page to open after signing in (`next`) was checked before its dot segments were resolved, so `/login?next=/.//evil.example` opened `//evil.example`, another site, right after a successful sign-in. The resolved path is checked now, and anything that would leave the site opens `/`.
+- Expired viewer sessions are deleted whenever someone signs in. Before, a session whose cookie the browser no longer held stayed in `viz_sessions` for good.
+
+### Upgrading
+
+- A new migration adds the `viewer_tickets` table. `db:deploy` applies it, and the runtime account's privileges with it.
+
 ## 1.0.1 — 2026-09-23
 
 Server only; the SDKs stay at 1.0.0.
