@@ -13,9 +13,11 @@ import type { TestOwner } from "./helpers";
 
 describe("Visualiser login sessions", () => {
   let owner: TestOwner;
+  let email: string;
 
   beforeAll(async () => {
     owner = await makeTestOwner();
+    ({ email } = await prisma.owner.findUniqueOrThrow({ where: { id: owner.ownerId } }));
   });
 
   afterAll(async () => {
@@ -28,6 +30,7 @@ describe("Visualiser login sessions", () => {
     await expect(viewerForSession(session.id)).resolves.toStrictEqual({
       admin: false,
       ownerId: owner.ownerId,
+      ownerName: email,
     });
 
     await endVizSession(session.id);
@@ -49,6 +52,38 @@ describe("Visualiser login sessions", () => {
     await expect(prisma.vizSession.findUnique({ where: { id: session.id } })).resolves.toBeNull();
   });
 
+  it("names the owner by display name, else by e-mail", async () => {
+    const session = await startVizSession(owner.ownerId);
+    try {
+      for (const [displayName, name] of [
+        ["Acme <Research> & Co", "Acme <Research> & Co"],
+        ["   ", email],
+        [null, email],
+      ] as const) {
+        await prisma.owner.update({
+          data: { display_name: displayName },
+          where: { id: owner.ownerId },
+        });
+        await expect(viewerForSession(session.id)).resolves.toMatchObject({ ownerName: name });
+      }
+    } finally {
+      await endVizSession(session.id);
+    }
+  });
+
+  it("clears expired sessions when starting one", async () => {
+    const [old, live] = [await startVizSession(owner.ownerId), await startVizSession(null)];
+    await prisma.vizSession.update({
+      data: { expires_at: new Date(Date.now() - 1000) },
+      where: { id: old.id },
+    });
+    const fresh = await startVizSession(owner.ownerId);
+    await expect(prisma.vizSession.findUnique({ where: { id: old.id } })).resolves.toBeNull();
+    await expect(viewerForSession(live.id)).resolves.toMatchObject({ admin: true });
+    await expect(viewerForSession(fresh.id)).resolves.toMatchObject({ ownerId: owner.ownerId });
+    await Promise.all([endVizSession(live.id), endVizSession(fresh.id)]);
+  });
+
   it("resolves a session started without an owner to the administrator", async () => {
     const session = await startVizSession(null);
     await expect(viewerForSession(session.id)).resolves.toStrictEqual({
@@ -67,6 +102,7 @@ describe("Visualiser login sessions", () => {
 describe("Sign-in redirect target", () => {
   it("keeps paths on this site", () => {
     expect(safeNext("/traces/a/b?x=1#top")).toBe("/traces/a/b?x=1#top");
+    expect(safeNext("/traces/./a/../b?next=//x")).toBe("/traces/b?next=//x");
     expect(safeNext("/")).toBe("/");
   });
 
@@ -75,6 +111,12 @@ describe("Sign-in redirect target", () => {
       "//evil.example",
       "/\\evil.example",
       "/\t/evil.example",
+      // Dot segments resolve to "//evil.example", another origin to a browser.
+      "/.//evil.example",
+      "/..//evil.example",
+      "/%2e//evil.example",
+      "/a/..//evil.example",
+      "/./\\evil.example",
       "https://evil.example/",
       "evil.example",
       "",

@@ -74,3 +74,8 @@ export type ContentDeletion = Prisma.ContentDeletionModel;
  *
  */
 export type VizSession = Prisma.VizSessionModel;
+/**
+ * Model ViewerTicket
+ *
+ */
+export type ViewerTicket = Prisma.ViewerTicketModel;

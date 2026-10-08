@@ -1,0 +1,26 @@
+---
+import type { Viewer } from "#/lib/viz-session";
+
+interface Props {
+  viewer?: Viewer;
+}
+
+// Which account the page reads as, on every page. A one-time link from
+// another site can sign a browser in as the owner who made it (README,
+// "Signing a person into the viewer"), so the account must always be in view.
+const { viewer } = Astro.props;
+---
+
+{
+  viewer?.admin ? (
+    <span class="rounded-sm border border-line-strong px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-ink/70">
+      Administrator · all owners
+    </span>
+  ) : (
+    viewer?.ownerName && (
+      <span class="min-w-0 max-w-[320px] truncate text-[12px] text-ink/50">
+        Signed in as <span class="text-ink/80">{viewer.ownerName}</span>
+      </span>
+    )
+  )
+}

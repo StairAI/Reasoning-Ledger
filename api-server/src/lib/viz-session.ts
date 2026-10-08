@@ -21,14 +21,26 @@ function ttlMs(): number {
 export interface Viewer {
   ownerId: string | null;
   admin: boolean;
+  /**
+   * How the pages name the owner: the display name, else the e-mail, else the
+   * id. Unset for the administrator.
+   */
+  ownerName?: string;
 }
 
-/** Start a session for an owner, or for the administrator when ownerId is null. */
+/**
+ * Start a session for an owner, or for the administrator when ownerId is null.
+ * Expired sessions go first: a browser drops its cookie when the session
+ * expires, and a sign-in from another site replaces the cookie without sending
+ * it, so most sessions are never presented again to be ended.
+ */
 export async function startVizSession(
   ownerId: string | null,
 ): Promise<{ id: string; expiresAt: Date }> {
+  const now = Date.now();
+  await prisma.vizSession.deleteMany({ where: { expires_at: { lte: new Date(now) } } });
   const id = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + ttlMs());
+  const expiresAt = new Date(now + ttlMs());
   await prisma.vizSession.create({ data: { expires_at: expiresAt, id, owner_id: ownerId } });
   return { expiresAt, id };
 }
@@ -38,7 +50,10 @@ export async function viewerForSession(id?: string): Promise<Viewer | undefined>
   if (!id) {
     return undefined;
   }
-  const session = await prisma.vizSession.findUnique({ where: { id } });
+  const session = await prisma.vizSession.findUnique({
+    include: { owner: { select: { display_name: true, email: true } } },
+    where: { id },
+  });
   if (!session) {
     return undefined;
   }
@@ -46,7 +61,11 @@ export async function viewerForSession(id?: string): Promise<Viewer | undefined>
     await prisma.vizSession.deleteMany({ where: { id } });
     return undefined;
   }
-  return { admin: session.owner_id === null, ownerId: session.owner_id };
+  if (session.owner_id === null) {
+    return { admin: true, ownerId: null };
+  }
+  const ownerName = session.owner?.display_name?.trim() || session.owner?.email || session.owner_id;
+  return { admin: false, ownerId: session.owner_id, ownerName };
 }
 
 export async function endVizSession(id?: string): Promise<void> {
@@ -81,10 +100,15 @@ export function fromThisSite(request: Request): boolean {
 
 const SAME_ORIGIN = "http://viewer.invalid";
 
+/** A path that a browser reads as another host: "//host" or "/\host". */
+const OTHER_HOST = /^\/[/\\]/;
+
 /**
  * Where to send a visitor after signing in: a path on this site, never another
  * origin. Parsed the way a browser would, so "//host", "/\host" and paths with
- * embedded tabs or newlines cannot leave the site.
+ * embedded tabs or newlines cannot leave the site. The parsed result is what is
+ * checked, not the input: parsing collapses dot segments, so "/.//host" and
+ * "/a/..//host" come out as "//host".
  */
 export function safeNext(value: unknown): string {
   if (typeof value !== "string" || !value.startsWith("/")) {
@@ -92,7 +116,12 @@ export function safeNext(value: unknown): string {
   }
   try {
     const url = new URL(value, SAME_ORIGIN);
-    return url.origin === SAME_ORIGIN ? `${url.pathname}${url.search}${url.hash}` : "/";
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    const staysHere =
+      url.origin === SAME_ORIGIN &&
+      !OTHER_HOST.test(next) &&
+      new URL(next, SAME_ORIGIN).origin === SAME_ORIGIN;
+    return staysHere ? next : "/";
   } catch {
     return "/";
   }
