@@ -13,3 +13,7 @@
 **/.venv
 python-sdk
 *.log
+# Local content stores. The image creates /app/data itself, empty, and makes
+# api-server/data point at it.
+data
+api-server/data

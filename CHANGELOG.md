@@ -4,22 +4,35 @@ The server and both SDKs share one version line; a patch release names the packa
 
 ## Unreleased
 
-Server only.
+The server and its image; the SDKs are unchanged.
 
 ### Added
 
 - **One-time sign-in links for the trace viewer.** `POST /v1/viewer/tickets`, called with an owner's API key, returns a `ticket_url` that signs a browser into the viewer as that owner and opens the page given as `next`. An application that keeps the key on its server can send people to their traces without the key ever reaching a browser. A link works once and expires after 60 seconds (`VIZ_TICKET_TTL_SECONDS`, between 10 and 600); only an owner's key mints one, never the administrator token. The database keeps the SHA-256 of each ticket, and every issuance and use is logged as one `viewer_ticket` line with the owner and the outcome. See [Signing a person into the viewer from your application](./api-server/README.md#signing-a-person-into-the-viewer-from-your-application).
 - The sign-in page says when it was reached through a link that has expired or was already used.
 - Signed in as an owner, the viewer's header names the owner, as it already did for the administrator. A one-time link signs a browser in with one click, so the account a page reads as is always in view; see what this [trades away](./api-server/README.md#signing-a-person-into-the-viewer-from-your-application).
+- **A published server image**, `ghcr.io/stairai/reasoning-ledger`, with the API and the trace viewer. A version tag publishes `<version>`, and `latest` for the highest release; pull requests that touch the server build the image and smoke-test it against a throwaway database. See [Running the published image](./api-server/README.md#running-the-published-image).
+- Image subcommands: `start` (the default, as before: migrate, then serve), `migrate` (migrate and exit) and `serve` (serve only). With `migrate` and `serve`, the long-running server never holds the migration account's credentials.
+- A `HEALTHCHECK` on `/health`.
+
+### Changed
+
+- The server in the image runs as an unprivileged user (`rl`, uid 10001). Started as root, as by default, the container first gives the content directory and its per-owner directories to that user when they belong to someone else, such as a bind mount owned by root (stored objects keep their owner), and stops with an error when the directory is not writable. A container that cannot switch users, or cannot give the content directory to `rl`, for example one started with all capabilities dropped, says so in its log and runs as root, as before.
+- Content stays in `/app/data/content` unless `CONTENT_DIR` says otherwise. `/app/data` now exists in the image and belongs to `rl`, so a named volume mounted there starts out writable for the server.
+- The server process no longer inherits `MIGRATION_DATABASE_URL`, with `start` as with `serve`.
+- The image is built on an exact Node.js release (24.21.0, Debian bookworm) and pnpm version (11.28.2) instead of floating tags.
 
 ### Fixed
 
 - **Signing in can no longer send a person to another site.** The page to open after signing in (`next`) was checked before its dot segments were resolved, so `/login?next=/.//evil.example` opened `//evil.example`, another site, right after a successful sign-in. The resolved path is checked now, and anything that would leave the site opens `/`.
 - Expired viewer sessions are deleted whenever someone signs in. Before, a session whose cookie the browser no longer held stayed in `viz_sessions` for good.
+- Operator commands run in the container (`docker exec <container> pnpm --dir api-server …`) find content where the server keeps it. Without `CONTENT_DIR` they looked in `/app/api-server/data/content`, so `delete-content` marked content deleted but left its bytes on disk.
 
 ### Upgrading
 
 - A new migration adds the `viewer_tickets` table. `db:deploy` applies it, and the runtime account's privileges with it.
+- Keep the content volume where it is mounted, and `CONTENT_DIR` if you set it.
+- Deploy this image the first time by replacing the running container (stop-first) rather than starting the new one beside it, or restart the new container once the old one is gone. The new container gives the content directories to `rl` as it starts; meanwhile the old one, which runs as root, can create a directory for an owner's first upload that `rl` cannot write, and that owner's uploads then fail until the next start. Later upgrades are not affected.
 
 ## 1.0.1 — 2026-09-23
 

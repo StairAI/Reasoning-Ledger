@@ -1,0 +1,422 @@
+name: Server image
+
+# Builds the server image (the /v1 API and the trace viewer) and smoke-tests it
+# against a throwaway database: `migrate` as the migration account, `serve` as
+# the runtime account alone, the default `start`, and `serve` as root without
+# capabilities. Pull requests that touch the server stop there. A version tag
+# (v1.2.3 on master, or v1.2.3-rc.1 on develop for a pre-release) then
+# publishes the image to the GitHub Container Registry as
+# ghcr.io/<owner>/reasoning-ledger:<version>, and as `latest` for the highest
+# release. Run it by hand on a tag to publish a version whose run failed.
+
+on:
+  pull_request:
+    paths:
+      - "api-server/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".dockerignore"
+      - ".github/workflows/server-image.yml"
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# A newer push to the same branch replaces a run still in flight.
+concurrency:
+  group: server-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SMOKE_IMAGE: reasoning-ledger:smoke
+
+jobs:
+  smoke:
+    name: Build and smoke-test the image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The two accounts of a production deployment (api-server/README.md,
+      # "Database accounts"): one owns the database and migrates it, the other
+      # is all the server gets. The containers share the runner's network.
+      MIGRATION_URL: postgresql://rl_owner:owner-secret@127.0.0.1:5432/rl
+      RUNTIME_URL: postgresql://rl_runtime:runtime-secret@127.0.0.1:5432/rl
+      ADMIN_TOKEN: smoke-test-admin-token
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: api-server/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.SMOKE_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Show the image size
+        run: docker image ls "$SMOKE_IMAGE"
+
+      - name: Create the database and its two accounts
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER" psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE rl_owner LOGIN PASSWORD 'owner-secret';
+          CREATE ROLE rl_runtime LOGIN PASSWORD 'runtime-secret';
+          CREATE DATABASE rl OWNER rl_owner;
+          SQL
+
+      - name: Write the smoke-test helpers
+        run: |
+          cat > "$RUNNER_TEMP/smoke.sh" <<'SH'
+          # Wait until a container's server answers /health with 200; fail if
+          # the container exits first.
+          wait_for_health() {
+            for _ in $(seq 60); do
+              if [ "$(docker inspect -f '{{.State.Running}}' "$1")" != true ]; then
+                echo "::error::$1 exited before its server answered /health"
+                return 1
+              fi
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health")" = 200 ]; then
+                echo "ok: $1 answers /health on port $2"
+                return 0
+              fi
+              sleep 1
+            done
+            echo "::error::$1 did not answer /health with 200 within 60s"
+            return 1
+          }
+
+          # expect_status <status> <curl arguments...>
+          expect_status() {
+            want=$1
+            shift
+            # curl prints 000 when it cannot connect; report that, not exit.
+            got=$(curl -s -o /dev/null -w '%{http_code}' "$@") || true
+            if [ "$got" != "$want" ]; then
+              echo "::error::curl $* answered $got, expected $want"
+              return 1
+            fi
+            echo "ok: $want from curl $*"
+          }
+
+          # Once the entrypoint has handed over, the server is the container's
+          # PID 1: it must run as the image's unprivileged user and must not
+          # have the migration account's credentials in its environment.
+          check_server_process() {
+            if ! docker exec "$1" cat /proc/1/cmdline | tr '\0' ' ' | grep -q 'dist/server/entry.mjs'; then
+              echo "::error::PID 1 in $1 is not the server"
+              return 1
+            fi
+            uid=$(docker exec "$1" stat -c %u /proc/1)
+            if [ "$uid" != 10001 ]; then
+              echo "::error::the server in $1 runs as uid $uid, expected 10001"
+              return 1
+            fi
+            # Read as the server's own user: root in a container may not read
+            # another user's environment.
+            if docker exec --user 10001 "$1" cat /proc/1/environ | tr '\0' '\n' | grep -q '^MIGRATION_DATABASE_URL='; then
+              echo "::error::the server in $1 can see MIGRATION_DATABASE_URL"
+              return 1
+            fi
+            echo "ok: the server in $1 runs as uid 10001 without MIGRATION_DATABASE_URL"
+          }
+          SH
+
+      - name: "migrate: as the migration account, granting the runtime account"
+        run: |
+          docker run --rm --network host \
+            -e MIGRATION_DATABASE_URL="$MIGRATION_URL" \
+            -e RL_RUNTIME_ROLE=rl_runtime \
+            "$SMOKE_IMAGE" migrate
+
+      - name: "serve: the runtime account alone, content in the default place"
+        run: |
+          . "$RUNNER_TEMP/smoke.sh"
+          # Created the way a host usually creates a bind mount, owned by root,
+          # and mounted where content is kept without CONTENT_DIR. It already
+          # holds an owner's directory and object, written by an earlier image
+          # that ran as root.
+          data=$RUNNER_TEMP/serve-data
+          sudo install -d -o root -g root -m 0755 "$data" "$data/content" "$data/content/earlier-owner"
+          printf 'written as root\n' | sudo tee "$data/content/earlier-owner/object" >/dev/null
+          docker run -d --name rl-serve --network host \
+            -e DATABASE_URL="$RUNTIME_URL" \
+            -e PORT=4321 \
+            -e RL_ADMIN_TOKEN="$ADMIN_TOKEN" \
+            -v "$data:/app/data" \
+            "$SMOKE_IMAGE" serve
+          base=http://127.0.0.1:4321
+
+          wait_for_health rl-serve 4321
+          expect_status 200 "$base/login"
+          expect_status 401 "$base/v1/owners/me"
+          check_server_process rl-serve
+
+          # Register an owner and round-trip a content upload: the runtime
+          # account got its privileges, and the content store is writable.
+          owner=$(curl -fsS "$base/v1/owners" \
+            -H "content-type: application/json" \
+            -H "x-admin-token: $ADMIN_TOKEN" \
+            -d '{"email": "smoke-test@example.com"}')
+          api_key=$(printf '%s' "$owner" | jq -er .api_key)
+          owner_id=$(printf '%s' "$owner" | jq -er .owner_id)
+          printf 'smoke test content\n' > "$RUNNER_TEMP/content.txt"
+          sha256=$(sha256sum "$RUNNER_TEMP/content.txt" | cut -d' ' -f1)
+          expect_status 201 -X PUT "$base/v1/content/$sha256" \
+            -H "x-api-key: $api_key" \
+            -H "content-type: text/plain" \
+            --data-binary "@$RUNNER_TEMP/content.txt"
+          curl -fsS "$base/v1/content/$sha256" -H "x-api-key: $api_key" | cmp - "$RUNNER_TEMP/content.txt"
+          echo "ok: uploaded content reads back unchanged"
+
+          # The entrypoint handed the directories to the server's user and left
+          # the objects as they were; the server wrote its own.
+          not_owned=$(sudo find "$data/content" -type d ! -user 10001)
+          if [ -n "$not_owned" ]; then
+            echo "::error::directories not owned by uid 10001 in the content directory: $not_owned"
+            exit 1
+          fi
+          if [ "$(sudo stat -c %u "$data/content/earlier-owner/object")" != 0 ] ||
+            [ "$(sudo stat -c %u "$data/content/$owner_id/$sha256")" != 10001 ]; then
+            echo "::error::the entrypoint changed the owner of a stored object, or the server did not write its own"
+            exit 1
+          fi
+          echo "ok: the content directories belong to uid 10001, stored objects keep their owner"
+
+          # An operator command run with `docker exec`, as api-server/README.md
+          # documents it, finds the content where the server keeps it.
+          docker exec -e MIGRATION_DATABASE_URL="$MIGRATION_URL" rl-serve \
+            pnpm --dir api-server delete-content --owner "$owner_id" --sha256 "$sha256" \
+            --reason "smoke test" --operator ci
+          expect_status 410 "$base/v1/content/$sha256" -H "x-api-key: $api_key"
+          if sudo test -e "$data/content/$owner_id/$sha256"; then
+            echo "::error::delete-content left the object in the content directory"
+            exit 1
+          fi
+          echo "ok: delete-content removed the object the server stored"
+
+      - name: "start (the default command): migrate, then serve, with CONTENT_DIR set"
+        run: |
+          . "$RUNNER_TEMP/smoke.sh"
+          # As a deployment that builds from source runs it: no command, both
+          # accounts in one container, its own CONTENT_DIR on a root-owned mount.
+          sudo install -d -o root -g root -m 0755 "$RUNNER_TEMP/start-content"
+          docker run -d --name rl-start --network host \
+            -e MIGRATION_DATABASE_URL="$MIGRATION_URL" \
+            -e RL_RUNTIME_ROLE=rl_runtime \
+            -e DATABASE_URL="$RUNTIME_URL" \
+            -e PORT=4322 \
+            -e CONTENT_DIR=/srv/content \
+            -v "$RUNNER_TEMP/start-content:/srv/content" \
+            "$SMOKE_IMAGE"
+          base=http://127.0.0.1:4322
+
+          wait_for_health rl-start 4322
+          expect_status 200 "$base/login"
+          expect_status 401 "$base/v1/owners/me"
+          check_server_process rl-start
+
+          # The image's own HEALTHCHECK (on $PORT) reports the container healthy.
+          for _ in $(seq 45); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' rl-start)
+            if [ "$status" = healthy ]; then
+              echo "ok: Docker reports rl-start healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the image's health check left rl-start $status"
+          exit 1
+
+      - name: "serve: as root without capabilities, as earlier images could run"
+        run: |
+          . "$RUNNER_TEMP/smoke.sh"
+          # The container can neither switch users nor change owners: it says
+          # so, and runs as root, with content in the image's /app/data.
+          docker run -d --name rl-nocaps --network host --cap-drop ALL \
+            -e DATABASE_URL="$RUNTIME_URL" \
+            -e PORT=4323 \
+            "$SMOKE_IMAGE" serve
+          base=http://127.0.0.1:4323
+
+          wait_for_health rl-nocaps 4323
+          expect_status 401 "$base/v1/owners/me"
+          if ! docker logs rl-nocaps 2>&1 | grep -q 'warning: cannot switch to rl'; then
+            echo "::error::rl-nocaps did not warn that it runs as root"
+            exit 1
+          fi
+          uid=$(docker exec rl-nocaps stat -c %u /proc/1)
+          if [ "$uid" != 0 ]; then
+            echo "::error::the server in rl-nocaps runs as uid $uid, expected 0"
+            exit 1
+          fi
+          docker exec rl-nocaps test -w /app/data/content
+          echo "ok: without capabilities the server warns, runs as root and can store content"
+
+      - name: Server logs
+        if: failure()
+        run: |
+          for container in rl-serve rl-start rl-nocaps; do
+            echo "::group::$container"
+            docker logs "$container" 2>&1 || true
+            docker inspect -f '{{json .State.Health}}' "$container" 2>/dev/null || true
+            echo "::endgroup::"
+          done
+
+  release:
+    name: Check the tag against the server version
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+      image: ${{ steps.check.outputs.image }}
+      version: ${{ steps.check.outputs.version }}
+      latest: ${{ steps.check.outputs.latest }}
+
+    steps:
+      # The whole history and every tag: the checks below compare this commit
+      # with master and develop, and this version with the tags.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The server and the SDKs share one version line, and a release may leave
+      # the server out: its image is then not rebuilt under the new number. As
+      # for the SDKs (README.md, "Releasing the SDKs"), a release comes from
+      # master and a pre-release from develop, so `latest` always matches the
+      # production server; and `latest` never moves back to an older release.
+      - name: Check the version
+        id: check
+        run: |
+          if [ "$GITHUB_REF_TYPE" != tag ]; then
+            echo "::error::images are published from version tags such as v1.2.3; this run is on the branch $GITHUB_REF_NAME"
+            exit 1
+          fi
+          VERSION=${GITHUB_REF_NAME#v}
+          if [ "$VERSION" = "$GITHUB_REF_NAME" ] ||
+            ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::$GITHUB_REF_NAME is not a version tag (v1.2.3, or v1.2.3-rc.1 for a pre-release)"
+            exit 1
+          fi
+          SERVER=$(jq -r .version api-server/package.json)
+          if [ "$VERSION" != "$SERVER" ]; then
+            echo "::notice::api-server is at $SERVER, so $GITHUB_REF_NAME does not release the server and no image is published"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case $VERSION in
+            *-*) KIND=pre-release; EXPECTED=develop ;;
+            *) KIND=release; EXPECTED=master ;;
+          esac
+          if ! git rev-parse --verify --quiet "origin/$EXPECTED^{commit}" >/dev/null; then
+            echo "::error::cannot find origin/$EXPECTED to check $GITHUB_REF_NAME against"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$EXPECTED"; then
+            echo "::error::$GITHUB_REF_NAME is a $KIND, which is only published from a commit on $EXPECTED; $GITHUB_SHA is not on it"
+            exit 1
+          fi
+          LATEST=false
+          if [ "$KIND" = release ]; then
+            # Release tags on master only, so a stray tag elsewhere never holds it.
+            HIGHEST=$({ git tag --list 'v*' --merged origin/master; echo "$GITHUB_REF_NAME"; } |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+            if [ "$HIGHEST" = "$GITHUB_REF_NAME" ]; then
+              LATEST=true
+            else
+              echo "::notice::$HIGHEST is a higher release than $GITHUB_REF_NAME, so latest stays where it is"
+            fi
+          fi
+          {
+            echo "publish=true"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/reasoning-ledger"
+            echo "version=$VERSION"
+            echo "latest=$LATEST"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing $VERSION, a $KIND (latest: $LATEST)"
+
+  publish:
+    name: Publish to the GitHub Container Registry
+    needs: [smoke, release]
+    if: needs.release.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      IMAGE: ${{ needs.release.outputs.image }}
+      VERSION: ${{ needs.release.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A published version is never replaced: deployments pin it.
+      - name: Check the version is not published yet
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "::error::$IMAGE:$VERSION is already published; release a new version instead"
+            exit 1
+          fi
+
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ env.VERSION }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.latest == 'true' }}
+          labels: |
+            org.opencontainers.image.title=Reasoning Ledger server
+            org.opencontainers.image.description=Reasoning Ledger API and trace viewer
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.licenses=MIT
+
+      # The same Dockerfile, context and platform as the smoke test, so this
+      # build reuses the tested layers from its cache rather than rebuilding.
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: api-server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
