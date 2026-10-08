@@ -170,12 +170,28 @@ async function registerOwner(baseUrl: string, adminToken: string): Promise<strin
 }
 
 /**
+ * Values of `next` that a browser resolves to another origin, some only once
+ * their dot segments are resolved. Signing in with any of them must open `/`.
+ */
+const OFF_SITE_NEXT = [
+  "//evil.example",
+  "/\\evil.example",
+  "/.//evil.example",
+  "/..//evil.example",
+  "/%2e//evil.example",
+  "/a/..//evil.example",
+  "/./\\evil.example",
+];
+
+/**
  * The trace viewer on the built server: pages need a sign-in, the API
  * reference stays public, sign-in never redirects off-site, the owner's
- * session pages render with their referenced content, sign-out ends the
- * session. Runs after the integration suites, whose sessions it opens.
+ * session pages render with their referenced content and name the owner, a
+ * one-time sign-in link works once and only with a GET, sign-out ends the
+ * session. Runs after the integration suites, whose sessions it opens. Returns
+ * the sign-in tickets it minted, for the log check.
  */
-async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string): Promise<boolean> {
+async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string): Promise<string[]> {
   console.log("\n▶ smoke: trace viewer");
   const started = Date.now();
   const problems: string[] = [];
@@ -220,18 +236,36 @@ async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string):
     wrongKey.status === 303 && (wrongKey.headers.get("location") ?? "").startsWith("/login?error=1"),
     `sign-in with a wrong key: expected a redirect to /login?error=1, got ${wrongKey.status}`,
   );
-  const signIn = await request("/session", form({ next: "/\\evil.example", token: apiKey }));
+  for (const next of OFF_SITE_NEXT) {
+    const offSite = await request("/session", form({ next, token: apiKey }));
+    want(
+      offSite.status === 303 && offSite.headers.get("location") === "/",
+      `sign-in with next=${next}: expected a redirect to / (never off-site), got ${offSite.status} ${offSite.headers.get("location")}`,
+    );
+  }
+  const signIn = await request("/session", form({ next: "/", token: apiKey }));
   const cookie = (signIn.headers.get("set-cookie") ?? "").split(";")[0];
   want(
     signIn.status === 303 && signIn.headers.get("location") === "/",
-    `sign-in: expected a redirect to / (never off-site), got ${signIn.status} ${signIn.headers.get("location")}`,
+    `sign-in: expected a redirect to /, got ${signIn.status} ${signIn.headers.get("location")}`,
   );
   want(cookie.startsWith("rl_viz="), "sign-in: expected the rl_viz cookie");
+  // Every page names the owner it reads as, escaped like any other text.
+  const ownerName = 'Gate <smoke> & "owner"';
+  const ownerNameHtml = "Gate &lt;smoke&gt; &amp; &quot;owner&quot;";
+  const named = (html: string) =>
+    html.includes("Signed in as") && html.includes(ownerNameHtml) && !html.includes("<smoke>");
+  const renamed = await request("/v1/owners/me", {
+    body: JSON.stringify({ display_name: ownerName }),
+    headers: { "content-type": "application/json", "x-api-key": apiKey },
+    method: "PATCH",
+  });
+  want(renamed.status === 200, `PATCH /v1/owners/me: expected 200, got ${renamed.status}`);
   const signedIn = await request("/", { headers: { cookie } });
   want(signedIn.status === 200, `/ with a session: expected 200, got ${signedIn.status}`);
-  const links = [
-    ...new Set([...(await signedIn.text()).matchAll(/href="(\/traces\/[^"]+)"/g)].map((m) => m[1])),
-  ];
+  const indexHtml = await signedIn.text();
+  want(named(indexHtml), "/ with a session: expected the owner's name, escaped");
+  const links = [...new Set([...indexHtml.matchAll(/href="(\/traces\/[^"]+)"/g)].map((m) => m[1]))];
   want(links.length > 0, "/ with a session: expected links to the owner's sessions");
   const pages: { link: string; status: number; text: string }[] = [];
   for (const link of links) {
@@ -240,6 +274,9 @@ async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string):
   }
   for (const page of pages.filter((p) => p.status !== 200)) {
     want(false, `${page.link}: expected 200, got ${page.status}`);
+  }
+  for (const page of pages.filter((p) => p.status === 200 && !named(p.text))) {
+    want(false, `${page.link}: expected the owner's name, escaped`);
   }
   console.log(`  ${pages.length} session page(s) checked`);
   const rendered = pages.map((p) => p.text).join("\n");
@@ -268,6 +305,86 @@ async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string):
     "/ as the administrator: expected at least the owner's own sessions",
   );
 
+  // A one-time sign-in link, as an application hands one out: minted on its
+  // server with the owner's key, then opened by a browser that arrives from the
+  // application's site with no session, and never sees the key.
+  const targetHref = links[0] ?? "/"; // as the index page wrote it, HTML-escaped
+  const target = targetHref.replaceAll("&amp;", "&");
+  const tickets: string[] = [];
+  const mint = (headers: Record<string, string>, next = target) =>
+    request("/v1/viewer/tickets", {
+      body: JSON.stringify({ next }),
+      headers: { "content-type": "application/json", ...headers },
+      method: "POST",
+    });
+  /** A ticket from the owner's key, kept for the log check, and its ticket_url. */
+  const mintTicket = async (next = target) => {
+    const minted = await mint({ "x-api-key": apiKey }, next);
+    const ticketUrl = minted.ok ? ((await minted.json()) as { ticket_url?: string }).ticket_url : undefined;
+    const ticket = /^\/session\/ticket\/([A-Za-z0-9_-]{43})$/.exec(ticketUrl ?? "")?.[1];
+    want(ticket !== undefined, `sign-in link: expected a ticket_url, got ${minted.status}`);
+    if (ticket) {
+      tickets.push(ticket);
+    }
+    return ticket ? ticketUrl : undefined;
+  };
+  const byAdmin = await mint({ "x-admin-token": adminToken });
+  want(byAdmin.status === 401, `sign-in link with the administrator token: expected 401, got ${byAdmin.status}`);
+  const ticketUrl = await mintTicket();
+  if (ticketUrl) {
+    // Another method, as after a 307 or 308 redirect of a form post: refused
+    // and the ticket left unspent, so the GET below still signs in. The link
+    // stays out of the server log too, which serverLogCheck reads afterwards.
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+      const refused = await request(ticketUrl, { headers: { "sec-fetch-site": "cross-site" }, method });
+      want(
+        refused.status === 405 &&
+          refused.headers.get("allow") === "GET, HEAD" &&
+          refused.headers.get("cache-control") === "no-store" &&
+          !refused.headers.has("set-cookie"),
+        `sign-in link with ${method}: expected 405 with Allow: GET, HEAD and no cookie, got ${refused.status}`,
+      );
+    }
+    const opened = await request(ticketUrl, { headers: { "sec-fetch-site": "cross-site" } });
+    const ticketCookie = (opened.headers.get("set-cookie") ?? "").split(";")[0];
+    want(
+      opened.status === 200 && ticketCookie.startsWith("rl_viz="),
+      `sign-in link: expected 200 with the rl_viz cookie, got ${opened.status}`,
+    );
+    want(
+      opened.headers.get("cache-control") === "no-store" &&
+        opened.headers.get("referrer-policy") === "no-referrer",
+      "sign-in link: expected Cache-Control no-store and Referrer-Policy no-referrer",
+    );
+    want(
+      (await opened.text()).includes(`href="${targetHref}"`),
+      `sign-in link: expected a page that moves on to ${target}`,
+    );
+    const landed = await request(target, { headers: { cookie: ticketCookie } });
+    want(landed.status === 200, `${target} after the sign-in link: expected 200, got ${landed.status}`);
+    want(named(await landed.text()), `${target} after the sign-in link: expected the owner's name`);
+    const replay = await request(ticketUrl);
+    want(
+      replay.status === 303 && replay.headers.get("location") === "/login?next=%2F&expired=1",
+      `sign-in link opened twice: expected a redirect to /login?…&expired=1, got ${replay.status}`,
+    );
+    const expiredLogin = await request(replay.headers.get("location") ?? "/login");
+    want(
+      (await expiredLogin.text()).includes("expired or was already used"),
+      "/login after a spent sign-in link: expected the link-expired message",
+    );
+  }
+  for (const next of OFF_SITE_NEXT) {
+    const offSiteUrl = await mintTicket(next);
+    const offSite = offSiteUrl
+      ? await request(offSiteUrl, { headers: { "sec-fetch-site": "cross-site" } })
+      : undefined;
+    want(
+      offSite?.status === 200 && (await offSite.text()).includes('<a id="next" href="/">'),
+      `sign-in link with next=${next}: expected a page that moves on to /, got ${offSite?.status}`,
+    );
+  }
+
   const signOut = await request("/logout", { headers: { cookie }, method: "POST" });
   want(signOut.status === 303, `sign-out: expected 303, got ${signOut.status}`);
   const afterSignOut = await request("/", { headers: { cookie } });
@@ -278,15 +395,16 @@ async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string):
   }
   const ok = problems.length === 0;
   results.push({ label: "smoke: trace viewer", ok, seconds: (Date.now() - started) / 1000 });
-  return ok;
+  return tickets;
 }
 
 /**
  * The server's own log, read after every suite has run against it, must not
- * hold a credential: not the administrator token or the owner key this gate
- * created, and nothing shaped like an API key (the suites register owners of
- * their own). The suites send failing requests on purpose, so this covers the
- * error paths too. Problems name what leaked, never the value.
+ * hold a credential: not the administrator token, the owner key or the viewer
+ * sign-in tickets this gate created, and nothing shaped like an API key (the
+ * suites register owners of their own) or a sign-in link. The suites send
+ * failing requests on purpose, so this covers the error paths too. Problems
+ * name what leaked, never the value.
  */
 function serverLogCheck(logFile: string, known: Record<string, string>): boolean {
   console.log("\n▶ logs: no credentials");
@@ -301,6 +419,10 @@ function serverLogCheck(logFile: string, known: Record<string, string>): boolean
   const keyShaped = new Set(text.match(/sl_[0-9a-f]{64}/g) ?? []);
   if (keyShaped.size > 0) {
     problems.push(`${keyShaped.size} API key(s) appear in the server log`);
+  }
+  const linkShaped = new Set(text.match(/\/session\/ticket\/[A-Za-z0-9_-]{43}/g) ?? []);
+  if (linkShaped.size > 0) {
+    problems.push(`${linkShaped.size} viewer sign-in link(s) appear in the server log`);
   }
   for (const problem of problems) {
     console.log(`  ✗ ${problem}`);
@@ -435,10 +557,11 @@ async function databaseSuites(): Promise<void> {
           ["run", "--locked", "--directory", "integration-tests/python", "pytest", "-q"],
           itEnv,
         );
-        await viewerSmoke(baseUrl, apiKey, adminToken);
+        const tickets = await viewerSmoke(baseUrl, apiKey, adminToken);
         serverLogCheck(serverLog, {
           "administrator token": adminToken,
           "owner API key": apiKey,
+          ...Object.fromEntries(tickets.map((ticket, i) => [`viewer sign-in ticket #${i + 1}`, ticket])),
         });
       }
     }

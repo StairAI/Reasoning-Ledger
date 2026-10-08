@@ -54,6 +54,7 @@ export const ModelName = {
   ContentObject: "ContentObject",
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
+  ViewerTicket: "ViewerTicket",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -159,6 +160,18 @@ export const VizSessionScalarFieldEnum = {
 
 export type VizSessionScalarFieldEnum =
   (typeof VizSessionScalarFieldEnum)[keyof typeof VizSessionScalarFieldEnum];
+
+export const ViewerTicketScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  next: "next",
+  created_at: "created_at",
+  expires_at: "expires_at",
+  used_at: "used_at",
+} as const;
+
+export type ViewerTicketScalarFieldEnum =
+  (typeof ViewerTicketScalarFieldEnum)[keyof typeof ViewerTicketScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",

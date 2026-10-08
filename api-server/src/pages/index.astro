@@ -2,6 +2,7 @@
 import Layout from "#/layouts/Layout.astro";
 import Icon from "#/components/Icon.astro";
 import TypeBadge from "#/components/TypeBadge.astro";
+import ViewerBadge from "#/components/ViewerBadge.astro";
 import { ownedSessionSummaries } from "#/lib/repository";
 import type { SessionSummary } from "#/lib/repository";
 import { formatNumber } from "#/lib/trace";
@@ -37,13 +38,7 @@ function formatDate(ms: number): string {
         <div class="flex items-center gap-2 text-ink/50">
           <Icon name="git-fork" size={16} />
           <span class="font-sans text-[13px] uppercase tracking-wider">Reasoning Ledger</span>
-          {
-            admin && (
-              <span class="rounded-sm border border-line-strong px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-ink/70">
-                Administrator · all owners
-              </span>
-            )
-          }
+          <ViewerBadge viewer={viewer} />
           <form method="post" action="/logout" class="ml-auto">
             <button type="submit" class="text-[12px] text-ink/50 hover:text-ink">Sign out</button>
           </form>

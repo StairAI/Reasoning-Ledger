@@ -6,6 +6,7 @@ import Legend from "#/components/Legend.astro";
 import ViewController from "#/components/ViewController.astro";
 import NodeCard from "#/components/NodeCard.astro";
 import InspectorPanel from "#/components/InspectorPanel.astro";
+import ViewerBadge from "#/components/ViewerBadge.astro";
 import { contentForViewer } from "#/lib/content-view";
 import { reconstructRecord } from "#/lib/record";
 import { ownedSession, ownedSessionSummaries, sessionStats } from "#/lib/repository";
@@ -78,7 +79,9 @@ const records = (trace?.records ?? []) as unknown as TraceRecord[];
         {/* top-centre header */}
         <header class="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
           <div class="pointer-events-auto rounded-full border border-line bg-surface/70 px-5 py-2 backdrop-blur-sm">
-            <GraphHeader title="Reasoning Trace Graph" />
+            <GraphHeader title="Reasoning Trace Graph">
+              <ViewerBadge viewer={viewer} />
+            </GraphHeader>
           </div>
         </header>
 

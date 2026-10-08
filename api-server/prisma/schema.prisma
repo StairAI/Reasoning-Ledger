@@ -71,9 +71,10 @@ model Owner {
   created_at           DateTime   @default(now())
   updated_at           DateTime   @updatedAt
 
-  agents       Agent[]
-  content      ContentObject[]
-  viz_sessions VizSession[]
+  agents         Agent[]
+  content        ContentObject[]
+  viz_sessions   VizSession[]
+  viewer_tickets ViewerTicket[]
 
   @@map("owners")
 }
@@ -211,4 +212,27 @@ model VizSession {
 
   @@index([owner_id])
   @@map("viz_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// ViewerTicket — a one-time link into the trace viewer, minted with an owner's
+// API key by an application that holds the key server-side, and exchanged for
+// a VizSession when the person's browser opens it. Only the SHA-256 of the
+// ticket is stored, so reading this table yields no working link.
+// ---------------------------------------------------------------------------
+
+model ViewerTicket {
+  /// SHA-256 hex of the ticket. The ticket itself is never stored.
+  id         String    @id
+  owner_id   String
+  owner      Owner     @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  /// Where the viewer goes once signed in: a path on this site.
+  next       String
+  created_at DateTime  @default(now())
+  expires_at DateTime
+  /// Set when the ticket is exchanged for a session; a ticket works once.
+  used_at    DateTime?
+
+  @@index([owner_id])
+  @@map("viewer_tickets")
 }

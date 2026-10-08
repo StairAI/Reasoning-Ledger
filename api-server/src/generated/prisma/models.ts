@@ -13,4 +13,5 @@ export type * from "./models/TraceRecord.ts";
 export type * from "./models/ContentObject.ts";
 export type * from "./models/ContentDeletion.ts";
 export type * from "./models/VizSession.ts";
+export type * from "./models/ViewerTicket.ts";
 export type * from "./commonInputTypes.ts";
