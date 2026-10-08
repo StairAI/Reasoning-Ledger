@@ -25,19 +25,19 @@ pnpm install
 
 ### Environment
 
-| Variable                 | Required | Description                                                                                                 |
-| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | Yes      | `postgres://` connection string the server uses (the runtime account)                                       |
-| `MIGRATION_DATABASE_URL` | No       | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                            |
-| `RL_RUNTIME_ROLE`        | No       | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating              |
-| `CONTENT_DIR`            | No       | Where uploaded content is stored (default `data/content`, relative to `api-server/`)                        |
-| `CONTENT_MAX_BYTES`      | No       | Largest accepted upload, in bytes (default 64 MiB)                                                          |
-| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default) or `open`                                                        |
-| `RL_ADMIN_TOKEN`         | No       | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator |
-| `RL_REGISTRATION_TOKEN`  | No       | Registers owners and reads nothing. Give this one to the application that signs people up                   |
-| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open`, registration attempts allowed per client address per hour (default 5)          |
-| `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                             |
-| `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                                        |
+| Variable                 | Required | Description                                                                                                          |
+| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | Yes      | `postgres://` connection string the server uses (the runtime account)                                                |
+| `MIGRATION_DATABASE_URL` | No       | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                                     |
+| `RL_RUNTIME_ROLE`        | No       | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating                       |
+| `CONTENT_DIR`            | No       | Where uploaded content is stored (default `data/content` in the working directory: `/app/data/content` in the image) |
+| `CONTENT_MAX_BYTES`      | No       | Largest accepted upload, in bytes (default 64 MiB)                                                                   |
+| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default) or `open`                                                                 |
+| `RL_ADMIN_TOKEN`         | No       | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator          |
+| `RL_REGISTRATION_TOKEN`  | No       | Registers owners and reads nothing. Give this one to the application that signs people up                            |
+| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open`, registration attempts allowed per client address per hour (default 5)                   |
+| `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                                      |
+| `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                 |
 
 Uploaded content lives on the server's filesystem, so `CONTENT_DIR` needs storage that survives a restart or redeploy (a mounted volume in a container), and belongs in the same backup schedule as the database: a record keeps the hash of content whose bytes are gone, but the bytes cannot be recovered from it.
 
@@ -57,7 +57,7 @@ Then migrate and apply its privileges, and point `DATABASE_URL` at `rl_runtime`:
 MIGRATION_DATABASE_URL=postgres://<owner>@<host>/<db> RL_RUNTIME_ROLE=rl_runtime pnpm --dir api-server db:deploy
 ```
 
-`db:deploy` is safe to run on every start; the Docker image does so before serving. For local development a single account is enough: set only `DATABASE_URL` and leave `RL_RUNTIME_ROLE` unset.
+`db:deploy` is safe to run on every start; the image's default command does so before serving. For local development a single account is enough: set only `DATABASE_URL` and leave `RL_RUNTIME_ROLE` unset.
 
 ### Upgrading an existing database
 
@@ -78,9 +78,107 @@ pnpm --dir api-server build                  # production build
 node api-server/dist/server/entry.mjs        # serve the build (reads HOST and PORT)
 ```
 
-The [Dockerfile](./Dockerfile) builds from the repository root and runs `db:deploy` before starting the server.
+The [Dockerfile](./Dockerfile) builds from the repository root (`docker build -f api-server/Dockerfile .`); see [Running the published image](#running-the-published-image) for what the image runs.
 
 Behind a reverse proxy, let request bodies through up to `CONTENT_MAX_BYTES` (64 MiB by default); nginx, for one, stops at 1 MB unless `client_max_body_size` says otherwise, and content uploads then fail with `413` before they reach the server. Point the proxy's or platform's health check at `/health`.
+
+## Running the published image
+
+Each server release is published as `ghcr.io/stairai/reasoning-ledger:<version>`, and the highest release also as `latest` (pre-releases only under their version). The image holds the `/v1` API and the trace viewer, which are one server. It is built from the [Dockerfile](./Dockerfile) by [`server-image.yml`](../.github/workflows/server-image.yml), which smoke-tests every build before publishing it. Pin a version in production.
+
+The image takes one subcommand:
+
+| Command           | What it does                                                        | Environment                                                                        |
+| ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `start` (default) | Migrates, then serves, in one container                             | `DATABASE_URL`; with two accounts also `MIGRATION_DATABASE_URL`, `RL_RUNTIME_ROLE` |
+| `migrate`         | Runs `db:deploy` and exits                                          | `MIGRATION_DATABASE_URL` (or `DATABASE_URL`), `RL_RUNTIME_ROLE`                    |
+| `serve`           | Serves only; the server process never sees `MIGRATION_DATABASE_URL` | `DATABASE_URL`                                                                     |
+
+Any other command runs as given, for example `docker run --rm -it <image> sh` to look around. The rest of the [environment](#environment) applies as usual; the image sets `HOST=0.0.0.0` and `PORT=4321`, and its working directory is `/app`.
+
+`start` keeps a deployment to one container. With `migrate` and `serve`, the migration account's credentials live only in a container that exits once the schema is current, and the long-running server holds the runtime account's alone.
+
+Content is stored in `/app/data/content`, as with earlier images (`data/content` in the working directory): mount a volume at `/app/data`, or at `/app/data/content`, or set `CONTENT_DIR` to where yours is mounted. Without a volume, content is lost when the container is replaced. The container starts as root, gives the content directory and its per-owner directories to the image's unprivileged user `rl` (uid 10001) when they belong to someone else (a new bind mount usually belongs to root), and then runs everything as `rl`; stored objects keep their owner and only need to be readable. It stops with an error when the directory is not writable. To never run as root, start the container with `--user 10001` and make the directory writable for that uid yourself. A container that cannot switch users, or cannot give the content directory to `rl`, says so in its log and runs as root, as earlier images did: that happens without the `SETUID`, `SETGID` or `CHOWN` capability, for example with all capabilities dropped.
+
+The first time you deploy this image over one that ran as root, replace the old container rather than start the new one beside it (a stop-first deploy, not a rolling update), or restart the new container once the old one is gone. While both run, the old one can create a directory for an owner's first upload that `rl` cannot write; the next start fixes it.
+
+The image's health check calls `/health` on `$PORT`, and Docker reports the container healthy once the server answers.
+
+### A single-host example
+
+`compose.yaml`, with a `.env` file beside it that sets `DB_PASSWORD`, `RUNTIME_PASSWORD` and `RL_ADMIN_TOKEN` (for example from `openssl rand -hex 32`; hex keeps the passwords valid inside a URL):
+
+```yaml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: ledger # owns the database; the migration account
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledger -d ledger"]
+      interval: 5s
+      retries: 10
+
+  # On every `docker compose up`, runs to completion before the server starts:
+  # applies new migrations and re-applies the runtime account's privileges.
+  migrate:
+    image: ghcr.io/stairai/reasoning-ledger:<version>
+    command: migrate
+    environment:
+      MIGRATION_DATABASE_URL: postgres://ledger:${DB_PASSWORD:?}@db:5432/ledger
+      RL_RUNTIME_ROLE: ledger_runtime
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The image's health check on /health applies here.
+  server:
+    image: ghcr.io/stairai/reasoning-ledger:<version>
+    command: serve
+    environment:
+      DATABASE_URL: postgres://ledger_runtime:${RUNTIME_PASSWORD:?}@db:5432/ledger
+      RL_ADMIN_TOKEN: ${RL_ADMIN_TOKEN:?}
+    volumes:
+      - content:/app/data
+    ports:
+      - "127.0.0.1:4321:4321" # for a reverse proxy on this host; see below
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  db:
+  content:
+```
+
+Create the runtime account once, then start everything:
+
+```sh
+docker compose up -d db
+docker compose exec db psql -U ledger -d ledger -c "CREATE ROLE ledger_runtime LOGIN"
+docker compose exec db psql -U ledger -d ledger -c "\password ledger_runtime"   # enter RUNTIME_PASSWORD
+docker compose up -d
+```
+
+To upgrade, change `<version>` and run `docker compose up -d` again: `migrate` finishes before the new server starts. Back up the `db` and `content` volumes together (see [Environment](#environment)).
+
+Register the first owner with the administrator token from `.env`. The response holds the owner's `api_key`, shown once:
+
+```sh
+curl -sS http://127.0.0.1:4321/v1/owners \
+  -H "content-type: application/json" \
+  -H "x-admin-token: $RL_ADMIN_TOKEN" \
+  -d '{"email": "you@example.com"}'
+```
+
+Sign in to the [trace viewer](#trace-viewer) at `/login` with that key, or with `RL_ADMIN_TOKEN` to see every owner's data. An application that signs people up gets `RL_REGISTRATION_TOKEN`, which registers owners and reads nothing, rather than the administrator token.
+
+Serve the viewer over HTTPS: its sign-in cookie is `Secure`, and browsers do not keep such a cookie for a plain-HTTP site (they differ on whether `http://localhost` counts), so signing in seems to do nothing. In the example the port is bound to `127.0.0.1` only, for a reverse proxy on the same host that terminates TLS; let it pass request bodies up to `CONTENT_MAX_BYTES` (see [Running](#running)).
 
 ## Testing
 
@@ -104,7 +202,7 @@ pnpm typecheck   # TypeScript, after astro sync
 
 ## Operator commands
 
-Both run on the server's host, with the same environment as the server: they read the process environment, and `api-server/.env` when there is one (as does `db:deploy`). In a container, run them with `docker exec`.
+Both run on the server's host, with the same environment as the server: they read the process environment, and `api-server/.env` when there is one (as does `db:deploy`). In a container, run them with `docker exec`; where the server container holds only the runtime account, pass the migration account to the command (`docker exec -e MIGRATION_DATABASE_URL=… <container> pnpm --dir api-server delete-content …`).
 
 ```sh
 # Delete stored content. Records keep their reference; reading the content then answers 410.

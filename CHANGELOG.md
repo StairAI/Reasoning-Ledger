@@ -2,6 +2,32 @@
 
 The server and both SDKs share one version line; a patch release names the packages it changes. The record schema is numbered separately: SDK and server 1.0.x write schema `0.4`.
 
+## Unreleased
+
+Server image only; the server's behaviour and the SDKs are unchanged.
+
+### Added
+
+- **A published server image**, `ghcr.io/stairai/reasoning-ledger`, with the API and the trace viewer. A version tag publishes `<version>`, and `latest` for the highest release; pull requests that touch the server build the image and smoke-test it against a throwaway database. See [Running the published image](./api-server/README.md#running-the-published-image).
+- Image subcommands: `start` (the default, as before: migrate, then serve), `migrate` (migrate and exit) and `serve` (serve only). With `migrate` and `serve`, the long-running server never holds the migration account's credentials.
+- A `HEALTHCHECK` on `/health`.
+
+### Changed
+
+- The server in the image runs as an unprivileged user (`rl`, uid 10001). Started as root, as by default, the container first gives the content directory and its per-owner directories to that user when they belong to someone else, such as a bind mount owned by root (stored objects keep their owner), and stops with an error when the directory is not writable. A container that cannot switch users, or cannot give the content directory to `rl`, for example one started with all capabilities dropped, says so in its log and runs as root, as before.
+- Content stays in `/app/data/content` unless `CONTENT_DIR` says otherwise. `/app/data` now exists in the image and belongs to `rl`, so a named volume mounted there starts out writable for the server.
+- The server process no longer inherits `MIGRATION_DATABASE_URL`, with `start` as with `serve`.
+- The image is built on an exact Node.js release (24.21.0, Debian bookworm) and pnpm version (11.28.2) instead of floating tags.
+
+### Fixed
+
+- Operator commands run in the container (`docker exec <container> pnpm --dir api-server …`) find content where the server keeps it. Without `CONTENT_DIR` they looked in `/app/api-server/data/content`, so `delete-content` marked content deleted but left its bytes on disk.
+
+### Upgrading
+
+- Keep the content volume where it is mounted, and `CONTENT_DIR` if you set it.
+- Deploy this image the first time by replacing the running container (stop-first) rather than starting the new one beside it, or restart the new container once the old one is gone. The new container gives the content directories to `rl` as it starts; meanwhile the old one, which runs as root, can create a directory for an owner's first upload that `rl` cannot write, and that owner's uploads then fail until the next start. Later upgrades are not affected.
+
 ## 1.0.1 — 2026-09-23
 
 Server only; the SDKs stay at 1.0.0.

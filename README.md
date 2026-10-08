@@ -228,6 +228,10 @@ Both SDKs are published from GitHub by hand (`workflow_dispatch`), and the versi
 
 So the version people install by default always matches the production server, and what is released is the same artifact that was already exercised against staging. The workflows refuse a version that is already published, a pre-release from `master`, or a release from `develop`.
 
+The server image is published by pushing a version tag, `v` followed by the version in `api-server/package.json`: `v1.1.0` on a commit on `master`, or `v1.1.0-rc.1` on a commit on `develop` for a pre-release, which does not move `latest`. The [workflow](./.github/workflows/server-image.yml) smoke-tests the image first. It refuses a version already in the registry, a release whose commit is not on `master` and a pre-release whose commit is not on `develop`, and publishes nothing for a tag whose release leaves the server out. `latest` moves only to the highest release so far, never back to an older one. See [Running the published image](./api-server/README.md#running-the-published-image).
+
+After the image is published for the first time, open the `reasoning-ledger` package under the organization's packages on GitHub, connect it to this repository if it is not connected yet, and change its visibility to Public in the package settings. GitHub creates a new package as private, and pulls without signing in fail until then. This is needed once.
+
 ---
 
 ## License
