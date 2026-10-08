@@ -1,10 +1,10 @@
 # Changelog
 
-The server and both SDKs share one version line; a patch release names the packages it changes. The record schema is numbered separately: SDK and server 1.0.x write schema `0.4`.
+The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`.
 
-## Unreleased
+## 1.1.0 — 2026-10-08
 
-The server and its image; the SDKs are unchanged.
+The server and its image; the SDKs stay at 1.0.0.
 
 ### Added
 
