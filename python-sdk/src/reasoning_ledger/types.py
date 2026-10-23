@@ -203,8 +203,8 @@ SubmitInput = dict[str, Any]
 
 # Input for submit_attesting(): an Attesting record without `behavior` and
 # `executor`, which the SDK sets ("Attesting", "human"). Requires operator_id,
-# disposition, gate_kind and written_by, plus session_id unless submitted
-# through a Session. record_phase defaults to "concurrent".
+# disposition, gate_kind, written_by and outcome, plus session_id unless
+# submitted through a Session. record_phase defaults to "concurrent".
 AttestingInput = dict[str, Any]
 
 # GetTrace options field names (kept for documentation clarity).

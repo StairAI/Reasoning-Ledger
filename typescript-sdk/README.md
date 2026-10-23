@@ -12,6 +12,15 @@ pnpm add reasoning-ledger-sdk
 
 Requires **Node.js 18+** and **TypeScript 5+** (for ESM + `exactOptionalPropertyTypes`).
 
+### Upgrading to schema 0.5
+
+- Records are stamped `schema_version` `"0.5"`, and a server accepts writes of its own schema version only: upgrade the SDK and the server together.
+- `Planning` is gone: record a plan as `Thinking` with `steps`. New behaviors: `Escalating`, `Delegating`, `Memorizing` (see [Behavior types](#behavior-types)).
+- `outcome` is required on `Acting`, `Attesting` (also through `submitAttesting`), `Escalating`, `Delegating` and `Memorizing`, as on `ToolCalling`.
+- `Acting.action_type` is a namespaced `<domain>.<verb>`, e.g. `answer.final`, `git.commit`; `dry_run` is gone and `parameters` is optional.
+- `tool_meta` needs a `name`; `verdict.decided_by` is one of `human`, `model`, `rule`, `policy`, `classifier`, `config`, `consensus`.
+- Removed: `parent_record_id`, `model_invocation.model_version`, `Observing.external_trigger_id`, `Attesting.evidence_refs` (use `sources`).
+
 ### Upgrading from 0.3
 
 - `endpoint` is required — in `LedgerClientConfig` and in the `registerAgent` / `resolveAgentId` options. The `environment` option and the `ENDPOINTS` constant are gone (their built-in hosts never resolved).
@@ -92,7 +101,7 @@ await session.submit({
   behavior: "ToolCalling",
   executor: "det",
   record_phase: "post_execution",
-  tool_meta: { tool_id: "polymarket_api", category: "external_api" },
+  tool_meta: { name: "polymarket_api", tool_type: "http" },
   description: "Fetch current Spain win odds",
   input_payload: { market: "esp_mar" },
   output_payload: { spain_win: 0.73 },
@@ -109,23 +118,23 @@ await session.submit({
   output_payload: { recommendation: "hold", confidence: 0.81 },
 });
 
-// Acting — the commitment
+// Acting — the commitment that closes the cycle
 await session.submit({
   behavior: "Acting",
   executor: "det",
   record_phase: "pre_execution",
-  action_type: "trade",
+  action_type: "position.hold", // namespaced <domain>.<verb>
   target_system: "broker-api",
   action_summary: "Hold current Spain win position",
-  parameters: { symbol: "ESP_WIN", action: "hold" },
-  dry_run: false,
+  parameters: { symbol: "ESP_WIN" },
   execution_status: "confirmed",
+  outcome: "success",
 });
 ```
 
 ### Content: raw text never goes into a record
 
-Prompts, payloads and internal reasoning live in the content library; a record holds a `ContentRef` (`{ sha256, bytes, media_type }`) at those positions. You can pass raw content there instead and the SDK uploads it first, then submits the record with the returned reference:
+Prompts, payloads, internal reasoning and other raw text live in the content library; a record holds a `ContentRef` (`{ sha256, bytes, media_type }`) at those positions. You can pass raw content there instead and the SDK uploads it first, then submits the record with the returned reference:
 
 | You pass                                                      | Uploaded as                           |
 | ------------------------------------------------------------- | ------------------------------------- |
@@ -134,7 +143,7 @@ Prompts, payloads and internal reasoning live in the content library; a record h
 | any other JSON value (object, array, number, boolean, null)   | `application/json` (`JSON.stringify`) |
 | a `ContentRef` (keys exactly `sha256`, `bytes`, `media_type`) | nothing — sent as is                  |
 
-Content positions: `ToolCalling.input_payload` / `output_payload`, `Thinking.prompt` / `output_payload` / `inputs[].input_payload`, `Reflecting.output_payload` / `inputs[].input_payload`, `model_invocation.internal_reasoning`, and `Attesting.effects`. The record is validated before anything is uploaded; a failed upload fails the submit (for a batch, before the batch is sent).
+Content positions: `ToolCalling.input_payload` / `output_payload`, `Thinking.prompt` / `output_payload` / `inputs[].input_payload`, `Reflecting.output_payload` / `inputs[].input_payload`, `Escalating.asked`, `Delegating.goal` / `result`, `Memorizing.target`, `Attesting.effects`, `model_invocation.internal_reasoning`, and `model_invocation.replay_of` unless it holds a record id (a UUID string, sent as is). The record is validated before anything is uploaded; a failed upload fails the submit (for a batch, before the batch is sent).
 
 To manage content yourself:
 
@@ -145,14 +154,30 @@ const bytes = await client.getContent(ref); // Uint8Array; also accepts the sha2
 
 Uploads are idempotent (content is addressed by its SHA-256). Deleted or unknown content raises `NotFoundError`; content over the server's size limit raises `ValidationError`.
 
-### Attesting — a person's disposition
+### Escalating and Attesting — the agent asks, a person answers
 
 ```typescript
+// The agent handed the decision to a person; written once the wait is over.
+const asked = await session.submit({
+  behavior: "Escalating",
+  executor: "ai",
+  record_phase: "post_execution",
+  kind: "permission", // | "question" | "plan" | "handoff"
+  asked: "Hold or close the Spain win position?", // uploaded as content
+  options: ["hold", "close"],
+  default: "hold",
+  outcome: "success", // a person answered; "timeout" if nobody did, "cancelled" if withdrawn
+  duration_ms: 42_000, // how long it waited
+});
+
+// The person's disposition, written by the review application, points back at it.
 await session.submitAttesting({
   operator_id: "u-1024",
-  disposition: "approve", // | "reject" (needs a reason) | "edit"
-  gate_kind: "trade-approval",
+  disposition: "approve", // | "edit" | "reject" (needs a reason) | "cancel" | "no_response"
+  outcome: "success", // "cancelled" for cancel, "timeout" for no_response
+  gate_kind: "permission",
   decision: { position: "hold" },
+  upstream_record_id: [asked.record_id],
   written_by: { component: "review-console", credential: "svc-review" },
 });
 ```
@@ -192,20 +217,22 @@ Up to 50 records per batch. Per-record validation runs locally before the networ
 
 ## Behavior types
 
-All eight behaviors extend `BaseRecord`, which requires `executor` and `record_phase` and accepts `outcome`, `duration_ms`, `sources` and `verdict`. The `behavior` field is a discriminant; TypeScript narrows the union automatically.
+All ten behaviors extend `BaseRecord`, which requires `executor` and `record_phase` and accepts `outcome`, `duration_ms`, `error_type`, `sources`, `verdict`, `written_by`, `on_behalf_of_agent_id` and `classification`. The `behavior` field is a discriminant; TypeScript narrows the union automatically.
 
-| Behavior      | Required fields (beyond base)                                                                 |
-| ------------- | --------------------------------------------------------------------------------------------- |
-| `Observing`   | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary`            |
-| `Planning`    | `goal`, `steps`                                                                               |
-| `Thinking`    | `prompt`, `inputs`, `output_payload`                                                          |
-| `Acting`      | `action_type`, `target_system`, `action_summary`, `parameters`, `dry_run`, `execution_status` |
-| `Reflecting`  | `inputs`, `output_payload`                                                                    |
-| `ToolCalling` | `tool_meta`, `description`, `input_payload`, `output_payload`, `outcome`                      |
-| `Attesting`   | `operator_id`, `disposition`, `gate_kind`, `written_by` (`executor` must be `human`)          |
-| `Other`       | `label`, `data`                                                                               |
+| Behavior      | Required fields (beyond base)                                                                       | Notable optional fields                                      |
+| ------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `Observing`   | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary`                  | `event_ts_utc`                                               |
+| `ToolCalling` | `tool_meta` (with `name`), `input_payload`, `output_payload`, `outcome`                             | `description`, `effect`, `tool_meta.call_id` / `tool_type`   |
+| `Thinking`    | `output_payload`                                                                                    | `prompt`, `inputs`, `steps` (a plan), `revision_of`          |
+| `Acting`      | `action_type` (`<domain>.<verb>`), `target_system`, `action_summary`, `execution_status`, `outcome` | `parameters`, `execution_id`                                 |
+| `Reflecting`  | `inputs`, `output_payload`                                                                          | `kind`                                                       |
+| `Attesting`   | `operator_id`, `disposition`, `gate_kind`, `written_by`, `outcome` (`executor` must be `human`)     | `decision`, `reason`, `patch`, `channel`, `effects`          |
+| `Escalating`  | `kind`, `asked`, `outcome`                                                                          | `options`, `default`                                         |
+| `Delegating`  | `kind`, `goal`, `outcome`                                                                           | `delegate_agent_id`, `child_session_id`, `awaited`, `result` |
+| `Memorizing`  | `scope`, `target`, `op`, `outcome`                                                                  | `approved_by`                                                |
+| `Other`       | `label`, `data`                                                                                     | `proposed_behavior`                                          |
 
-Two cross-field rules are checked locally as well: an `Acting` record with `target_system` `public-chain` and `execution_status` `confirmed` needs an `execution_id`, and an `Attesting` record with `disposition` `reject` needs a `reason`.
+Four cross-field rules are checked locally as well: an `Acting` record with `target_system` `public-chain` and `execution_status` `confirmed` needs an `execution_id`; an `Attesting` record with `disposition` `reject` needs a `reason`, one with `no_response` needs `outcome` `timeout`, and one with `cancel` needs `outcome` `cancelled`.
 
 ### Auto-filled fields
 
@@ -214,7 +241,7 @@ The SDK fills these if you omit them:
 | Field            | SDK default                       |
 | ---------------- | --------------------------------- |
 | `record_id`      | Fresh UUID v4                     |
-| `schema_version` | `"0.4"` (bundled constant)        |
+| `schema_version` | `"0.5"` (bundled constant)        |
 | `client_ts_utc`  | `Date.now()` (epoch ms)           |
 | `agent_id`       | From `LedgerClientConfig.agentId` |
 
@@ -420,7 +447,7 @@ nowEpochMs(); // → current epoch milliseconds (integer)
 isValidRecordId("..."); // → boolean — is the string a valid UUID v4?
 ```
 
-Use `newRecordId()` when building dependency edges where a child needs to reference an as-yet-unsubmitted record via `upstream_record_id` or `parent_record_id`.
+Use `newRecordId()` when building dependency edges where a child needs to reference an as-yet-unsubmitted record via `upstream_record_id`.
 
 ---
 

@@ -259,10 +259,12 @@ class LedgerClient:
         return RecordAck(**result)  # type: ignore[misc]
 
     def submit_attesting(self, input_record: AttestingInput) -> RecordAck:
-        """Submit an Attesting record: a person's disposition of a pending action.
+        """Submit an Attesting record: a person's disposition of a pending item,
+        such as the Escalating record listed in its upstream_record_id.
 
         Sets behavior "Attesting", executor "human" and, unless given,
-        record_phase "concurrent". `effects` may be a raw value (uploaded).
+        record_phase "concurrent"; the caller supplies outcome. `effects` may be
+        a raw value (uploaded).
         """
         return self.submit(_attesting_record(input_record))
 

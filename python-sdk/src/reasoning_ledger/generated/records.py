@@ -13,11 +13,13 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 class BehaviorType(StrEnum):
     Observing = "Observing"
     ToolCalling = "ToolCalling"
-    Planning = "Planning"
     Thinking = "Thinking"
     Acting = "Acting"
     Reflecting = "Reflecting"
     Attesting = "Attesting"
+    Escalating = "Escalating"
+    Delegating = "Delegating"
+    Memorizing = "Memorizing"
     Other = "Other"
 
 
@@ -61,6 +63,7 @@ class Outcome(StrEnum):
     denied = "denied"
     escalated = "escalated"
     timeout = "timeout"
+    cancelled = "cancelled"
 
 
 class SourceDescriptor(BaseModel):
@@ -70,7 +73,15 @@ class SourceDescriptor(BaseModel):
     kind: Annotated[
         str,
         Field(
-            examples=["model", "rule", "reference_data", "api", "document", "human"],
+            examples=[
+                "model",
+                "rule",
+                "reference_data",
+                "api",
+                "document",
+                "human",
+                "record",
+            ],
             min_length=1,
         ),
     ]
@@ -84,9 +95,16 @@ class SourceDescriptor(BaseModel):
             description="Content hash of what was fetched.", pattern="^[0-9a-f]{64}$"
         ),
     ] = None
-    record_id: Annotated[UUID | None, Field(description="Record that fetched it.")] = (
-        None
-    )
+
+
+class DecidedBy(StrEnum):
+    human = "human"
+    model = "model"
+    rule = "rule"
+    policy = "policy"
+    classifier = "classifier"
+    config = "config"
+    consensus = "consensus"
 
 
 class RuleRefItem(RootModel[str]):
@@ -100,13 +118,10 @@ class Verdict(BaseModel):
     conclusion: Annotated[
         Any, Field(description="The judgment itself (any JSON value).")
     ]
-    decided_by: Annotated[str, Field(min_length=1)]
+    decided_by: DecidedBy
     signals: list[dict[str, Any]] | None = None
     rule_ref: list[RuleRefItem] | None = None
     confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
-    sources: list[SourceDescriptor] | None = None
-    counterfactual: str | None = None
-    dissent: list[dict[str, Any]] | None = None
 
 
 class WrittenBy(BaseModel):
@@ -117,18 +132,89 @@ class WrittenBy(BaseModel):
     credential: Annotated[str, Field(min_length=1)]
 
 
+class Source(StrEnum):
+    instrumented = "instrumented"
+    rule = "rule"
+    judge = "judge"
+    human = "human"
+
+
+class Alternative(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    behavior: BehaviorType
+    confidence: Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class Classification(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    source: Source
+    mapper: Annotated[
+        str | None,
+        Field(
+            description="Name and version of the writer or mapper, e.g. 'collector@0.3'.",
+            min_length=1,
+        ),
+    ] = None
+    confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+    alternatives: Annotated[list[Alternative] | None, Field(max_length=8)] = None
+
+
+class InvocationKind(StrEnum):
+    live = "live"
+    replay = "replay"
+    cached = "cached"
+    simulated = "simulated"
+
+
 class ModelInvocation(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    provider: Annotated[str, Field(min_length=1)]
-    model_name: Annotated[str, Field(min_length=1)]
-    model_version: str | None = None
+    provider: Annotated[
+        str | None,
+        Field(
+            description="Null is meaningful only when invocation_kind is replay or simulated; the schema does not enforce this.",
+            min_length=1,
+        ),
+    ]
+    model_name: Annotated[
+        str | None,
+        Field(
+            description="Null is meaningful only when invocation_kind is replay or simulated; the schema does not enforce this.",
+            min_length=1,
+        ),
+    ]
+    invocation_kind: Annotated[
+        InvocationKind | None,
+        Field(
+            description="live = a real call; replay = a recorded response played back; cached = served from a cache; simulated = produced without a model."
+        ),
+    ] = None
+    replay_of: Annotated[
+        ContentRef | UUID | None,
+        Field(description="The record or content a replay reproduces."),
+    ] = None
     tokens_in: Annotated[int | None, Field(ge=0)] = None
     tokens_out: Annotated[int | None, Field(ge=0)] = None
+    cache_read_tokens: Annotated[int | None, Field(ge=0)] = None
+    cache_creation_tokens: Annotated[int | None, Field(ge=0)] = None
     cost_usd: Annotated[float | None, Field(ge=0.0)] = None
-    temperature: float | None = None
+    temperature: Annotated[
+        float | None,
+        Field(description="Only callers that set it themselves can fill this."),
+    ] = None
     finish_reason: str | None = None
+    request_id: Annotated[
+        str | None,
+        Field(
+            description="The provider's request id, for reconciliation with provider logs.",
+            min_length=1,
+        ),
+    ] = None
     internal_reasoning: Annotated[
         ContentRef | None,
         Field(
@@ -142,7 +228,7 @@ class Tag(RootModel[str]):
 
 
 class BaseRecord(BaseModel):
-    schema_version: Annotated[str, Field(examples=["0.4"], min_length=1)]
+    schema_version: Annotated[str, Field(examples=["0.5"], min_length=1)]
     agent_id: UUID
     session_id: Annotated[str, Field(min_length=1)]
     record_id: UUID
@@ -154,22 +240,43 @@ class BaseRecord(BaseModel):
     upstream_record_id: Annotated[
         list[UUID] | None,
         Field(
-            description="DAG dependency / trace sequence. Records this one builds on. May be empty/omitted.",
+            description="DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
             max_length=32,
-        ),
-    ] = None
-    parent_record_id: Annotated[
-        UUID | None,
-        Field(
-            description="Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
         ),
     ] = None
     executor: Executor
     record_phase: RecordPhase
     outcome: Outcome | None = None
-    duration_ms: Annotated[int | None, Field(ge=0)] = None
+    duration_ms: Annotated[
+        int | None,
+        Field(
+            description="On Attesting and Escalating: how long the pending item waited for a person.",
+            ge=0,
+        ),
+    ] = None
+    error_type: Annotated[
+        str | None,
+        Field(
+            description="Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+            max_length=128,
+            min_length=1,
+        ),
+    ] = None
     sources: Annotated[list[SourceDescriptor] | None, Field(max_length=64)] = None
     verdict: Verdict | None = None
+    written_by: Annotated[
+        WrittenBy | None,
+        Field(
+            description="Which program wrote the record and with what credential. Required on Attesting, recommended everywhere else."
+        ),
+    ] = None
+    on_behalf_of_agent_id: Annotated[
+        UUID | None,
+        Field(
+            description="Set when the writer is not the agent whose behavior this is, e.g. a platform recording a fill or a settlement for an agent."
+        ),
+    ] = None
+    classification: Classification | None = None
 
 
 class ThinkingInput(BaseModel):
@@ -197,9 +304,46 @@ class PlanningStep(BaseModel):
     depends_on: list[DependsOnItem] | None = None
 
 
+class ToolType(StrEnum):
+    function = "function"
+    mcp = "mcp"
+    skill = "skill"
+    subagent = "subagent"
+    shell = "shell"
+    http = "http"
+    datastore = "datastore"
+
+
+class ToolMeta(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    name: Annotated[str, Field(min_length=1)]
+    call_id: Annotated[
+        str | None,
+        Field(
+            description="The harness's own id for this call (OTel gen_ai.tool.call.id, ATIF tool_call_id, Claude Code tool_use_id).",
+            min_length=1,
+        ),
+    ] = None
+    tool_type: ToolType | None = None
+    namespace: Annotated[
+        str | None,
+        Field(
+            description="The application's grouping of tools, e.g. an MCP server name.",
+            min_length=1,
+        ),
+    ] = None
+    server: Annotated[str | None, Field(min_length=1)] = None
+    version: Annotated[str | None, Field(min_length=1)] = None
+
+
 class TriggerType(StrEnum):
     signal_trigger = "signal_trigger"
     cron_trigger = "cron_trigger"
+    human_trigger = "human_trigger"
+    outcome_trigger = "outcome_trigger"
+    agent_trigger = "agent_trigger"
 
 
 class ObservingRecord(BaseRecord):
@@ -207,12 +351,28 @@ class ObservingRecord(BaseRecord):
         extra="forbid",
     )
     behavior: Literal["Observing"]
-    trigger_source: Annotated[str, Field(min_length=1)]
-    trigger_type: TriggerType
-    external_trigger_id: str | None = None
+    trigger_source: Annotated[
+        str,
+        Field(
+            description="Prefer a stable URI-like name, e.g. 'claude-code://user_prompt', 'arena://fixtures/<code>/window_open'.",
+            min_length=1,
+        ),
+    ]
+    trigger_type: Annotated[
+        TriggerType,
+        Field(
+            description="signal = a system event; cron = a schedule; human = a person's message or action; outcome = the result of an earlier action (settlement, test result, revert); agent = another agent or a parent harness."
+        ),
+    ]
     event_ts_utc: Annotated[int | None, Field(ge=0)] = None
     trigger_description: Annotated[str, Field(min_length=1)]
     trigger_payload_summary: Annotated[str, Field(max_length=4096)]
+
+
+class Effect(StrEnum):
+    read = "read"
+    write = "write"
+    execute = "execute"
 
 
 class ToolCallingRecord(BaseRecord):
@@ -220,24 +380,17 @@ class ToolCallingRecord(BaseRecord):
         extra="forbid",
     )
     behavior: Literal["ToolCalling"]
-    tool_meta: dict[str, Any]
-    description: Annotated[str, Field(min_length=1)]
+    tool_meta: ToolMeta
+    description: Annotated[str | None, Field(min_length=1)] = None
+    effect: Annotated[
+        Effect | None,
+        Field(
+            description="What the call did to the world: read only, changed state, or ran something."
+        ),
+    ] = None
     input_payload: ContentRef
     output_payload: ContentRef
-    outcome: Annotated[
-        Outcome,
-        Field(description="Result of the call; replaces the 0.3 'success' flag."),
-    ]
-
-
-class PlanningRecord(BaseRecord):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    behavior: Literal["Planning"]
-    goal: Annotated[str, Field(min_length=1)]
-    steps: list[PlanningStep]
-    contingencies: list[str] | None = None
+    outcome: Annotated[Outcome, Field(description="Result of the call.")]
 
 
 class ThinkingRecord(BaseRecord):
@@ -245,9 +398,17 @@ class ThinkingRecord(BaseRecord):
         extra="forbid",
     )
     behavior: Literal["Thinking"]
-    prompt: ContentRef
-    inputs: list[ThinkingInput]
+    prompt: ContentRef | None = None
+    inputs: list[ThinkingInput] | None = None
     output_payload: ContentRef
+    steps: Annotated[
+        list[PlanningStep] | None,
+        Field(description="Present when the thinking produced an explicit plan."),
+    ] = None
+    revision_of: Annotated[
+        UUID | None,
+        Field(description="The earlier Thinking record whose plan this one revises."),
+    ] = None
 
 
 class ExecutionStatus(StrEnum):
@@ -255,6 +416,7 @@ class ExecutionStatus(StrEnum):
     failed = "failed"
     simulated = "simulated"
     pending = "pending"
+    cancelled = "cancelled"
 
 
 class ActingRecord(BaseRecord):
@@ -262,13 +424,25 @@ class ActingRecord(BaseRecord):
         extra="forbid",
     )
     behavior: Literal["Acting"]
-    action_type: Annotated[str, Field(min_length=1)]
+    action_type: Annotated[
+        str,
+        Field(
+            description="Namespaced '<domain>.<verb>', e.g. prediction.submit, order.fill, answer.final, git.commit, stage.conclude.",
+            pattern="^[a-z0-9_]+(\\.[a-z0-9_]+)+$",
+        ),
+    ]
     target_system: Annotated[str, Field(min_length=1)]
     action_summary: Annotated[str, Field(min_length=1)]
-    parameters: dict[str, Any]
-    dry_run: bool
+    parameters: dict[str, Any] | None = None
     execution_id: str | None = None
     execution_status: ExecutionStatus
+    outcome: Outcome
+
+
+class Kind(StrEnum):
+    process = "process"
+    evaluation = "evaluation"
+    settlement = "settlement"
 
 
 class ReflectingRecord(BaseRecord):
@@ -276,6 +450,12 @@ class ReflectingRecord(BaseRecord):
         extra="forbid",
     )
     behavior: Literal["Reflecting"]
+    kind: Annotated[
+        Kind | None,
+        Field(
+            description="process = reviewing how it worked; evaluation = judging the output against criteria; settlement = an external result coming back."
+        ),
+    ] = None
     inputs: list[ReflectingInput]
     output_payload: ContentRef
 
@@ -284,6 +464,20 @@ class Disposition(StrEnum):
     approve = "approve"
     reject = "reject"
     edit = "edit"
+    cancel = "cancel"
+    no_response = "no_response"
+
+
+class SeenCompleteness(StrEnum):
+    complete = "complete"
+    partial = "partial"
+    unknown = "unknown"
+
+
+class Channel(StrEnum):
+    interactive = "interactive"
+    async_ = "async"
+    headless = "headless"
 
 
 class AttestingRecord(BaseRecord):
@@ -303,7 +497,7 @@ class AttestingRecord(BaseRecord):
     disposition: Annotated[
         Disposition,
         Field(
-            description="For value-choosing decisions: approve = accepted the default suggestion, edit = changed it."
+            description="approve = accepted as proposed; edit = changed it; reject = refused; cancel = the person stopped the pending item; no_response = nobody answered (headless, or the wait ran out)."
         ),
     ]
     decision: Annotated[
@@ -322,21 +516,26 @@ class AttestingRecord(BaseRecord):
             description="Changes to the original parameters when disposition is edit."
         ),
     ] = None
-    evidence_refs: Annotated[
-        list[ContentRef | UUID] | None,
-        Field(
-            description="Record ids or content references the disposition relied on.",
-            max_length=64,
-        ),
-    ] = None
     seen_digest: Annotated[
         str | None,
         Field(description="Digest of what the person saw when deciding.", min_length=1),
     ] = None
+    seen_completeness: Annotated[
+        SeenCompleteness | None,
+        Field(
+            description="Whether what the person saw covered everything the decision depended on."
+        ),
+    ] = None
+    channel: Annotated[
+        Channel | None,
+        Field(
+            description="interactive = the person was present; async = handled later from a queue; headless = no person could answer."
+        ),
+    ] = None
     gate_kind: Annotated[
         str,
         Field(
-            description="Checkpoint type, defined by the upper-layer application.",
+            description="Checkpoint type, defined by the upper-layer application; starting registry: column, plan, permission, question, deploy.",
             min_length=1,
         ),
     ]
@@ -351,6 +550,113 @@ class AttestingRecord(BaseRecord):
         ),
     ] = None
     written_by: WrittenBy
+    outcome: Annotated[
+        Outcome,
+        Field(
+            description="success = a disposition was recorded; timeout = no_response; cancelled = cancel."
+        ),
+    ]
+
+
+class Kind1(StrEnum):
+    question = "question"
+    permission = "permission"
+    plan = "plan"
+    handoff = "handoff"
+
+
+class Option(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
+class EscalatingRecord(BaseRecord):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    behavior: Literal["Escalating"]
+    kind: Kind1
+    asked: Annotated[ContentRef, Field(description="What was put to the person.")]
+    options: Annotated[list[Option] | None, Field(max_length=32)] = None
+    default: Annotated[
+        str | None, Field(description="The option proposed as default, if any.")
+    ] = None
+    outcome: Annotated[
+        Outcome,
+        Field(
+            description="success = a person disposed of it; timeout = nobody answered; cancelled = withdrawn."
+        ),
+    ]
+
+
+class Kind2(StrEnum):
+    spawn = "spawn"
+    handoff = "handoff"
+    message = "message"
+
+
+class DelegatingRecord(BaseRecord):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    behavior: Literal["Delegating"]
+    kind: Kind2
+    goal: Annotated[ContentRef, Field(description="What the delegate was asked to do.")]
+    delegate_agent_id: Annotated[
+        str | None,
+        Field(
+            description="The delegate's agent id when it has one, else its type or name.",
+            min_length=1,
+        ),
+    ] = None
+    child_session_id: Annotated[
+        str | None,
+        Field(
+            description="The session that holds the delegate's own records.",
+            min_length=1,
+        ),
+    ] = None
+    awaited: Annotated[
+        bool | None, Field(description="Whether this agent waited for the result.")
+    ] = None
+    result: Annotated[ContentRef | None, Field(description="What came back.")] = None
+    outcome: Outcome
+
+
+class Scope(StrEnum):
+    session = "session"
+    project = "project"
+    user = "user"
+    customer = "customer"
+    org = "org"
+    global_ = "global"
+
+
+class Op(StrEnum):
+    add = "add"
+    update = "update"
+    delete = "delete"
+
+
+class MemorizingRecord(BaseRecord):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    behavior: Literal["Memorizing"]
+    scope: Annotated[Scope, Field(description="How far the written state reaches.")]
+    target: Annotated[
+        ContentRef,
+        Field(
+            description="What was written: the content, with its location in notes or tags if needed."
+        ),
+    ]
+    op: Op
+    approved_by: Annotated[
+        UUID | None,
+        Field(
+            description="The Attesting record of the person who confirmed this write, when one did."
+        ),
+    ] = None
+    outcome: Outcome
 
 
 class OtherRecord(BaseRecord):
@@ -360,28 +666,39 @@ class OtherRecord(BaseRecord):
     behavior: Literal["Other"]
     label: Annotated[str, Field(min_length=1)]
     data: dict[str, Any]
+    proposed_behavior: Annotated[
+        str | None,
+        Field(
+            description="The behavior the writer thinks this should be, if the taxonomy lacked it.",
+            min_length=1,
+        ),
+    ] = None
 
 
 class ReasoningLedgerRecordSchemas(
     RootModel[
         ObservingRecord
         | ToolCallingRecord
-        | PlanningRecord
         | ThinkingRecord
         | ActingRecord
         | ReflectingRecord
         | AttestingRecord
+        | EscalatingRecord
+        | DelegatingRecord
+        | MemorizingRecord
         | OtherRecord
     ]
 ):
     root: Annotated[
         ObservingRecord
         | ToolCallingRecord
-        | PlanningRecord
         | ThinkingRecord
         | ActingRecord
         | ReflectingRecord
         | AttestingRecord
+        | EscalatingRecord
+        | DelegatingRecord
+        | MemorizingRecord
         | OtherRecord,
         Field(
             description="Canonical record schemas for the Reasoning Ledger. Prose reference: SCHEMA.md.",

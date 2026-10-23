@@ -1,6 +1,25 @@
 # Changelog
 
-The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`.
+The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; the unreleased changes below write `0.5`.
+
+## Unreleased
+
+Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/SCHEMA.md`](./schema/SCHEMA.md); the `0.4` schema is kept under [`schema/history/0.4/`](./schema/history/0.4/).
+
+### Changed
+
+- **Ten behaviors instead of eight.** `Planning` is folded into `Thinking`, which gains optional `steps` and `revision_of`. Three behaviors are new: `Escalating` (the agent hands a decision to a person: a question, a permission request, a plan to approve, a handoff), `Delegating` (a goal handed to another agent, which runs its own session) and `Memorizing` (a write to memory, rules, skills, settings or a knowledge base, which outlives the cycle). Stored `0.4` records that carry `Planning` stay readable and render as before.
+- **Every record can say who wrote it and how it was classified.** `written_by` moves from `Attesting` to every record (still required on `Attesting`); `on_behalf_of_agent_id` names the agent when a platform writes for it; `classification` says whether the behavior was declared by the writer or inferred by a rule, a model or a person, and how confidently.
+- **Results.** `outcome` is required on `Acting`, `Attesting`, `Escalating`, `Delegating` and `Memorizing` as well as `ToolCalling`, and gains the value `cancelled`; `error_type` carries a low-cardinality error class when the outcome is not `success`.
+- **Model calls.** `ModelInvocation.invocation_kind` separates live calls from replays, cache hits and simulations (`provider` and `model_name` may be null on a replay or simulation, and `replay_of` points at what was replayed); `cache_read_tokens`, `cache_creation_tokens` and `request_id` are new; `model_version` is gone.
+- **Tool calls.** `tool_meta` is typed: `name` is required, `call_id`, `tool_type`, `namespace`, `server` and `version` are known keys, unknown keys are still allowed; `description` is optional; `effect` says whether the call read, wrote or executed.
+- **Acting.** `action_type` is a namespaced `<domain>.<verb>`; `dry_run` is gone (`execution_status: "simulated"` already says it); `parameters` is optional; `execution_status` gains `cancelled`.
+- **Attesting.** `disposition` gains `cancel` and `no_response`; `channel` and `seen_completeness` are new; `evidence_refs` is gone (use `sources`). `no_response` requires `outcome: "timeout"` and `cancel` requires `outcome: "cancelled"`; the server and both SDKs enforce these like the existing rules.
+- **Observing.** `trigger_type` gains `human_trigger`, `outcome_trigger` and `agent_trigger`; `external_trigger_id` is gone.
+- `Reflecting.kind` (`process`, `evaluation`, `settlement`), `Other.proposed_behavior`, `Verdict.decided_by` as a fixed vocabulary (`human`, `model`, `rule`, `policy`, `classifier`, `config`, `consensus`).
+- **Removed fields:** `parent_record_id`, `Verdict.sources`, `Verdict.counterfactual`, `Verdict.dissent`, `SourceDescriptor.record_id`, `Thinking.prompt` and `Thinking.inputs` are now optional.
+- **Requirement levels.** Fields are required, recommended or optional; the schema reference marks the recommended ones. Completeness (the share of recommended fields filled) and the session shape (opened by an `Observing`, closed by an `Acting`) are measured, not enforced.
+- Writes accept schema `0.5` only, as `0.4` was accepted only before; the database gains the three behavior values and `cancelled`, with no new columns.
 
 ## 1.1.0 — 2026-10-08
 

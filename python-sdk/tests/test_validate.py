@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import pytest
 
 from reasoning_ledger.constants import SIZE_LIMITS
@@ -5,7 +7,7 @@ from reasoning_ledger.errors import ValidationError
 from reasoning_ledger.validate import validate_batch, validate_record
 
 # ---------------------------------------------------------------------------
-# Shared minimal valid record builders (schema 0.4)
+# Shared minimal valid record builders (schema 0.5)
 # ---------------------------------------------------------------------------
 
 TEXT_REF = {
@@ -18,6 +20,8 @@ JSON_REF = {
     "media_type": "application/json",
     "sha256": "b" * 64,
 }
+RECORD_ID = "6ba7b810-9dad-41d1-80b4-00c04fd430c8"
+OTHER_RECORD_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 
 
 def base(behavior: str, fields: dict[str, object]) -> dict[str, object]:
@@ -26,9 +30,9 @@ def base(behavior: str, fields: dict[str, object]) -> dict[str, object]:
         "behavior": behavior,
         "client_ts_utc": 1_700_000_000_000,
         "executor": "det",
-        "record_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
+        "record_id": RECORD_ID,
         "record_phase": "post_execution",
-        "schema_version": "0.4",
+        "schema_version": "0.5",
         "session_id": "session-001",
         **fields,
     }
@@ -55,7 +59,7 @@ def make_tool_calling(**overrides: object) -> dict[str, object]:
             "input_payload": JSON_REF,
             "outcome": "success",
             "output_payload": JSON_REF,
-            "tool_meta": {"category": "external_api", "tool_id": "weather_api"},
+            "tool_meta": {"category": "external_api", "name": "weather_api"},
             **overrides,
         },
     )
@@ -79,9 +83,9 @@ def make_acting(**overrides: object) -> dict[str, object]:
         "Acting",
         {
             "action_summary": "Sent email",
-            "action_type": "email",
-            "dry_run": False,
+            "action_type": "email.send",
             "execution_status": "confirmed",
+            "outcome": "success",
             "parameters": {},
             "target_system": "smtp",
             **overrides,
@@ -97,8 +101,50 @@ def make_attesting(**overrides: object) -> dict[str, object]:
             "executor": "human",
             "gate_kind": "pre-send",
             "operator_id": "reviewer-7",
+            "outcome": "success",
             "record_phase": "concurrent",
             "written_by": {"component": "review-ui", "credential": "svc-key"},
+            **overrides,
+        },
+    )
+
+
+def make_escalating(**overrides: object) -> dict[str, object]:
+    return base(
+        "Escalating",
+        {
+            "asked": TEXT_REF,
+            "executor": "ai",
+            "kind": "permission",
+            "outcome": "success",
+            "record_phase": "concurrent",
+            **overrides,
+        },
+    )
+
+
+def make_delegating(**overrides: object) -> dict[str, object]:
+    return base(
+        "Delegating",
+        {
+            "executor": "ai",
+            "goal": TEXT_REF,
+            "kind": "spawn",
+            "outcome": "success",
+            **overrides,
+        },
+    )
+
+
+def make_memorizing(**overrides: object) -> dict[str, object]:
+    return base(
+        "Memorizing",
+        {
+            "executor": "ai",
+            "op": "add",
+            "outcome": "success",
+            "scope": "project",
+            "target": TEXT_REF,
             **overrides,
         },
     )
@@ -117,47 +163,134 @@ class TestValidateRecordValid:
     def test_observing_passes(self) -> None:
         validate_record(make_observing())  # must not raise
 
+    @pytest.mark.parametrize("trigger_type", ["human_trigger", "outcome_trigger", "agent_trigger"])
+    def test_observing_new_trigger_types_pass(self, trigger_type: str) -> None:
+        validate_record(make_observing(trigger_type=trigger_type))
+
     def test_tool_calling_passes(self) -> None:
         validate_record(make_tool_calling())
+
+    def test_tool_calling_typed_tool_meta_and_effect_pass(self) -> None:
+        record = make_tool_calling(
+            effect="read",
+            tool_meta={
+                "call_id": "toolu_01",
+                "name": "forecast",
+                "namespace": "weather",
+                "server": "weather-mcp",
+                "tool_type": "mcp",
+                "version": "2.1",
+            },
+        )
+        del record["description"]  # optional since 0.5
+        validate_record(record)
 
     def test_thinking_passes(self) -> None:
         validate_record(make_thinking())
 
+    def test_thinking_needs_only_output_payload(self) -> None:
+        record = make_thinking()
+        del record["prompt"], record["inputs"]
+        validate_record(record)
+
+    def test_thinking_with_a_plan_passes(self) -> None:
+        steps = [
+            {"description": "Gather odds", "index": 0},
+            {"depends_on": [0], "description": "Compare with xG", "index": 1},
+        ]
+        validate_record(make_thinking(revision_of=OTHER_RECORD_ID, steps=steps))
+
     def test_acting_passes(self) -> None:
         validate_record(make_acting())
+
+    def test_cancelled_outcome_and_execution_status_pass(self) -> None:
+        validate_record(make_delegating(error_type="user.abort", outcome="cancelled"))
+        validate_record(make_acting(execution_status="cancelled", outcome="cancelled"))
+
+    def test_acting_parameters_are_optional(self) -> None:
+        record = make_acting(action_type="answer.final", target_system="chat")
+        del record["parameters"]  # optional since 0.5
+        validate_record(record)
 
     def test_attesting_passes(self) -> None:
         validate_record(
             make_attesting(
+                channel="async",
                 decision={"amount": 120},
                 effects=JSON_REF,
-                evidence_refs=["6ba7b810-9dad-41d1-80b4-00c04fd430c8", TEXT_REF],
+                seen_completeness="partial",
+                upstream_record_id=[OTHER_RECORD_ID],
             )
         )
 
-    def test_other_passes(self) -> None:
-        validate_record(make_other())
-
-    def test_planning_passes(self) -> None:
+    def test_escalating_passes(self) -> None:
         validate_record(
-            base("Planning", {"goal": "Win", "steps": [{"description": "Analyse", "index": 0}]})
+            make_escalating(default="approve", duration_ms=1200, options=["approve", "reject"])
         )
 
-    def test_reflecting_passes(self) -> None:
-        validate_record(base("Reflecting", {"inputs": [], "output_payload": TEXT_REF}))
+    def test_delegating_passes(self) -> None:
+        validate_record(
+            make_delegating(
+                child_session_id="child-session-001",
+                delegate_agent_id="code-reviewer",
+                result=JSON_REF,
+                awaited=True,
+            )
+        )
 
-    def test_optional_0_4_base_fields_pass(self) -> None:
+    def test_memorizing_passes(self) -> None:
+        validate_record(make_memorizing(approved_by=OTHER_RECORD_ID, op="update", scope="global"))
+
+    def test_other_passes(self) -> None:
+        validate_record(make_other(proposed_behavior="Reporting"))
+
+    def test_reflecting_passes(self) -> None:
+        validate_record(
+            base("Reflecting", {"inputs": [], "kind": "settlement", "output_payload": TEXT_REF})
+        )
+
+    def test_optional_base_fields_pass(self) -> None:
         validate_record(
             make_acting(
+                classification={
+                    "alternatives": [{"behavior": "ToolCalling", "confidence": 0.2}],
+                    "confidence": 0.8,
+                    "mapper": "collector@0.3",
+                    "source": "rule",
+                },
                 duration_ms=35,
+                error_type="http.5xx",
+                on_behalf_of_agent_id=OTHER_RECORD_ID,
                 outcome="failure",
-                sources=[{"kind": "api", "ref": "smtp://relay"}],
-                verdict={"conclusion": "retry later", "decided_by": "policy-v2"},
+                sources=[{"kind": "record", "ref": OTHER_RECORD_ID}],
+                verdict={"conclusion": "retry later", "decided_by": "policy"},
+                written_by={"component": "mailer", "credential": "svc-mail"},
             )
         )
 
     def test_internal_reasoning_is_a_content_ref(self) -> None:
         invocation = {"model_name": "m", "provider": "p", "internal_reasoning": TEXT_REF}
+        validate_record(make_thinking(model_invocation=invocation))
+
+    def test_new_model_invocation_fields_pass(self) -> None:
+        invocation = {
+            "cache_creation_tokens": 0,
+            "cache_read_tokens": 1200,
+            "invocation_kind": "cached",
+            "model_name": "m",
+            "provider": "p",
+            "request_id": "req_01",
+        }
+        validate_record(make_thinking(model_invocation=invocation))
+
+    @pytest.mark.parametrize("replay_of", [OTHER_RECORD_ID, TEXT_REF])
+    def test_replay_may_leave_provider_and_model_name_null(self, replay_of: object) -> None:
+        invocation = {
+            "invocation_kind": "replay",
+            "model_name": None,
+            "provider": None,
+            "replay_of": replay_of,
+        }
         validate_record(make_thinking(model_invocation=invocation))
 
 
@@ -206,11 +339,93 @@ class TestValidateRecordSchemaViolations:
         assert exc_info.value.details is not None
         assert exc_info.value.details["field"] == "Thinking.prompt"
 
-    def test_tool_calling_requires_outcome(self) -> None:
-        record = make_tool_calling()
+    def test_raw_text_at_a_new_content_position_raises(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            validate_record(make_escalating(asked="May I send it?"))
+        assert exc_info.value.details is not None
+        assert exc_info.value.details["field"] == "Escalating.asked"
+
+    def test_planning_is_gone(self) -> None:
+        planning = base(
+            "Planning", {"goal": "Win", "steps": [{"description": "Analyse", "index": 0}]}
+        )
+        with pytest.raises(ValidationError, match="Planning"):
+            validate_record(planning)
+
+    @pytest.mark.parametrize(
+        "make",
+        [
+            make_tool_calling,
+            make_acting,
+            make_attesting,
+            make_escalating,
+            make_delegating,
+            make_memorizing,
+        ],
+    )
+    def test_outcome_is_required(self, make: Callable[[], dict[str, object]]) -> None:
+        record = make()
         del record["outcome"]
+        with pytest.raises(ValidationError) as exc_info:
+            validate_record(record)
+        assert exc_info.value.details is not None
+        assert exc_info.value.details["field"] == f"{record['behavior']}.outcome"
+
+    @pytest.mark.parametrize(
+        ("make", "field"),
+        [
+            (make_escalating, "kind"),
+            (make_escalating, "asked"),
+            (make_delegating, "kind"),
+            (make_delegating, "goal"),
+            (make_memorizing, "scope"),
+            (make_memorizing, "target"),
+            (make_memorizing, "op"),
+        ],
+    )
+    def test_new_behaviors_require_their_fields(
+        self, make: Callable[[], dict[str, object]], field: str
+    ) -> None:
+        record = make()
+        del record[field]
         with pytest.raises(ValidationError):
             validate_record(record)
+
+    @pytest.mark.parametrize(
+        ("record", "field"),
+        [
+            (make_acting(dry_run=False), "Acting.dry_run"),
+            (make_attesting(evidence_refs=[OTHER_RECORD_ID]), "Attesting.evidence_refs"),
+            (make_observing(external_trigger_id="evt-1"), "Observing.external_trigger_id"),
+            (make_other(parent_record_id=OTHER_RECORD_ID), "Other.parent_record_id"),
+            (
+                make_thinking(
+                    model_invocation={"model_name": "m", "model_version": "1", "provider": "p"}
+                ),
+                "Thinking.model_invocation.model_version",
+            ),
+        ],
+    )
+    def test_removed_fields_are_rejected(self, record: dict[str, object], field: str) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            validate_record(record)
+        assert exc_info.value.details is not None
+        assert exc_info.value.details["field"] == field
+
+    @pytest.mark.parametrize(
+        "action_type", ["email", "Email.send", "email.", ".send", "email send"]
+    )
+    def test_action_type_must_be_namespaced(self, action_type: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_record(make_acting(action_type=action_type))
+
+    def test_verdict_decided_by_is_a_fixed_vocabulary(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_record(make_acting(verdict={"conclusion": "ok", "decided_by": "policy-v2"}))
+
+    def test_tool_meta_requires_a_name(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_record(make_tool_calling(tool_meta={"category": "external_api"}))
 
     def test_tool_calling_success_flag_is_gone(self) -> None:
         with pytest.raises(ValidationError):
@@ -277,6 +492,34 @@ class TestCrossFieldRules:
     def test_other_dispositions_need_no_reason(self, disposition: str) -> None:
         validate_record(make_attesting(disposition=disposition))
 
+    @pytest.mark.parametrize(
+        ("disposition", "expected", "given"),
+        [
+            ("no_response", "timeout", "success"),
+            ("no_response", "timeout", "cancelled"),
+            ("cancel", "cancelled", "success"),
+            ("cancel", "cancelled", "timeout"),
+        ],
+    )
+    def test_no_response_and_cancel_fix_the_outcome(
+        self, disposition: str, expected: str, given: str
+    ) -> None:
+        record = make_attesting(disposition=disposition, outcome=given)
+        message = f"outcome must be '{expected}' when disposition is '{disposition}'"
+        with pytest.raises(ValidationError, match=message) as exc_info:
+            validate_record(record)
+        assert exc_info.value.details == {"field": "outcome", "reason": f"must be '{expected}'"}
+
+    @pytest.mark.parametrize(
+        ("disposition", "outcome"), [("no_response", "timeout"), ("cancel", "cancelled")]
+    )
+    def test_no_response_and_cancel_with_their_outcome_pass(
+        self, disposition: str, outcome: str
+    ) -> None:
+        validate_record(
+            make_attesting(channel="headless", disposition=disposition, outcome=outcome)
+        )
+
     def test_batch_reports_rule_violations_per_record(self) -> None:
         results = validate_batch([make_attesting(disposition="reject"), make_attesting()])
         assert isinstance(results[0], ValidationError)
@@ -311,7 +554,7 @@ class TestValidateRecordSizeLimits:
             validate_record(make_observing(trigger_payload_summary=oversized))
 
     def test_tool_meta_too_large(self) -> None:
-        big = {f"key{i}": "x" * 45 for i in range(400)}
+        big = {"name": "weather_api", **{f"key{i}": "x" * 45 for i in range(400)}}
         with pytest.raises(ValidationError, match="tool_meta"):
             validate_record(make_tool_calling(tool_meta=big))
 

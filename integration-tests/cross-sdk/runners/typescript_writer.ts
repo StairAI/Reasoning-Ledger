@@ -106,11 +106,11 @@ async function main(): Promise<void> {
   // 4. Acting.
   await session.submit({
     action_summary: "cross-sdk act",
-    action_type: "publish",
+    action_type: "cross_sdk.publish",
     behavior: "Acting",
-    dry_run: true,
     executor: "det",
     execution_status: "simulated",
+    outcome: "success",
     parameters: {},
     record_id: ids.acting,
     record_phase: "post_execution",

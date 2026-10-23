@@ -11,6 +11,7 @@ from reasoning_ledger import ValidationError, is_valid_record_id
 
 from .fakes import AGENT_ID, ENDPOINT, FakeLedgerServer, make_client, sha256_of
 
+TEXT = "text/plain; charset=utf-8"
 WRITTEN_BY = {"component": "review-ui", "credential": "svc-reviewer"}
 
 
@@ -20,6 +21,7 @@ def attesting_input(**overrides: Any) -> dict[str, Any]:
         "disposition": "approve",
         "gate_kind": "payment-approval",
         "operator_id": "reviewer-7",
+        "outcome": "success",
         "session_id": "s-1",
         "written_by": WRITTEN_BY,
         **overrides,
@@ -53,17 +55,21 @@ class TestSubmitAttesting:
 
         record = posted(server)
         assert record["agent_id"] == AGENT_ID
-        assert record["schema_version"] == "0.4"
+        assert record["schema_version"] == "0.5"
         assert is_valid_record_id(record["record_id"])
         assert isinstance(record["client_ts_utc"], int)
 
     def test_passes_the_disposition_fields_through(self) -> None:
         server = FakeLedgerServer()
         client = make_client(server)
-        evidence = ["6ba7b810-9dad-41d1-80b4-00c04fd430c8"]
 
         client.submit_attesting(
-            attesting_input(disposition="edit", evidence_refs=evidence, patch={"amount": 100})
+            attesting_input(
+                channel="interactive",
+                disposition="edit",
+                patch={"amount": 100},
+                seen_completeness="complete",
+            )
         )
 
         record = posted(server)
@@ -71,7 +77,17 @@ class TestSubmitAttesting:
         assert record["decision"] == {"amount": 120, "currency": "EUR"}
         assert record["disposition"] == "edit"
         assert record["patch"] == {"amount": 100}
-        assert record["evidence_refs"] == evidence
+        assert record["outcome"] == "success"
+        assert (record["channel"], record["seen_completeness"]) == ("interactive", "complete")
+
+    def test_evidence_refs_are_gone(self) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+
+        with pytest.raises(ValidationError):
+            client.submit_attesting(attesting_input(evidence_refs=[]))
+
+        assert server.calls == []
 
     def test_caller_supplied_record_phase_is_kept(self) -> None:
         server = FakeLedgerServer()
@@ -121,7 +137,32 @@ class TestSubmitAttesting:
 
         assert posted(server)["reason"] == "wrong payee"
 
-    @pytest.mark.parametrize("field", ["operator_id", "disposition", "gate_kind", "written_by"])
+    @pytest.mark.parametrize(
+        ("disposition", "expected"), [("no_response", "timeout"), ("cancel", "cancelled")]
+    )
+    def test_outcome_rules_fail_before_any_request(self, disposition: str, expected: str) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+
+        with pytest.raises(ValidationError, match=f"outcome must be '{expected}'"):
+            client.submit_attesting(attesting_input(disposition=disposition, effects="undo"))
+
+        assert server.calls == []
+
+    def test_no_response_with_timeout_is_submitted(self) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        record = attesting_input(channel="headless", disposition="no_response", outcome="timeout")
+        del record["decision"]
+
+        client.submit_attesting(record)
+
+        sent = posted(server)
+        assert (sent["disposition"], sent["outcome"]) == ("no_response", "timeout")
+
+    @pytest.mark.parametrize(
+        "field", ["operator_id", "disposition", "gate_kind", "written_by", "outcome"]
+    )
     def test_required_fields_are_checked_locally(self, field: str) -> None:
         server = FakeLedgerServer()
         client = make_client(server)
@@ -132,6 +173,54 @@ class TestSubmitAttesting:
             client.submit_attesting(record)
 
         assert server.calls == []
+
+    def test_answers_an_escalation_whose_question_is_uploaded(self) -> None:
+        server = FakeLedgerServer()
+        session = make_client(server).new_session("review-session")
+        question = "Pay 120 EUR to a new payee?"
+
+        escalation = session.submit(
+            {
+                "asked": question,
+                "behavior": "Escalating",
+                "executor": "ai",
+                "kind": "permission",
+                "options": ["approve", "reject"],
+                "outcome": "success",
+                "record_phase": "post_execution",
+            }
+        )
+        session.submit_attesting(attesting_input(upstream_record_id=[escalation["record_id"]]))
+
+        escalating, attesting = server.records
+        assert escalating["asked"] == server.ref_for(question.encode(), TEXT)
+        assert server.upload_of(question.encode())["headers"]["content-type"] == TEXT
+        assert attesting["behavior"] == "Attesting"
+        assert attesting["upstream_record_id"] == [escalating["record_id"]]
+
+    def test_approves_a_memory_write_whose_target_is_uploaded(self) -> None:
+        server = FakeLedgerServer()
+        session = make_client(server).new_session("review-session")
+        rule = "Payments to a new payee above 100 EUR need a second reviewer"
+
+        approval = session.submit_attesting(attesting_input())
+        session.submit(
+            {
+                "approved_by": approval["record_id"],
+                "behavior": "Memorizing",
+                "executor": "ai",
+                "op": "add",
+                "outcome": "success",
+                "record_phase": "post_execution",
+                "scope": "org",
+                "target": rule,
+                "upstream_record_id": [approval["record_id"]],
+            }
+        )
+
+        _, memorizing = server.records
+        assert memorizing["target"] == server.ref_for(rule.encode(), TEXT)
+        assert memorizing["approved_by"] == approval["record_id"]
 
     def test_session_injects_its_session_id(self) -> None:
         server = FakeLedgerServer()

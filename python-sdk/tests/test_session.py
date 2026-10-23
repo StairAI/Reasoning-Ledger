@@ -203,6 +203,7 @@ class TestSessionSubmitAttesting:
                 "disposition": "approve",
                 "gate_kind": "pre-send",
                 "operator_id": "reviewer-7",
+                "outcome": "success",
                 "session_id": "caller-supplied",
                 "written_by": {"component": "review-ui", "credential": "svc-key"},
             }

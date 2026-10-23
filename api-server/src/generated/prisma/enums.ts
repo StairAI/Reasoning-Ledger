@@ -24,6 +24,9 @@ export const BehaviorType = {
   Reflecting: "Reflecting",
   Other: "Other",
   Attesting: "Attesting",
+  Escalating: "Escalating",
+  Delegating: "Delegating",
+  Memorizing: "Memorizing",
 } as const;
 
 export type BehaviorType = (typeof BehaviorType)[keyof typeof BehaviorType];
@@ -50,6 +53,7 @@ export const Outcome = {
   denied: "denied",
   escalated: "escalated",
   timeout: "timeout",
+  cancelled: "cancelled",
 } as const;
 
 export type Outcome = (typeof Outcome)[keyof typeof Outcome];

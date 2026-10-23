@@ -82,6 +82,7 @@ function attestingInput() {
     disposition: "approve" as const,
     gate_kind: "manual-review",
     operator_id: "operator-1",
+    outcome: "success" as const,
     written_by: { component: "review-ui", credential: "svc-review" },
   };
 }

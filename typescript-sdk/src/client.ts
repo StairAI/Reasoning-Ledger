@@ -283,10 +283,11 @@ export class LedgerClient {
   }
 
   /**
-   * Submit an Attesting record: a person's disposition of a pending action.
+   * Submit an Attesting record: a person's disposition of a pending item.
    * Sets `behavior: "Attesting"` and `executor: "human"`, and `record_phase:
    * "concurrent"` unless the input sets one; otherwise behaves like submit.
-   * A reject needs a `reason`. `effects` may be raw content.
+   * `outcome` is required (`timeout` for `no_response`, `cancelled` for
+   * `cancel`), and a reject needs a `reason`. `effects` may be raw content.
    */
   submitAttesting(input: AttestingInput): Promise<RecordAck> {
     return this.submit(attestingRecord(input));

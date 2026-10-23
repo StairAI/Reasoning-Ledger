@@ -10,6 +10,7 @@ import "dotenv/config";
 import { call } from "@orpc/server";
 import { registerOwner } from "#/routes/owners";
 import { prisma } from "#/lib/prisma";
+import { SCHEMA_VERSION } from "#/generated/version";
 
 // ---------------------------------------------------------------------------
 // Context helpers
@@ -51,7 +52,7 @@ export function makeObservingInput(agentId: string, overrides: Record<string, un
     executor: "det" as const,
     record_id: crypto.randomUUID(),
     record_phase: "post_execution" as const,
-    schema_version: "0.4",
+    schema_version: SCHEMA_VERSION,
     session_id: `sess-${crypto.randomUUID()}`,
     trigger_description: "Test trigger",
     trigger_payload_summary: "test payload",

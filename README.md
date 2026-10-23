@@ -43,13 +43,15 @@ Every record carries a `behavior` field that classifies what the agent was doing
 
 | Behavior | Kind | Description |
 |---|---|---|
-| `Observing` | Composite | The triggering event that woke the agent (signal or cron) |
-| `Planning` | Composite | Goal decomposition into steps |
-| `Thinking` | Composite | Analysis, option evaluation, and decision |
+| `Observing` | Composite | The event that woke the agent: a signal, a schedule, a person, an earlier action's outcome, another agent |
+| `Thinking` | Composite | Analysis, option evaluation, decision; an explicit plan when it has `steps` |
 | `Acting` | Composite | The terminal commitment that resolves the cycle |
-| `Reflecting` | Composite | Post-hoc reasoning over prior behavior |
-| `ToolCalling` | Operational | Any external call — API, KB, sub-agent, on-chain read, local function |
-| `Attesting` | Oversight | A person's approval, rejection or edit of a pending action, submitted by the application |
+| `Reflecting` | Composite | The agent's evaluation of its own earlier behavior, during or after the cycle |
+| `ToolCalling` | Operational | An interaction with the world in the middle of the cycle — API, file, data store, local function |
+| `Delegating` | Operational | A goal handed to another agent, which runs its own cycle |
+| `Memorizing` | Operational | A write to state that outlives the cycle: memory, rules, skills, settings, a knowledge base |
+| `Escalating` | Oversight | The agent hands a decision to a person: a question, a permission request, a plan to approve, a handoff |
+| `Attesting` | Oversight | A person's disposition of a pending item (approve, edit, reject, cancel, no response), submitted by the application |
 | `Other` | Operational | Catch-all for behaviors outside the taxonomy |
 
 A typical decision cycle looks like:
@@ -59,7 +61,8 @@ session "cycle-001"
 ├─ Observing       ← trigger arrives
 ├─ ToolCalling × N ← data gathering
 ├─ Thinking        ← analysis + decision
-├─ Attesting       ← a person signs off (when the action needs it)
+├─ Escalating      ← the agent asks a person (when the action needs it)
+├─ Attesting       ← the person's disposition, written by the application
 └─ Acting          ← commitment
 ```
 
@@ -175,7 +178,7 @@ session.submit({
 })
 ```
 
-When a person approves, rejects or edits an action, the application records it with `submitAttesting` (Python: `submit_attesting`); see the SDK READMEs.
+When a person approves, edits, rejects or cancels a pending item, or nobody answers, the application records it with `submitAttesting` (Python: `submit_attesting`); the agent's side of the exchange is an `Escalating` record. See the SDK READMEs.
 
 ---
 
@@ -213,7 +216,7 @@ pnpm codegen
 
 The pre-commit hook runs this automatically. Never edit the generated files (`src/generated/`, `src/reasoning_ledger/generated/`) by hand.
 
-The schema version is numbered separately from the SDK and server versions. SDK and server 1.0.0 write schema `0.4`; the server accepts writes only in the current version and keeps every earlier version readable. The label `1.0` was used by SDK 0.1.0 for what is now `0.2`; it is retired and will never be reused.
+The schema version is numbered separately from the SDK and server versions. SDK and server 1.0.0 wrote schema `0.4`; the next release writes `0.5` (see [`schema/SCHEMA.md`](./schema/SCHEMA.md)). The server accepts writes only in the current version and keeps every earlier version readable. The label `1.0` was used by SDK 0.1.0 for what is now `0.2`; it is retired and will never be reused.
 
 ---
 

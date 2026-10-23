@@ -234,7 +234,7 @@ The schema is defined in [`prisma/schema.prisma`](./prisma/schema.prisma), with 
 
 `api_key` values are never stored raw — only the SHA-256 hex digest is persisted. The raw key is shown once at registration and cannot be recovered.
 
-Records written as schema `0.1`–`0.3` keep their original shape. A database constraint requires the 0.4 fields (`executor`, `record_phase`) on every record stamped `0.4`.
+Records written as schema `0.1`–`0.4` keep their original shape, including the `Planning` behavior and the fields 0.5 removed. A database constraint requires the 0.4 fields (`executor`, `record_phase`) on every record stamped `0.4` or later.
 
 ## API endpoints
 
@@ -263,7 +263,7 @@ The read endpoints also accept the administrator's token in `X-Admin-Token`, whi
 
 Every read is limited to the calling owner's data: another owner's agent, record or session answers `404`.
 
-Records are written only as schema `0.4`. The server checks each record against the schema and the [cross-field rules](../schema/SCHEMA.md#cross-field-rules), and checks that the content it references was uploaded by the same owner.
+Records are written only as schema `0.5`. The server checks each record against the schema and the [cross-field rules](../schema/SCHEMA.md#cross-field-rules), and checks that the content it references was uploaded by the same owner.
 
 ## Health check
 

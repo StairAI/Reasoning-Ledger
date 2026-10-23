@@ -3,12 +3,14 @@ import type {
   AttestingRecord,
   BehaviorType,
   ContentRef,
+  DelegatingRecord,
+  EscalatingRecord,
   Executor,
+  MemorizingRecord,
   ModelInvocation,
   ObservingRecord,
   OtherRecord,
   Outcome,
-  PlanningRecord,
   RecordPhase,
   ReflectingRecord,
   ThinkingRecord,
@@ -16,7 +18,7 @@ import type {
 } from "./generated/records.js";
 
 // ---------------------------------------------------------------------------
-// Record types (schema 0.4). The schema's cross-field (if/then) rules are not
+// Record types (schema 0.5). The schema's cross-field (if/then) rules are not
 // part of the generated types; validate.ts enforces them.
 // ---------------------------------------------------------------------------
 
@@ -26,11 +28,13 @@ export type { ActingRecord, AttestingRecord };
 export type LedgerRecord =
   | ObservingRecord
   | ToolCallingRecord
-  | PlanningRecord
   | ThinkingRecord
   | ActingRecord
   | ReflectingRecord
   | AttestingRecord
+  | EscalatingRecord
+  | DelegatingRecord
+  | MemorizingRecord
   | OtherRecord;
 
 // ---------------------------------------------------------------------------
@@ -49,9 +53,16 @@ export type LedgerRecord =
  */
 export type ContentInput = ContentRef | string | Uint8Array | number | boolean | object | null;
 
-/** ModelInvocation as submitted: `internal_reasoning` may be raw content. */
-export interface ModelInvocationInput extends Omit<ModelInvocation, "internal_reasoning"> {
+/**
+ * ModelInvocation as submitted: `internal_reasoning` may be raw content, and
+ * so may `replay_of` unless it is a record id (a UUID string, sent as is).
+ */
+export interface ModelInvocationInput extends Omit<
+  ModelInvocation,
+  "internal_reasoning" | "replay_of"
+> {
   internal_reasoning?: ContentInput;
+  replay_of?: ContentInput;
 }
 
 /** An entry of `Thinking.inputs` / `Reflecting.inputs` as submitted. */
@@ -74,13 +85,12 @@ type RecordInput =
       ToolCallingRecord,
       CommonInput & { input_payload: ContentInput; output_payload: ContentInput }
     >
-  | Retype<PlanningRecord, CommonInput>
   | Retype<
       ThinkingRecord,
       CommonInput & {
-        inputs: ContentInputEntry[];
+        inputs?: ContentInputEntry[];
         output_payload: ContentInput;
-        prompt: ContentInput;
+        prompt?: ContentInput;
       }
     >
   | Retype<ActingRecord, CommonInput>
@@ -89,6 +99,9 @@ type RecordInput =
       CommonInput & { inputs: ContentInputEntry[]; output_payload: ContentInput }
     >
   | Retype<AttestingRecord, CommonInput & { effects?: ContentInput }>
+  | Retype<EscalatingRecord, CommonInput & { asked: ContentInput }>
+  | Retype<DelegatingRecord, CommonInput & { goal: ContentInput; result?: ContentInput }>
+  | Retype<MemorizingRecord, CommonInput & { target: ContentInput }>
   | Retype<OtherRecord, CommonInput>;
 
 // ---------------------------------------------------------------------------

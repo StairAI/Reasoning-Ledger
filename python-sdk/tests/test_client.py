@@ -118,7 +118,7 @@ class TestSubmit:
 
         body = json.loads(call["body"] or "{}")
         assert body["agent_id"] == AGENT_ID
-        assert body["schema_version"] == "0.4"
+        assert body["schema_version"] == "0.5"
         assert isinstance(body["record_id"], str)
         assert isinstance(body["client_ts_utc"], int)
 
@@ -288,7 +288,7 @@ class TestGetRecord:
         assert transport.calls[0]["method"] == "GET"
         assert transport.calls[0]["url"] == f"{ENDPOINT}/v1/records/{record_id}"
 
-    def test_returns_0_4_fields_and_sequence(self) -> None:
+    def test_returns_stored_fields_and_sequence(self) -> None:
         transport = MockTransport()
         client = make_client(transport)
         stored = {

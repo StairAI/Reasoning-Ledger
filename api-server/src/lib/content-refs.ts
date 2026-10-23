@@ -26,9 +26,13 @@ function field(value: unknown, key: string): unknown {
     : undefined;
 }
 
-/** Every content reference a record carries, at the positions schema 0.4 defines. */
+/** Every content reference a record carries, at the positions schema 0.5 defines. */
 export function contentRefsOf(record: Record<string, unknown>): ContentRef[] {
-  const candidates: unknown[] = [field(record.model_invocation, "internal_reasoning")];
+  const candidates: unknown[] = [
+    field(record.model_invocation, "internal_reasoning"),
+    // A replay names either a record (a uuid, skipped below) or a ContentRef.
+    field(record.model_invocation, "replay_of"),
+  ];
   switch (record.behavior) {
     case "ToolCalling": {
       candidates.push(record.input_payload, record.output_payload);
@@ -45,7 +49,19 @@ export function contentRefsOf(record: Record<string, unknown>): ContentRef[] {
       break;
     }
     case "Attesting": {
-      candidates.push(record.effects, ...items(record.evidence_refs));
+      candidates.push(record.effects);
+      break;
+    }
+    case "Escalating": {
+      candidates.push(record.asked);
+      break;
+    }
+    case "Delegating": {
+      candidates.push(record.goal, record.result);
+      break;
+    }
+    case "Memorizing": {
+      candidates.push(record.target);
       break;
     }
     default: {

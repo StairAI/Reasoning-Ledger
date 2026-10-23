@@ -41,12 +41,12 @@ integration-tests/
 | ---------------------------------------------------------------- | -------------------------------------------------------------- |
 | `registerAgent` returns a UUID and is idempotent on `(owner, name)` | contract on `POST /v1/agents`                                  |
 | `resolveAgentId` round-trips the registered name                 | contract on `GET /v1/agents?name=...`                          |
-| Full Observing → ToolCalling → Thinking → Acting cycle submits   | schema 0.4 records, with `executor` and `record_phase`, accepted |
+| Full Observing → ToolCalling → Thinking → Delegating → Escalating → Attesting → Acting → Memorizing cycle submits | schema 0.5 records, with `executor`, `record_phase` and the required `outcome`, accepted |
 | Raw strings and objects at content positions are uploaded first  | content library (`PUT /v1/content/{sha256}`) and reference check |
 | `submitAttesting` records a person's approval with `written_by`  | the Attesting entry point; a reject without a reason fails locally |
 | `submit` is idempotent on `record_id`                            | dedup check in `records.ts`                                    |
 | `submitBatch` of 3 returns 3 acks                                | batch endpoint contract                                        |
-| `getRecord` returns the 0.4 fields and `sequence`                | read-after-write                                               |
+| `getRecord` returns the 0.5 fields and `sequence`                | read-after-write                                               |
 | `getSession` returns every record of the session in order        | the server's `sequence` order                                  |
 | `getTrace` is newest-first, paginates via `next_cursor`          | cursor pagination contract                                     |
 | `putContent` / `getContent` round-trip the bytes                 | content upload and read                                        |
@@ -130,5 +130,5 @@ STAIRAI_STAGING_API_KEY=sl_... uv run --locked pytest tests/test_cross_sdk.py
 ## Notes
 
 - The suites pass the base URL to the SDKs as `endpoint`; the SDKs have no built-in hosts.
-- A deployed server must run the same api-server version as the SDKs under test: SDK 1.0 writes schema `0.4`, which older servers reject.
+- A deployed server must run the same api-server version as the SDKs under test: the SDKs on this branch write schema `0.5`, which older servers reject.
 - Each test run registers a fresh agent name by default; runs share no state. Set `STAIRAI_STAGING_AGENT_NAME` if you want re-runs to accumulate records under one agent.
