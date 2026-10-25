@@ -1,4 +1,3 @@
-import { call } from "@orpc/server";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -10,7 +9,7 @@ import { prisma } from "#/lib/prisma";
 import { GET, HEAD, PUT } from "#/pages/v1/content/[sha256]";
 import { registerAgent } from "#/routes/agents";
 import { getRecord, submitRecord } from "#/routes/records";
-import { ctx, makeObservingInput, makeTestOwner } from "./helpers";
+import { call, ctx, makeObservingInput, makeTestOwner } from "./helpers";
 import type { TestOwner } from "./helpers";
 
 type RouteContext = Parameters<typeof PUT>[0];

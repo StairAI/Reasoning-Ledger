@@ -13,6 +13,7 @@
       "enum": [
         "Observing",
         "ToolCalling",
+        "Planning",
         "Thinking",
         "Acting",
         "Reflecting",
@@ -633,8 +634,53 @@
       ],
       "unevaluatedProperties": false
     },
+    "PlanningRecord": {
+      "description": "An explicit, ordered plan for the work ahead, or a revision of an earlier plan: the goal, the steps and what to do if they fail. A vague intention inside a thought is Thinking.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "goal",
+            "steps"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Planning"
+            },
+            "goal": {
+              "type": "string",
+              "minLength": 1,
+              "description": "What the plan is for."
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlanningStep"
+              },
+              "description": "The ordered steps; may be empty when the plan is only a goal."
+            },
+            "contingencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "What to do when a step fails or an assumption does not hold."
+            },
+            "revision_of": {
+              "$ref": "#/$defs/UuidV4",
+              "description": "The earlier Planning record this plan revises."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "ThinkingRecord": {
-      "description": "A deliberate reasoning step inside the cycle: analysis, option comparison, a decision, or an explicit plan (steps).",
+      "description": "A deliberate reasoning step inside the cycle: analysis, option comparison, a decision. An explicit, ordered plan is a Planning record.",
       "allOf": [
         {
           "$ref": "#/$defs/BaseRecord"
@@ -660,17 +706,6 @@
             },
             "output_payload": {
               "$ref": "#/$defs/ContentRef"
-            },
-            "steps": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/PlanningStep"
-              },
-              "description": "Present when the thinking produced an explicit plan."
-            },
-            "revision_of": {
-              "$ref": "#/$defs/UuidV4",
-              "description": "The earlier Thinking record whose plan this one revises."
             }
           }
         }
@@ -1163,6 +1198,9 @@
           "$ref": "#/$defs/ToolCallingRecord"
         },
         {
+          "$ref": "#/$defs/PlanningRecord"
+        },
+        {
           "$ref": "#/$defs/ThinkingRecord"
         },
         {
@@ -1192,6 +1230,7 @@
         "mapping": {
           "Observing": "#/$defs/ObservingRecord",
           "ToolCalling": "#/$defs/ToolCallingRecord",
+          "Planning": "#/$defs/PlanningRecord",
           "Thinking": "#/$defs/ThinkingRecord",
           "Acting": "#/$defs/ActingRecord",
           "Reflecting": "#/$defs/ReflectingRecord",

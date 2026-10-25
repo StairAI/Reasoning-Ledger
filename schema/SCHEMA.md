@@ -6,7 +6,7 @@ The single source of truth is [`records.schema.json`](./records.schema.json) (JS
 
 - **Current schema version:** `0.5`
 - **Accepted for writes:** `0.5` only. A write stamped with any other version is rejected, and the error says why.
-- **Readable:** every version. Records written as `0.1`–`0.4` keep their original shape and version stamp; a `0.4` record may still carry the behavior `Planning` and the fields `0.5` removed.
+- **Readable:** every version. Records written as `0.1`–`0.4` keep their original shape and version stamp; a `0.4` record may still carry the fields `0.5` removed.
 - **Retired label:** `1.0`. SDK 0.1.0 stamped the format now called `0.2` as `"1.0"`; stored records carrying it were relabelled `0.2`, and the label is never reused. A write stamped `"1.0"` is rejected with a message to upgrade the SDK.
 
 The schema version is numbered separately from the SDK and server versions.
@@ -53,7 +53,7 @@ Present on every record regardless of behavior.
 | `agent_id` | UUID v4 | ✅ | The agent whose behavior this is. |
 | `session_id` | string | ✅ | Group key clustering records of one decision cycle (see [Sessions](#sessions-and-cycles)). Not a lifecycle entity — records simply share the string. |
 | `record_id` | UUID v4 | ✅ | Unique id for this record. |
-| `behavior` | enum | ✅ | One of `Observing`, `ToolCalling`, `Thinking`, `Acting`, `Reflecting`, `Attesting`, `Escalating`, `Delegating`, `Memorizing`, `Other`. Discriminates the union. |
+| `behavior` | enum | ✅ | One of `Observing`, `ToolCalling`, `Planning`, `Thinking`, `Acting`, `Reflecting`, `Attesting`, `Escalating`, `Delegating`, `Memorizing`, `Other`. Discriminates the union. |
 | `client_ts_utc` | epoch ms | ✅ | Client-side creation time, integer milliseconds since the Unix epoch. |
 | `executor` | enum | ✅ | Who performed the step: `"ai"` (a model), `"det"` (deterministic code) or `"human"` (a person). |
 | `record_phase` | enum | ✅ | When the record was written relative to the step it describes: `"pre_execution"`, `"concurrent"` or `"post_execution"`. |
@@ -155,7 +155,7 @@ Modern foundation models expose an internal reasoning channel separate from the 
 
 ## Behavior records
 
-Each section lists only the fields **added on top of** `BaseRecord`. The ten behaviors are the roles a step can play in a decision cycle; *how* a step was done (which tool, which model, read or write) is a field, not a behavior.
+Each section lists only the fields **added on top of** `BaseRecord`. The eleven behaviors are the roles a step can play in a decision cycle; *how* a step was done (which tool, which model, read or write) is a field, not a behavior.
 
 ### `Observing` — the event that woke the agent
 
@@ -195,33 +195,17 @@ A sub-agent's first record is an `Observing` with `trigger_type` `"agent_trigger
 
 Handing a goal to another agent is `Delegating`, not a `ToolCalling` with `tool_type` `"subagent"`; writing to memory is `Memorizing`. Reading memory, files or data stores is `ToolCalling`.
 
-### `Thinking` — analysis, decision, or an explicit plan
+### `Planning` — an explicit, ordered plan for the work ahead
+
+The goal, the steps and what to do if they fail, or a revision of an earlier plan. A vague intention inside a thought is `Thinking`. "Did it plan before acting" is answered by a `Planning` before the cycle's `Acting`.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `behavior` | `"Thinking"` | ✅ | Discriminator constant. |
-| `output_payload` | `ContentRef` | ✅ | The conclusion/output of the step. |
-| `prompt` | `ContentRef` | | The question/instruction driving this thinking step, when there is a separate one. |
-| `inputs` | `ThinkingInput`[] | | Inputs considered (see below). |
-| `steps` | `PlanningStep`[] | | Present when the thinking produced an explicit plan. "Did it plan before acting" is answered by a `Thinking` with `steps` before the cycle's `Acting`. |
-| `revision_of` | UUID v4 | | The earlier `Thinking` record whose plan this one revises. |
-
-**`ThinkingInput`:**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `input_payload` | `ContentRef` | ✅ | The input content. |
-| `input_record_id` | UUID v4 | | Reference to a prior record this input came from. |
-
-**`PlanningStep`:**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `index` | integer (≥0) | ✅ | Position of the step. |
-| `description` | string (≥1) | ✅ | What the step does. |
-| `depends_on` | integer[] (≥0) | | Indices of steps this one depends on. |
-
-The `0.4` behavior `Planning` is folded into `Thinking`; stored `0.4` records keep it.
+| `behavior` | `"Planning"` | ✅ | Discriminator constant. |
+| `goal` | string (≥1) | ✅ | What the plan is for. |
+| `steps` | `PlanningStep`[] | ✅ | The ordered steps; may be empty when the plan is only a goal. |
+| `contingencies` | string[] | | What to do when a step fails or an assumption does not hold. |
+| `revision_of` | UUID v4 | | The earlier `Planning` record this plan revises. |
 
 ### `Acting` — the terminal commitment that resolves the cycle
 
@@ -382,7 +366,8 @@ The behaviors are RL's own; this table says where each one lands in the vocabula
 |---|---|---|---|
 | `Observing` | — (the input of `invoke_agent`) | `CHAIN` root input | step with `source: user` |
 | `ToolCalling` | `execute_tool` | `TOOL`, `RETRIEVER` | `tool_calls` / `observation` |
-| `Thinking` | `chat`, `text_completion`; plan span | `LLM` | `reasoning_content` |
+| `Planning` | plan span (where emitted) | — | — |
+| `Thinking` | `chat`, `text_completion` | `LLM` | `reasoning_content` |
 | `Acting` | — (folded into `execute_tool`) | `TOOL` | terminal action (`submit`) |
 | `Reflecting` | — | — (`EVALUATOR` is an external judge) | — |
 | `Attesting` | — | — | — |
@@ -397,7 +382,7 @@ The behaviors are RL's own; this table says where each one lands in the vocabula
 
 | Version | Change |
 |---|---|
-| `0.5` | Behaviors: `Planning` folded into `Thinking` (`steps`, `revision_of`); new `Escalating`, `Delegating`, `Memorizing`. Base: new `error_type`, `written_by` (on every record), `on_behalf_of_agent_id`, `classification`; `outcome` gains `cancelled` and is required on `Acting`, `Attesting`, `Escalating`, `Delegating`, `Memorizing`; `parent_record_id` removed. `ModelInvocation`: `invocation_kind`, `replay_of`, `cache_read_tokens`, `cache_creation_tokens`, `request_id`; `model_version` removed. `Verdict.decided_by` becomes an enum; `sources`, `counterfactual`, `dissent` removed; `SourceDescriptor.record_id` removed. `Observing.trigger_type` gains `human_trigger`, `outcome_trigger`, `agent_trigger`; `external_trigger_id` removed. `ToolCalling.tool_meta` typed (`call_id`, `tool_type`, …), `description` optional, `effect` added. `Thinking.prompt` and `.inputs` optional. `Acting.action_type` namespaced, `dry_run` removed, `parameters` optional, `execution_status` gains `cancelled`. `Reflecting.kind`. `Attesting`: `cancel`, `no_response`, `channel`, `seen_completeness`; `evidence_refs` removed. `Other.proposed_behavior`. Requirement levels and completeness; session rules. Writes accept `0.5` only. Previous schema in [`history/0.4/`](./history/0.4/). |
+| `0.5` | Behaviors: `Planning` keeps its fields and gains `revision_of`; new `Escalating`, `Delegating`, `Memorizing`. Base: new `error_type`, `written_by` (on every record), `on_behalf_of_agent_id`, `classification`; `outcome` gains `cancelled` and is required on `Acting`, `Attesting`, `Escalating`, `Delegating`, `Memorizing`; `parent_record_id` removed. `ModelInvocation`: `invocation_kind`, `replay_of`, `cache_read_tokens`, `cache_creation_tokens`, `request_id`; `model_version` removed. `Verdict.decided_by` becomes an enum; `sources`, `counterfactual`, `dissent` removed; `SourceDescriptor.record_id` removed. `Observing.trigger_type` gains `human_trigger`, `outcome_trigger`, `agent_trigger`; `external_trigger_id` removed. `ToolCalling.tool_meta` typed (`call_id`, `tool_type`, …), `description` optional, `effect` added. `Thinking.prompt` and `.inputs` optional. `Acting.action_type` namespaced, `dry_run` removed, `parameters` optional, `execution_status` gains `cancelled`. `Reflecting.kind`. `Attesting`: `cancel`, `no_response`, `channel`, `seen_completeness`; `evidence_refs` removed. `Other.proposed_behavior`. Requirement levels and completeness; session rules. Writes accept `0.5` only. Previous schema in [`history/0.4/`](./history/0.4/). |
 | `0.4` | Raw content moves out of records into the content library (`ContentRef` at every content position). New required base fields `executor` and `record_phase`; new optional base fields `outcome`, `duration_ms`, `sources`, `verdict`. `ToolCalling.success` replaced by the required `outcome`. New behavior `Attesting`. Writes accept `0.4` only; the label `1.0` is retired. Previous schema in [`history/0.3/`](./history/0.3/). |
 | `0.3` | Added `ModelInvocation.internal_reasoning` — captures the model's raw chain-of-thought, distinct from its final output. |
 | `0.2` | (snapshot in [`history/0.2/`](./history/0.2/)) |

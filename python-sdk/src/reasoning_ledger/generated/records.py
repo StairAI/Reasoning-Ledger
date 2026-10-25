@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 class BehaviorType(StrEnum):
     Observing = "Observing"
     ToolCalling = "ToolCalling"
+    Planning = "Planning"
     Thinking = "Thinking"
     Acting = "Acting"
     Reflecting = "Reflecting"
@@ -393,6 +394,29 @@ class ToolCallingRecord(BaseRecord):
     outcome: Annotated[Outcome, Field(description="Result of the call.")]
 
 
+class PlanningRecord(BaseRecord):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    behavior: Literal["Planning"]
+    goal: Annotated[str, Field(description="What the plan is for.", min_length=1)]
+    steps: Annotated[
+        list[PlanningStep],
+        Field(
+            description="The ordered steps; may be empty when the plan is only a goal."
+        ),
+    ]
+    contingencies: Annotated[
+        list[str] | None,
+        Field(
+            description="What to do when a step fails or an assumption does not hold."
+        ),
+    ] = None
+    revision_of: Annotated[
+        UUID | None, Field(description="The earlier Planning record this plan revises.")
+    ] = None
+
+
 class ThinkingRecord(BaseRecord):
     model_config = ConfigDict(
         extra="forbid",
@@ -401,14 +425,6 @@ class ThinkingRecord(BaseRecord):
     prompt: ContentRef | None = None
     inputs: list[ThinkingInput] | None = None
     output_payload: ContentRef
-    steps: Annotated[
-        list[PlanningStep] | None,
-        Field(description="Present when the thinking produced an explicit plan."),
-    ] = None
-    revision_of: Annotated[
-        UUID | None,
-        Field(description="The earlier Thinking record whose plan this one revises."),
-    ] = None
 
 
 class ExecutionStatus(StrEnum):
@@ -679,6 +695,7 @@ class ReasoningLedgerRecordSchemas(
     RootModel[
         ObservingRecord
         | ToolCallingRecord
+        | PlanningRecord
         | ThinkingRecord
         | ActingRecord
         | ReflectingRecord
@@ -692,6 +709,7 @@ class ReasoningLedgerRecordSchemas(
     root: Annotated[
         ObservingRecord
         | ToolCallingRecord
+        | PlanningRecord
         | ThinkingRecord
         | ActingRecord
         | ReflectingRecord

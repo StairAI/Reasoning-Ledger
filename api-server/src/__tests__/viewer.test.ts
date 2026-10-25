@@ -273,6 +273,7 @@ describe("Trace viewer rendering", () => {
     expect(LEGEND_ORDER).toStrictEqual([
       "Observing",
       "ToolCalling",
+      "Planning",
       "Thinking",
       "Escalating",
       "Attesting",
@@ -401,36 +402,42 @@ describe("Trace viewer rendering", () => {
     });
   });
 
-  it("shows a Thinking record's plan, and its output when it has no prompt", () => {
+  it("shows a Thinking record's output when it has no prompt", () => {
+    const thinking = record({ behavior: "Thinking", output_payload: prompt });
+    const card = cardView(thinking, contents);
+    expect(card).toMatchObject({ description: "Should we act?" });
+    expect(card.chip).toBeUndefined();
+    const labels = overviewSections(thinking, contents).map((section) => section.label);
+    expect(labels).not.toContain("PROMPT");
+    expect(labels).not.toContain("STEPS");
+  });
+
+  it("shows a Planning record's goal, steps, contingencies and the plan it revises", () => {
     const revised = crypto.randomUUID();
-    const thinking = record({
-      behavior: "Thinking",
-      output_payload: prompt,
+    const planning = record({
+      behavior: "Planning",
+      contingencies: ["roll back"],
+      goal: "ship the fix",
       revision_of: revised,
       steps: [
         { description: "read the failing test", index: 0 },
         { depends_on: [0], description: "patch the parser", index: 1 },
       ],
     });
-    expect(cardView(thinking, contents)).toMatchObject({
-      chip: "2 STEPS",
-      description: "Should we act?",
-    });
-    const sections = overviewSections(thinking, contents);
-    expect(sections.map((section) => section.label)).not.toContain("PROMPT");
-    expect(sections).toContainEqual({
-      kind: "rows",
-      label: "PLAN",
-      rows: [["revision of", revised]],
-    });
-    expect(sections).toContainEqual({
-      kind: "rows",
-      label: "STEPS",
-      rows: [
-        ["0", "read the failing test"],
-        ["1", "patch the parser (after 0)"],
-      ],
-    });
+    expect(cardView(planning)).toMatchObject({ chip: "2 STEPS", description: "ship the fix" });
+    expect(overviewSections(planning)).toStrictEqual([
+      { kind: "text", label: "GOAL", text: "ship the fix" },
+      { kind: "rows", label: "PLAN", rows: [["revision of", revised]] },
+      {
+        kind: "rows",
+        label: "STEPS",
+        rows: [
+          ["0", "read the failing test"],
+          ["1", "patch the parser (after 0)"],
+        ],
+      },
+      { kind: "code", label: "CONTINGENCIES", value: ["roll back"] },
+    ]);
   });
 
   it("shows the base fields 0.5 added with the others", () => {

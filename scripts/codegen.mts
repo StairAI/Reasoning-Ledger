@@ -164,6 +164,37 @@ function withoutConditionals(node: unknown): unknown {
   return out;
 }
 
+/**
+ * A record def is `allOf: [BaseRecord, { its own fields }]`, closed with
+ * `unevaluatedProperties: false`. json-schema-to-zod renders that composition
+ * as z.intersection, which cannot be closed: an unknown top-level key passes
+ * and is dropped. Flatten it into one object with `additionalProperties: false`,
+ * which renders as z.object({...}).strict(), so unknown top-level fields are
+ * rejected as the schema says (the Python models already inherit BaseRecord
+ * with extra fields forbidden).
+ */
+function closedRecord(node: unknown, defs: Record<string, unknown>): unknown {
+  if (typeof node !== "object" || node === null) return node;
+  const s = node as Record<string, unknown>;
+  if (s.unevaluatedProperties !== false || !Array.isArray(s.allOf) || s.allOf.length !== 2) {
+    return node;
+  }
+  const [baseRef, own] = s.allOf as [Record<string, unknown>, Record<string, unknown>];
+  if (baseRef.$ref !== "#/$defs/BaseRecord" || own.type !== "object") return node;
+  const base = defs.BaseRecord as { properties?: Record<string, unknown>; required?: string[] };
+  const out: Record<string, unknown> = { type: "object" };
+  if (typeof s.description === "string") out.description = s.description;
+  out.properties = {
+    ...(base.properties ?? {}),
+    ...((own.properties as Record<string, unknown> | undefined) ?? {}),
+  };
+  out.required = [
+    ...new Set([...(base.required ?? []), ...((own.required as string[] | undefined) ?? [])]),
+  ];
+  out.additionalProperties = false;
+  return out;
+}
+
 function generateTsFile(): string {
   const defs = schema.$defs;
   const order = topoSort(defs);
@@ -178,7 +209,7 @@ function generateTsFile(): string {
   for (const name of order) {
     const def = defs[name]!;
 
-    const code = jsonSchemaToZod(withoutConditionals(def) as object, {
+    const code = jsonSchemaToZod(closedRecord(withoutConditionals(def), defs) as object, {
       parserOverride: (node) => {
         if (typeof node !== "object" || node === null) return;
         const s = node as Record<string, unknown>;
@@ -188,11 +219,10 @@ function generateTsFile(): string {
           return s.$ref.replace("#/$defs/", "");
         }
 
-        // Emit z.union for the behaviour discriminated union.
-        // z.discriminatedUnion requires ZodObject members; our members are
-        // z.intersection types (allOf composition), which Zod 4 does not
-        // accept as discriminable. z.union provides the same runtime
-        // validation with correct TypeScript inference.
+        // Emit z.union for the behaviour discriminated union. The members are
+        // closed objects (see closedRecord); z.union is kept because the
+        // validators parse a record with its own behaviour's schema anyway,
+        // and the inferred TypeScript type is the same.
         if (
           Array.isArray(s.oneOf) &&
           typeof s.discriminator === "object" &&

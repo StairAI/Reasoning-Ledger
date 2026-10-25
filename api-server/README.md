@@ -234,7 +234,7 @@ The schema is defined in [`prisma/schema.prisma`](./prisma/schema.prisma), with 
 
 `api_key` values are never stored raw — only the SHA-256 hex digest is persisted. The raw key is shown once at registration and cannot be recovered.
 
-Records written as schema `0.1`–`0.4` keep their original shape, including the `Planning` behavior and the fields 0.5 removed. A database constraint requires the 0.4 fields (`executor`, `record_phase`) on every record stamped `0.4` or later.
+Records written as schema `0.1`–`0.4` keep their original shape, including the fields 0.5 removed. A database constraint requires the 0.4 fields (`executor`, `record_phase`) on every record stamped `0.4` or later.
 
 ## API endpoints
 

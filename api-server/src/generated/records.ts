@@ -5,6 +5,7 @@ import { z } from "zod";
 export const BehaviorType = z.enum([
   "Observing",
   "ToolCalling",
+  "Planning",
   "Thinking",
   "Acting",
   "Reflecting",
@@ -265,10 +266,46 @@ export const ToolMeta = z
   .describe("Which tool was called. Only name is required; unknown keys are allowed.");
 export type ToolMeta = z.infer<typeof ToolMeta>;
 
-export const ObservingRecord = z.intersection(
-  BaseRecord,
-  z.object({
+export const ObservingRecord = z
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
     behavior: z.literal("Observing"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome.optional(),
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
     trigger_source: z
       .string()
       .min(1)
@@ -283,14 +320,50 @@ export const ObservingRecord = z.intersection(
     event_ts_utc: EpochMs.optional(),
     trigger_description: z.string().min(1),
     trigger_payload_summary: z.string().max(4096),
-  }),
-);
+  })
+  .strict();
 export type ObservingRecord = z.infer<typeof ObservingRecord>;
 
-export const ToolCallingRecord = z.intersection(
-  BaseRecord,
-  z.object({
+export const ToolCallingRecord = z
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
     behavior: z.literal("ToolCalling"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome,
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
     tool_meta: ToolMeta,
     description: z.string().min(1).optional(),
     effect: z
@@ -299,200 +372,524 @@ export const ToolCallingRecord = z.intersection(
       .optional(),
     input_payload: ContentRef,
     output_payload: ContentRef,
-    outcome: Outcome,
-  }),
-);
+  })
+  .strict();
 export type ToolCallingRecord = z.infer<typeof ToolCallingRecord>;
 
-export const ThinkingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Thinking"),
-      prompt: ContentRef.optional(),
-      inputs: z.array(ThinkingInput).optional(),
-      output_payload: ContentRef,
-      steps: z
-        .array(PlanningStep)
-        .describe("Present when the thinking produced an explicit plan.")
-        .optional(),
-      revision_of: UuidV4.optional(),
-    }),
-  )
+export const PlanningRecord = z
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Planning"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome.optional(),
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    goal: z.string().min(1).describe("What the plan is for."),
+    steps: z
+      .array(PlanningStep)
+      .describe("The ordered steps; may be empty when the plan is only a goal."),
+    contingencies: z
+      .array(z.string())
+      .describe("What to do when a step fails or an assumption does not hold.")
+      .optional(),
+    revision_of: UuidV4.optional(),
+  })
+  .strict()
   .describe(
-    "A deliberate reasoning step inside the cycle: analysis, option comparison, a decision, or an explicit plan (steps).",
+    "An explicit, ordered plan for the work ahead, or a revision of an earlier plan: the goal, the steps and what to do if they fail. A vague intention inside a thought is Thinking.",
+  );
+export type PlanningRecord = z.infer<typeof PlanningRecord>;
+
+export const ThinkingRecord = z
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Thinking"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome.optional(),
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    prompt: ContentRef.optional(),
+    inputs: z.array(ThinkingInput).optional(),
+    output_payload: ContentRef,
+  })
+  .strict()
+  .describe(
+    "A deliberate reasoning step inside the cycle: analysis, option comparison, a decision. An explicit, ordered plan is a Planning record.",
   );
 export type ThinkingRecord = z.infer<typeof ThinkingRecord>;
 
 export const ActingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Acting"),
-      action_type: z
-        .string()
-        .regex(new RegExp("^[a-z0-9_]+(\\.[a-z0-9_]+)+$"))
-        .describe(
-          "Namespaced '<domain>.<verb>', e.g. prediction.submit, order.fill, answer.final, git.commit, stage.conclude.",
-        ),
-      target_system: z.string().min(1),
-      action_summary: z.string().min(1),
-      parameters: z.record(z.string(), z.any()).optional(),
-      execution_id: z.string().optional(),
-      execution_status: z.enum(["confirmed", "failed", "simulated", "pending", "cancelled"]),
-      outcome: Outcome,
-    }),
-  )
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Acting"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome,
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    action_type: z
+      .string()
+      .regex(new RegExp("^[a-z0-9_]+(\\.[a-z0-9_]+)+$"))
+      .describe(
+        "Namespaced '<domain>.<verb>', e.g. prediction.submit, order.fill, answer.final, git.commit, stage.conclude.",
+      ),
+    target_system: z.string().min(1),
+    action_summary: z.string().min(1),
+    parameters: z.record(z.string(), z.any()).optional(),
+    execution_id: z.string().optional(),
+    execution_status: z.enum(["confirmed", "failed", "simulated", "pending", "cancelled"]),
+  })
+  .strict()
   .describe(
     "The terminal commitment of a cycle: handing the result over or writing it back. Side effects along the way are ToolCalling.",
   );
 export type ActingRecord = z.infer<typeof ActingRecord>;
 
 export const ReflectingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Reflecting"),
-      kind: z
-        .enum(["process", "evaluation", "settlement"])
-        .describe(
-          "process = reviewing how it worked; evaluation = judging the output against criteria; settlement = an external result coming back.",
-        )
-        .optional(),
-      inputs: z.array(ReflectingInput),
-      output_payload: ContentRef,
-    }),
-  )
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Reflecting"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome.optional(),
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    kind: z
+      .enum(["process", "evaluation", "settlement"])
+      .describe(
+        "process = reviewing how it worked; evaluation = judging the output against criteria; settlement = an external result coming back.",
+      )
+      .optional(),
+    inputs: z.array(ReflectingInput),
+    output_payload: ContentRef,
+  })
+  .strict()
   .describe(
     "The agent's evaluation of its own earlier behavior, during the cycle (record_phase concurrent: a test run read, a check) or after it (post_execution: a settlement, a retrospective).",
   );
 export type ReflectingRecord = z.infer<typeof ReflectingRecord>;
 
 export const AttestingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Attesting"),
-      executor: z.literal("human"),
-      operator_id: z.string().min(1).describe("The person who made the disposition."),
-      disposition: z
-        .enum(["approve", "reject", "edit", "cancel", "no_response"])
-        .describe(
-          "approve = accepted as proposed; edit = changed it; reject = refused; cancel = the person stopped the pending item; no_response = nobody answered (headless, or the wait ran out).",
-        ),
-      decision: z
-        .any()
-        .describe(
-          "Structured decision content: the value the person chose or entered. Shape declared by the upper-layer application.",
-        )
-        .optional(),
-      reason: z.string().min(1).describe("Required when disposition is reject.").optional(),
-      patch: z
-        .record(z.string(), z.any())
-        .describe("Changes to the original parameters when disposition is edit.")
-        .optional(),
-      seen_digest: z
-        .string()
-        .min(1)
-        .describe("Digest of what the person saw when deciding.")
-        .optional(),
-      seen_completeness: z
-        .enum(["complete", "partial", "unknown"])
-        .describe("Whether what the person saw covered everything the decision depended on.")
-        .optional(),
-      channel: z
-        .enum(["interactive", "async", "headless"])
-        .describe(
-          "interactive = the person was present; async = handled later from a queue; headless = no person could answer.",
-        )
-        .optional(),
-      gate_kind: z
-        .string()
-        .min(1)
-        .describe(
-          "Checkpoint type, defined by the upper-layer application; starting registry: column, plan, permission, question, deploy.",
-        ),
-      policy_snapshot: z
-        .record(z.string(), z.any())
-        .describe("Policy in force at the time, or a content reference to it.")
-        .optional(),
-      effects: ContentRef.optional(),
-      written_by: WrittenBy,
-      outcome: Outcome,
-    }),
-  )
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Attesting"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: z.literal("human"),
+    record_phase: RecordPhase,
+    outcome: Outcome,
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy,
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    operator_id: z.string().min(1).describe("The person who made the disposition."),
+    disposition: z
+      .enum(["approve", "reject", "edit", "cancel", "no_response"])
+      .describe(
+        "approve = accepted as proposed; edit = changed it; reject = refused; cancel = the person stopped the pending item; no_response = nobody answered (headless, or the wait ran out).",
+      ),
+    decision: z
+      .any()
+      .describe(
+        "Structured decision content: the value the person chose or entered. Shape declared by the upper-layer application.",
+      )
+      .optional(),
+    reason: z.string().min(1).describe("Required when disposition is reject.").optional(),
+    patch: z
+      .record(z.string(), z.any())
+      .describe("Changes to the original parameters when disposition is edit.")
+      .optional(),
+    seen_digest: z
+      .string()
+      .min(1)
+      .describe("Digest of what the person saw when deciding.")
+      .optional(),
+    seen_completeness: z
+      .enum(["complete", "partial", "unknown"])
+      .describe("Whether what the person saw covered everything the decision depended on.")
+      .optional(),
+    channel: z
+      .enum(["interactive", "async", "headless"])
+      .describe(
+        "interactive = the person was present; async = handled later from a queue; headless = no person could answer.",
+      )
+      .optional(),
+    gate_kind: z
+      .string()
+      .min(1)
+      .describe(
+        "Checkpoint type, defined by the upper-layer application; starting registry: column, plan, permission, question, deploy.",
+      ),
+    policy_snapshot: z
+      .record(z.string(), z.any())
+      .describe("Policy in force at the time, or a content reference to it.")
+      .optional(),
+    effects: ContentRef.optional(),
+  })
+  .strict()
   .describe(
     "A person's disposition of a pending item, submitted by the upper-layer application on the person's behalf. Answers an Escalating record when there is one (listed in upstream_record_id).",
   );
 export type AttestingRecord = z.infer<typeof AttestingRecord>;
 
 export const EscalatingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Escalating"),
-      kind: z.enum(["question", "permission", "plan", "handoff"]),
-      asked: ContentRef,
-      options: z.array(z.string().min(1)).max(32).optional(),
-      default: z.string().describe("The option proposed as default, if any.").optional(),
-      outcome: Outcome,
-    }),
-  )
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Escalating"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome,
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    kind: z.enum(["question", "permission", "plan", "handoff"]),
+    asked: ContentRef,
+    options: z.array(z.string().min(1)).max(32).optional(),
+    default: z.string().describe("The option proposed as default, if any.").optional(),
+  })
+  .strict()
   .describe(
     "The agent hands a decision to a person: a question, a permission request, a plan to approve, or giving up and handing the work over. The person's disposition is a separate Attesting record.",
   );
 export type EscalatingRecord = z.infer<typeof EscalatingRecord>;
 
 export const DelegatingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Delegating"),
-      kind: z.enum(["spawn", "handoff", "message"]),
-      goal: ContentRef,
-      delegate_agent_id: z
-        .string()
-        .min(1)
-        .describe("The delegate's agent id when it has one, else its type or name.")
-        .optional(),
-      child_session_id: z
-        .string()
-        .min(1)
-        .describe("The session that holds the delegate's own records.")
-        .optional(),
-      awaited: z.boolean().describe("Whether this agent waited for the result.").optional(),
-      result: ContentRef.optional(),
-      outcome: Outcome,
-    }),
-  )
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Delegating"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome,
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    kind: z.enum(["spawn", "handoff", "message"]),
+    goal: ContentRef,
+    delegate_agent_id: z
+      .string()
+      .min(1)
+      .describe("The delegate's agent id when it has one, else its type or name.")
+      .optional(),
+    child_session_id: z
+      .string()
+      .min(1)
+      .describe("The session that holds the delegate's own records.")
+      .optional(),
+    awaited: z.boolean().describe("Whether this agent waited for the result.").optional(),
+    result: ContentRef.optional(),
+  })
+  .strict()
   .describe(
     "The agent hands a goal to another agent: spawning a sub-agent, handing the work off, or messaging another agent. The delegate's own cycle lives in its own session.",
   );
 export type DelegatingRecord = z.infer<typeof DelegatingRecord>;
 
 export const MemorizingRecord = z
-  .intersection(
-    BaseRecord,
-    z.object({
-      behavior: z.literal("Memorizing"),
-      scope: z
-        .enum(["session", "project", "user", "customer", "org", "global"])
-        .describe("How far the written state reaches."),
-      target: ContentRef,
-      op: z.enum(["add", "update", "delete"]),
-      approved_by: UuidV4.optional(),
-      outcome: Outcome,
-    }),
-  )
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
+    behavior: z.literal("Memorizing"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome,
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
+    scope: z
+      .enum(["session", "project", "user", "customer", "org", "global"])
+      .describe("How far the written state reaches."),
+    target: ContentRef,
+    op: z.enum(["add", "update", "delete"]),
+    approved_by: UuidV4.optional(),
+  })
+  .strict()
   .describe(
     "A write to state that outlives the cycle: memory, standing rules, skills, settings, a knowledge base. Reading such state is ToolCalling.",
   );
 export type MemorizingRecord = z.infer<typeof MemorizingRecord>;
 
-export const OtherRecord = z.intersection(
-  BaseRecord,
-  z.object({
+export const OtherRecord = z
+  .object({
+    schema_version: z.string().min(1),
+    agent_id: UuidV4,
+    session_id: z.string().min(1),
+    record_id: UuidV4,
     behavior: z.literal("Other"),
+    client_ts_utc: EpochMs,
+    notes: z.string().max(2048).optional(),
+    tags: z.array(z.string().max(64)).max(32).optional(),
+    model_invocation: ModelInvocation.optional(),
+    upstream_record_id: z
+      .array(UuidV4)
+      .max(32)
+      .describe(
+        "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here.",
+      )
+      .optional(),
+    executor: Executor,
+    record_phase: RecordPhase,
+    outcome: Outcome.optional(),
+    duration_ms: z
+      .number()
+      .int()
+      .gte(0)
+      .describe("On Attesting and Escalating: how long the pending item waited for a person.")
+      .optional(),
+    error_type: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort.",
+      )
+      .optional(),
+    sources: z.array(SourceDescriptor).max(64).optional(),
+    verdict: Verdict.optional(),
+    written_by: WrittenBy.optional(),
+    on_behalf_of_agent_id: UuidV4.optional(),
+    classification: Classification.optional(),
     label: z.string().min(1),
     data: z.record(z.string(), z.any()),
     proposed_behavior: z
@@ -500,13 +897,14 @@ export const OtherRecord = z.intersection(
       .min(1)
       .describe("The behavior the writer thinks this should be, if the taxonomy lacked it.")
       .optional(),
-  }),
-);
+  })
+  .strict();
 export type OtherRecord = z.infer<typeof OtherRecord>;
 
 export const Record = z.union([
   ObservingRecord,
   ToolCallingRecord,
+  PlanningRecord,
   ThinkingRecord,
   ActingRecord,
   ReflectingRecord,

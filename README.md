@@ -44,7 +44,8 @@ Every record carries a `behavior` field that classifies what the agent was doing
 | Behavior | Kind | Description |
 |---|---|---|
 | `Observing` | Composite | The event that woke the agent: a signal, a schedule, a person, an earlier action's outcome, another agent |
-| `Thinking` | Composite | Analysis, option evaluation, decision; an explicit plan when it has `steps` |
+| `Thinking` | Composite | Analysis, option evaluation, decision |
+| `Planning` | Composite | An explicit, ordered plan for the work ahead, or a revision of an earlier one |
 | `Acting` | Composite | The terminal commitment that resolves the cycle |
 | `Reflecting` | Composite | The agent's evaluation of its own earlier behavior, during or after the cycle |
 | `ToolCalling` | Operational | An interaction with the world in the middle of the cycle — API, file, data store, local function |

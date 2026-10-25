@@ -1,11 +1,10 @@
-import { call } from "@orpc/server";
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, expectTypeOf } from "vitest";
 import { registerAgent } from "#/routes/agents";
 import { getRecord, submitBatch, submitRecord } from "#/routes/records";
 import { prisma } from "#/lib/prisma";
 import { SCHEMA_VERSION } from "#/generated/version";
-import { ctx, makeObservingInput, makeTestOwner } from "./helpers";
+import { call, ctx, makeObservingInput, makeTestOwner } from "./helpers";
 import type { TestOwner } from "./helpers";
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -440,33 +439,44 @@ describe("Records", () => {
       });
     });
 
-    it("no longer accepts Planning, which 0.5 folds into Thinking", async () => {
+    it("accepts a Planning record, and keeps a plan's steps off Thinking", async () => {
+      const revised = crypto.randomUUID();
       const planning = {
         ...makeObservingInput(agentId),
-        behavior: "Planning",
-        executor: "ai",
+        behavior: "Planning" as const,
+        contingencies: ["roll back"],
+        executor: "ai" as const,
         goal: "ship the fix",
+        revision_of: revised,
         steps: [{ description: "run the tests", index: 0 }],
         trigger_description: undefined,
         trigger_payload_summary: undefined,
         trigger_source: undefined,
         trigger_type: undefined,
       };
-      // Deliberately invalid: cast past the input type.
-      await expect(call(submitRecord, planning as never, ctx(owner.apiKey))).rejects.toMatchObject({
-        code: "BAD_REQUEST",
+      const ack = await call(submitRecord, planning, ctx(owner.apiKey));
+      expect(ack.is_duplicate).toBeFalsy();
+      const stored = await call(getRecord, { record_id: planning.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        behavior: "Planning",
+        contingencies: ["roll back"],
+        goal: "ship the fix",
+        revision_of: revised,
+        steps: [{ description: "run the tests", index: 0 }],
       });
       const thinking = {
         ...planning,
         behavior: "Thinking" as const,
-        executor: "ai" as const,
+        contingencies: undefined,
         goal: undefined,
         output_payload: await uploaded("plan: run the tests"),
+        record_id: crypto.randomUUID(),
+        revision_of: undefined,
       };
-      const ack = await call(submitRecord, thinking, ctx(owner.apiKey));
-      expect(ack.is_duplicate).toBeFalsy();
-      const stored = await call(getRecord, { record_id: thinking.record_id }, ctx(owner.apiKey));
-      expect(stored["steps"]).toStrictEqual([{ description: "run the tests", index: 0 }]);
+      // Deliberately invalid: cast past the input type.
+      await expect(call(submitRecord, thinking as never, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
     });
 
     it("accepts an Escalating record and the Attesting record that answers it", async () => {
@@ -680,7 +690,7 @@ describe("Records", () => {
       });
     });
 
-    it("keeps 0.4 records readable, with Planning and the fields 0.5 removed", async () => {
+    it("keeps 0.4 records readable, with the fields 0.5 removed", async () => {
       const parent = makeObservingInput(agentId);
       await call(submitRecord, parent, ctx(owner.apiKey));
       const recordId = crypto.randomUUID();

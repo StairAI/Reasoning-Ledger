@@ -14,7 +14,7 @@ Requires **Python 3.12+**. Dependencies: `pydantic>=2`, `httpx>=0.27`.
 
 Records use schema 0.5; the server accepts no older schema on write.
 
-- `Planning` is gone: write a plan as `Thinking` with `steps`, and `revision_of` when it revises an earlier one. `Thinking.prompt` and `Thinking.inputs` are optional.
+- `Planning` keeps its 0.4 fields (`goal`, `steps`, `contingencies`) and gains `revision_of`, the earlier plan it revises. `Thinking.prompt` and `Thinking.inputs` are optional.
 - New behaviors: `Escalating` (the agent hands a decision to a person), `Delegating` (it hands a goal to another agent) and `Memorizing` (it writes memory, rules, skills or settings that outlive the cycle).
 - `outcome` is required on `Acting`, `Attesting`, `Escalating`, `Delegating` and `Memorizing`, as on `ToolCalling`, and may be `"cancelled"`. `submit_attesting` does not fill it in.
 - `Acting`: `dry_run` is gone, `parameters` is optional, and `action_type` is a namespaced `<domain>.<verb>`, e.g. `answer.final` or `git.commit`.
@@ -225,7 +225,8 @@ All behaviors extend the base record fields. The `"behavior"` key is the discrim
 |---|---|
 | `"Observing"` | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary` |
 | `"ToolCalling"` | `tool_meta` (with `name`), `input_payload`, `output_payload`, `outcome` |
-| `"Thinking"` | `output_payload` (a plan goes in the optional `steps`) |
+| `"Planning"` | `goal`, `steps` (optional `contingencies`, `revision_of`) |
+| `"Thinking"` | `output_payload` |
 | `"Acting"` | `action_type` (`<domain>.<verb>`), `target_system`, `action_summary`, `execution_status`, `outcome` (plus `execution_id` when `target_system` is `"public-chain"` and `execution_status` is `"confirmed"`) |
 | `"Reflecting"` | `inputs`, `output_payload` |
 | `"Attesting"` | `operator_id`, `disposition`, `gate_kind`, `written_by`, `outcome`; `executor` must be `"human"` (plus `reason` when `disposition` is `"reject"`; `outcome` must be `"timeout"` when it is `"no_response"` and `"cancelled"` when it is `"cancel"`) |

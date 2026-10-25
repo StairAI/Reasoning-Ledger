@@ -7,10 +7,41 @@
  */
 
 import "dotenv/config";
-import { call } from "@orpc/server";
+import { call as orpcCall } from "@orpc/server";
 import { registerOwner } from "#/routes/owners";
 import { prisma } from "#/lib/prisma";
 import { SCHEMA_VERSION } from "#/generated/version";
+
+// ---------------------------------------------------------------------------
+// Calling a procedure
+// ---------------------------------------------------------------------------
+
+function withoutUndefined(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(withoutUndefined);
+  }
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, withoutUndefined(v)]),
+    );
+  }
+  return value;
+}
+
+/**
+ * oRPC's `call`, with undefined-valued keys dropped from the input first. The
+ * suites build an input by spreading another record and blanking its fields;
+ * JSON transport never carries such keys, and the record schemas are closed,
+ * so a key left in with the value undefined would be an unknown key.
+ */
+export const call: typeof orpcCall = (procedure, input, ...rest) =>
+  orpcCall(procedure, withoutUndefined(input) as typeof input, ...rest);
 
 // ---------------------------------------------------------------------------
 // Context helpers

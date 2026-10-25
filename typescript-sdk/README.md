@@ -15,7 +15,7 @@ Requires **Node.js 18+** and **TypeScript 5+** (for ESM + `exactOptionalProperty
 ### Upgrading to schema 0.5
 
 - Records are stamped `schema_version` `"0.5"`, and a server accepts writes of its own schema version only: upgrade the SDK and the server together.
-- `Planning` is gone: record a plan as `Thinking` with `steps`. New behaviors: `Escalating`, `Delegating`, `Memorizing` (see [Behavior types](#behavior-types)).
+- `Planning` keeps its 0.4 fields (`goal`, `steps`, `contingencies`) and gains `revision_of`, the earlier plan it revises. New behaviors: `Escalating`, `Delegating`, `Memorizing` (see [Behavior types](#behavior-types)).
 - `outcome` is required on `Acting`, `Attesting` (also through `submitAttesting`), `Escalating`, `Delegating` and `Memorizing`, as on `ToolCalling`.
 - `Acting.action_type` is a namespaced `<domain>.<verb>`, e.g. `answer.final`, `git.commit`; `dry_run` is gone and `parameters` is optional.
 - `tool_meta` needs a `name`; `verdict.decided_by` is one of `human`, `model`, `rule`, `policy`, `classifier`, `config`, `consensus`.
@@ -217,13 +217,14 @@ Up to 50 records per batch. Per-record validation runs locally before the networ
 
 ## Behavior types
 
-All ten behaviors extend `BaseRecord`, which requires `executor` and `record_phase` and accepts `outcome`, `duration_ms`, `error_type`, `sources`, `verdict`, `written_by`, `on_behalf_of_agent_id` and `classification`. The `behavior` field is a discriminant; TypeScript narrows the union automatically.
+All eleven behaviors extend `BaseRecord`, which requires `executor` and `record_phase` and accepts `outcome`, `duration_ms`, `error_type`, `sources`, `verdict`, `written_by`, `on_behalf_of_agent_id` and `classification`. The `behavior` field is a discriminant; TypeScript narrows the union automatically.
 
 | Behavior      | Required fields (beyond base)                                                                       | Notable optional fields                                      |
 | ------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `Observing`   | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary`                  | `event_ts_utc`                                               |
 | `ToolCalling` | `tool_meta` (with `name`), `input_payload`, `output_payload`, `outcome`                             | `description`, `effect`, `tool_meta.call_id` / `tool_type`   |
-| `Thinking`    | `output_payload`                                                                                    | `prompt`, `inputs`, `steps` (a plan), `revision_of`          |
+| `Planning`    | `goal`, `steps`                                                                                     | `contingencies`, `revision_of`                               |
+| `Thinking`    | `output_payload`                                                                                    | `prompt`, `inputs`                                           |
 | `Acting`      | `action_type` (`<domain>.<verb>`), `target_system`, `action_summary`, `execution_status`, `outcome` | `parameters`, `execution_id`                                 |
 | `Reflecting`  | `inputs`, `output_payload`                                                                          | `kind`                                                       |
 | `Attesting`   | `operator_id`, `disposition`, `gate_kind`, `written_by`, `outcome` (`executor` must be `human`)     | `decision`, `reason`, `patch`, `channel`, `effects`          |

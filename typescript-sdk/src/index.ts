@@ -75,6 +75,7 @@ export type {
   ObservingRecord,
   OtherRecord,
   Outcome,
+  PlanningRecord,
   PlanningStep,
   RecordPhase,
   ReflectingInput,

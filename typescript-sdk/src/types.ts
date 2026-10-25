@@ -11,6 +11,7 @@ import type {
   ObservingRecord,
   OtherRecord,
   Outcome,
+  PlanningRecord,
   RecordPhase,
   ReflectingRecord,
   ThinkingRecord,
@@ -28,6 +29,7 @@ export type { ActingRecord, AttestingRecord };
 export type LedgerRecord =
   | ObservingRecord
   | ToolCallingRecord
+  | PlanningRecord
   | ThinkingRecord
   | ActingRecord
   | ReflectingRecord
@@ -85,6 +87,7 @@ type RecordInput =
       ToolCallingRecord,
       CommonInput & { input_payload: ContentInput; output_payload: ContentInput }
     >
+  | Retype<PlanningRecord, CommonInput>
   | Retype<
       ThinkingRecord,
       CommonInput & {

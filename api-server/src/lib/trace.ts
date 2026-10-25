@@ -16,10 +16,10 @@
  * content, or say why they cannot.
  *
  * Stored records keep the shape they were written in, so the helpers still
- * render what 0.5 dropped: Planning records, parent_record_id, model_version.
+ * render what 0.5 dropped: parent_record_id, model_version.
  */
 
-/** Every behaviour a stored record may carry; Planning only before 0.5. */
+/** Every behaviour a stored record may carry. */
 export type Behavior =
   | "Observing"
   | "ToolCalling"
@@ -133,12 +133,13 @@ export const BEHAVIOR_META: Record<
 
 /**
  * Legend order: the behaviours a 0.5 record can carry, in the order they fall in
- * a cycle, with Escalating next to the Attesting that answers it. Planning
- * (records before 0.5) and Other keep their style but have no entry.
+ * a cycle, with Escalating next to the Attesting that answers it. Other keeps
+ * its style but has no entry.
  */
 export const LEGEND_ORDER: Behavior[] = [
   "Observing",
   "ToolCalling",
+  "Planning",
   "Thinking",
   "Escalating",
   "Attesting",
@@ -470,7 +471,6 @@ function toolCallingCard(rec: TraceRecord, upstream: number): CardView {
 
 function thinkingCard(rec: TraceRecord, contents: ContentMap, upstream: number): CardView {
   return {
-    chip: stepsChip(rec),
     // The prompt is optional from 0.5; without one, show what the thinking produced.
     description: contentText(rec.prompt ?? rec.output_payload, contents),
     model: modelSummary(rec),
@@ -622,6 +622,8 @@ function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
     case "Planning": {
       return [
         { kind: "text", label: "GOAL", text: str(rec, "goal") },
+        // The plan this one revises (0.5).
+        ...optionalRows("PLAN", [["revision of", str(rec, "revision_of")]]),
         { kind: "rows", label: "STEPS", rows: stepRows(rec.steps) },
         { kind: "code", label: "CONTINGENCIES", value: rec.contingencies },
       ];
@@ -724,9 +726,6 @@ function thinkingSections(rec: TraceRecord, contents: ContentMap): Section[] {
       ? [{ kind: "code" as const, label: "INPUTS", value: resolvedInputs(inputs, contents) }]
       : []),
     { kind: "text", label: "OUTPUT", text: contentText(rec.output_payload, contents) },
-    // An explicit plan (0.5 folds the Planning behaviour into Thinking).
-    ...optionalRows("PLAN", [["revision of", str(rec, "revision_of")]]),
-    ...optionalRows("STEPS", stepRows(rec.steps)),
     ...(reasoning
       ? [{ kind: "text" as const, label: "REASONING", text: contentText(reasoning, contents) }]
       : []),

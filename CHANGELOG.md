@@ -8,7 +8,7 @@ Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/S
 
 ### Changed
 
-- **Ten behaviors instead of eight.** `Planning` is folded into `Thinking`, which gains optional `steps` and `revision_of`. Three behaviors are new: `Escalating` (the agent hands a decision to a person: a question, a permission request, a plan to approve, a handoff), `Delegating` (a goal handed to another agent, which runs its own session) and `Memorizing` (a write to memory, rules, skills, settings or a knowledge base, which outlives the cycle). Stored `0.4` records that carry `Planning` stay readable and render as before.
+- **Eleven behaviors instead of eight.** `Planning` stays, with its `0.4` fields (`goal`, `steps`, `contingencies`) and a new optional `revision_of`, the earlier plan it revises. Three behaviors are new: `Escalating` (the agent hands a decision to a person: a question, a permission request, a plan to approve, a handoff), `Delegating` (a goal handed to another agent, which runs its own session) and `Memorizing` (a write to memory, rules, skills, settings or a knowledge base, which outlives the cycle).
 - **Every record can say who wrote it and how it was classified.** `written_by` moves from `Attesting` to every record (still required on `Attesting`); `on_behalf_of_agent_id` names the agent when a platform writes for it; `classification` says whether the behavior was declared by the writer or inferred by a rule, a model or a person, and how confidently.
 - **Results.** `outcome` is required on `Acting`, `Attesting`, `Escalating`, `Delegating` and `Memorizing` as well as `ToolCalling`, and gains the value `cancelled`; `error_type` carries a low-cardinality error class when the outcome is not `success`.
 - **Model calls.** `ModelInvocation.invocation_kind` separates live calls from replays, cache hits and simulations (`provider` and `model_name` may be null on a replay or simulation, and `replay_of` points at what was replayed); `cache_read_tokens`, `cache_creation_tokens` and `request_id` are new; `model_version` is gone.
@@ -20,6 +20,7 @@ Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/S
 - **Removed fields:** `parent_record_id`, `Verdict.sources`, `Verdict.counterfactual`, `Verdict.dissent`, `SourceDescriptor.record_id`, `Thinking.prompt` and `Thinking.inputs` are now optional.
 - **Requirement levels.** Fields are required, recommended or optional; the schema reference marks the recommended ones. Completeness (the share of recommended fields filled) and the session shape (opened by an `Observing`, closed by an `Acting`) are measured, not enforced.
 - Writes accept schema `0.5` only, as `0.4` was accepted only before; the database gains the three behavior values and `cancelled`, with no new columns.
+- **Unknown top-level fields are rejected** by the server and the TypeScript SDK, as the schema's closed records say and as the Python SDK already did. The generated Zod schemas are closed objects now instead of intersections, which let an unknown key through and dropped it.
 
 ## 1.1.0 — 2026-10-08
 

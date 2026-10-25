@@ -78,6 +78,21 @@ def make_thinking(**overrides: object) -> dict[str, object]:
     )
 
 
+def make_planning(**overrides: object) -> dict[str, object]:
+    return base(
+        "Planning",
+        {
+            "executor": "ai",
+            "goal": "Win the match",
+            "steps": [
+                {"description": "Gather odds", "index": 0},
+                {"depends_on": [0], "description": "Compare with xG", "index": 1},
+            ],
+            **overrides,
+        },
+    )
+
+
 def make_acting(**overrides: object) -> dict[str, object]:
     return base(
         "Acting",
@@ -193,12 +208,13 @@ class TestValidateRecordValid:
         del record["prompt"], record["inputs"]
         validate_record(record)
 
-    def test_thinking_with_a_plan_passes(self) -> None:
-        steps = [
-            {"description": "Gather odds", "index": 0},
-            {"depends_on": [0], "description": "Compare with xG", "index": 1},
-        ]
-        validate_record(make_thinking(revision_of=OTHER_RECORD_ID, steps=steps))
+    def test_planning_passes(self) -> None:
+        validate_record(make_planning())
+        validate_record(make_planning(contingencies=["hedge"], revision_of=OTHER_RECORD_ID))
+
+    def test_thinking_rejects_a_plan(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_record(make_thinking(steps=[{"description": "Gather odds", "index": 0}]))
 
     def test_acting_passes(self) -> None:
         validate_record(make_acting())
@@ -345,12 +361,13 @@ class TestValidateRecordSchemaViolations:
         assert exc_info.value.details is not None
         assert exc_info.value.details["field"] == "Escalating.asked"
 
-    def test_planning_is_gone(self) -> None:
-        planning = base(
-            "Planning", {"goal": "Win", "steps": [{"description": "Analyse", "index": 0}]}
-        )
-        with pytest.raises(ValidationError, match="Planning"):
+    def test_planning_needs_a_goal(self) -> None:
+        planning = make_planning()
+        del planning["goal"]
+        with pytest.raises(ValidationError) as exc_info:
             validate_record(planning)
+        assert exc_info.value.details is not None
+        assert exc_info.value.details["field"] == "Planning.goal"
 
     @pytest.mark.parametrize(
         "make",

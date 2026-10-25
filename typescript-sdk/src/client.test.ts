@@ -182,6 +182,18 @@ function thinkingInput() {
   };
 }
 
+function planningInput() {
+  return {
+    behavior: "Planning" as const,
+    contingencies: ["roll back"],
+    executor: "ai" as const,
+    goal: "ship the fix",
+    record_phase: "pre_execution" as const,
+    session_id: SESSION_ID,
+    steps: [{ description: "run the tests", index: 0 }],
+  };
+}
+
 function attestingInput() {
   return {
     decision: { value: 42 },
@@ -286,13 +298,10 @@ describe("input and record types", () => {
     expectTypeOf<AttestingInput>().not.toHaveProperty("behavior");
   });
 
-  test("Planning is not a behaviour any more, and Attesting needs an outcome", () => {
-    expectTypeOf({
-      ...thinkingInput(),
-      behavior: "Planning" as const,
-      goal: "g",
-      steps: [],
-    }).not.toExtend<SubmitInput>();
+  test("Planning needs a goal, and Attesting needs an outcome", () => {
+    expectTypeOf(planningInput()).toExtend<SubmitInput>();
+    const { goal: _goal, ...withoutGoal } = planningInput();
+    expectTypeOf(withoutGoal).not.toExtend<SubmitInput>();
     const { outcome: _outcome, ...withoutOutcome } = attestingInput();
     expectTypeOf(withoutOutcome).not.toExtend<AttestingInput>();
   });

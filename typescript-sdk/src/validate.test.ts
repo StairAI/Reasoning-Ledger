@@ -223,11 +223,21 @@ describe("validateRecord — valid records", () => {
     expect(() => validateRecord(record)).not.toThrow();
   });
 
-  test("Thinking passes without prompt and inputs, and with a plan", () => {
+  test("Thinking passes without prompt and inputs", () => {
     expect(() =>
       validateRecord({
         ...base("Thinking", "ai"),
         output_payload: REF,
+      }),
+    ).not.toThrow();
+  });
+
+  test("Planning passes with its steps, contingencies and the plan it revises", () => {
+    expect(() =>
+      validateRecord({
+        ...base("Planning", "ai"),
+        contingencies: ["roll back"],
+        goal: "Ship the fix",
         revision_of: OTHER_RECORD_ID,
         steps: [
           { description: "Read the failing test", index: 0 },
@@ -361,14 +371,20 @@ describe("validateRecord — schema violations", () => {
     expect(validationErrorOf(record)?.details).toHaveProperty("field", "outcome");
   });
 
-  test("Planning (schema 0.4) is no longer a behaviour: rejected, naming behavior", () => {
-    const error = validationErrorOf({
+  test("Planning needs a goal, and a plan's steps do not belong on Thinking", () => {
+    const withoutGoal = validationErrorOf({
       ...base("Planning", "ai"),
-      goal: "Win the match",
       steps: [{ description: "Analyse data", index: 0 }],
     });
-    expect(error).toBeInstanceOf(ValidationError);
-    expect(error?.details).toHaveProperty("field", "behavior");
+    expect(withoutGoal).toBeInstanceOf(ValidationError);
+    expect(withoutGoal?.details).toHaveProperty("field", "goal");
+    expect(
+      validationErrorOf({
+        ...base("Thinking", "ai"),
+        output_payload: REF,
+        steps: [{ description: "Analyse data", index: 0 }],
+      }),
+    ).toBeInstanceOf(ValidationError);
   });
 
   test.each([

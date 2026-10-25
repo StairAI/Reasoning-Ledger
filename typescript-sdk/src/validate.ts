@@ -9,6 +9,7 @@ import {
   MemorizingRecord,
   ObservingRecord,
   OtherRecord,
+  PlanningRecord,
   ReflectingRecord,
   ThinkingRecord,
   ToolCallingRecord,
@@ -59,13 +60,14 @@ const SCHEMAS: Record<BehaviorType, z.ZodType> = {
   Memorizing: MemorizingRecord,
   Observing: ObservingRecord,
   Other: OtherRecord,
+  Planning: PlanningRecord,
   Reflecting: ReflectingRecord,
   Thinking: ThinkingRecord,
   ToolCalling: ToolCallingRecord,
 };
 
 // No schema of the union matches a record whose behaviour is missing or
-// unknown (such as the 0.4 behaviour Planning); report that on `behavior`.
+// unknown (such as a behaviour from a later schema); report that on `behavior`.
 const KNOWN_BEHAVIOR = z.object({ behavior: BehaviorType });
 
 function schemaFor(record: unknown): z.ZodType {
