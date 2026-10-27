@@ -242,7 +242,9 @@ describe(prepareContent, () => {
       behavior: "Acting",
       output_payload: "The lockfile is stale; run install again.",
     });
-    expect(record["output_payload"]).toStrictEqual(textRef("The lockfile is stale; run install again."));
+    expect(record["output_payload"]).toStrictEqual(
+      textRef("The lockfile is stale; run install again."),
+    );
     expect(record["action_summary"]).toBe("final answer");
     expect(uploads).toHaveLength(1);
   });
