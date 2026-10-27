@@ -225,6 +225,28 @@ describe(prepareContent, () => {
     expect(uploads).toHaveLength(1);
   });
 
+  test("Observing: trigger_payload (the summary stays a string)", () => {
+    const { record, uploads } = prepareContent({
+      behavior: "Observing",
+      trigger_payload: "Why does the build fail?",
+      trigger_payload_summary: "a question about the build",
+    });
+    expect(record["trigger_payload"]).toStrictEqual(textRef("Why does the build fail?"));
+    expect(record["trigger_payload_summary"]).toBe("a question about the build");
+    expect(uploads).toHaveLength(1);
+  });
+
+  test("Acting: output_payload (the summary stays a string)", () => {
+    const { record, uploads } = prepareContent({
+      action_summary: "final answer",
+      behavior: "Acting",
+      output_payload: "The lockfile is stale; run install again.",
+    });
+    expect(record["output_payload"]).toStrictEqual(textRef("The lockfile is stale; run install again."));
+    expect(record["action_summary"]).toBe("final answer");
+    expect(uploads).toHaveLength(1);
+  });
+
   test("model_invocation.replay_of: raw content is uploaded; a record id or a ContentRef is left as given", () => {
     const replayed = prepareContent({
       behavior: "Thinking",
@@ -250,13 +272,15 @@ describe(prepareContent, () => {
   });
 
   test("other behaviours only have model_invocation.internal_reasoning", () => {
-    const parameters = { prompt: "not content" };
+    const steps = [{ description: "not content" }];
     const { record, uploads } = prepareContent({
-      behavior: "Acting",
+      behavior: "Planning",
+      goal: "not content either",
       model_invocation: { internal_reasoning: "why", model_name: "m", provider: "p" },
-      parameters,
+      steps,
     });
-    expect(record["parameters"]).toBe(parameters);
+    expect(record["steps"]).toBe(steps);
+    expect(record["goal"]).toBe("not content either");
     expect(uploads.map((upload) => upload.ref)).toStrictEqual([textRef("why")]);
   });
 

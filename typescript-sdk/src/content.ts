@@ -104,10 +104,12 @@ export function encodeContent(value: unknown, field: string): EncodedContent {
 // ---------------------------------------------------------------------------
 
 const CONTENT_FIELDS = new Map<string, readonly string[]>([
+  ["Acting", ["output_payload"]],
   ["Attesting", ["effects"]],
   ["Delegating", ["goal", "result"]],
   ["Escalating", ["asked"]],
   ["Memorizing", ["target"]],
+  ["Observing", ["trigger_payload"]],
   ["Reflecting", ["output_payload"]],
   ["Thinking", ["prompt", "output_payload"]],
   ["ToolCalling", ["input_payload", "output_payload"]],

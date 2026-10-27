@@ -64,6 +64,14 @@ export function contentRefsOf(record: Record<string, unknown>): ContentRef[] {
       candidates.push(record.target);
       break;
     }
+    case "Observing": {
+      candidates.push(record.trigger_payload);
+      break;
+    }
+    case "Acting": {
+      candidates.push(record.output_payload);
+      break;
+    }
     default: {
       break;
     }

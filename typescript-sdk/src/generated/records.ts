@@ -320,6 +320,7 @@ export const ObservingRecord = z
     event_ts_utc: EpochMs.optional(),
     trigger_description: z.string().min(1),
     trigger_payload_summary: z.string().max(4096),
+    trigger_payload: ContentRef.optional(),
   })
   .strict();
 export type ObservingRecord = z.infer<typeof ObservingRecord>;
@@ -533,6 +534,7 @@ export const ActingRecord = z
     parameters: z.record(z.string(), z.any()).optional(),
     execution_id: z.string().optional(),
     execution_status: z.enum(["confirmed", "failed", "simulated", "pending", "cancelled"]),
+    output_payload: ContentRef.optional(),
   })
   .strict()
   .describe(

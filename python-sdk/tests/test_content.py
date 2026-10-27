@@ -381,6 +381,42 @@ class TestAutoUpload:
         assert record["output_payload"] == server.ref_for(b"lower the threshold", TEXT)
         assert record["inputs"][0]["input_payload"] == server.ref_for(b'{"score":0.4}', JSON_TYPE)
 
+    def test_observing_and_acting_positions_are_uploaded(self) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        client.submit(
+            {
+                "behavior": "Observing",
+                "executor": "human",
+                "record_phase": "pre_execution",
+                "session_id": "s-1",
+                "trigger_description": "user prompt",
+                "trigger_payload": "Why does the build fail?",
+                "trigger_payload_summary": "a question about the build",
+                "trigger_source": "claude-code://user_prompt",
+                "trigger_type": "human_trigger",
+            }
+        )
+        client.submit(
+            {
+                "action_summary": "final answer",
+                "action_type": "answer.final",
+                "behavior": "Acting",
+                "execution_status": "confirmed",
+                "executor": "ai",
+                "outcome": "success",
+                "output_payload": "The lockfile is stale; run install again.",
+                "record_phase": "post_execution",
+                "session_id": "s-1",
+                "target_system": "user",
+            }
+        )
+        observing, acting = server.records
+        assert observing["trigger_payload"] == server.ref_for(b"Why does the build fail?", TEXT)
+        assert observing["trigger_payload_summary"] == "a question about the build"
+        assert acting["output_payload"] == server.ref_for(b"The lockfile is stale; run install again.", TEXT)
+        assert acting["action_summary"] == "final answer"
+
     def test_escalating_delegating_and_memorizing_positions_are_uploaded(self) -> None:
         server = FakeLedgerServer()
         client = make_client(server)

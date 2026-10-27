@@ -38,9 +38,11 @@ _CONTENT_REF_KEYS = frozenset({"sha256", "bytes", "media_type"})
 # Top-level content positions, by behavior.
 _CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
     "Attesting": ("effects",),
+    "Acting": ("output_payload",),
     "Delegating": ("goal", "result"),
     "Escalating": ("asked",),
     "Memorizing": ("target",),
+    "Observing": ("trigger_payload",),
     "Reflecting": ("output_payload",),
     "Thinking": ("prompt", "output_payload"),
     "ToolCalling": ("input_payload", "output_payload"),

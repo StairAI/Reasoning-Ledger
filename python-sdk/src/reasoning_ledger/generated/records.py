@@ -368,6 +368,12 @@ class ObservingRecord(BaseRecord):
     event_ts_utc: Annotated[int | None, Field(ge=0)] = None
     trigger_description: Annotated[str, Field(min_length=1)]
     trigger_payload_summary: Annotated[str, Field(max_length=4096)]
+    trigger_payload: Annotated[
+        ContentRef | None,
+        Field(
+            description="The trigger's payload itself (a person's message, the event's content), in the content library. `trigger_payload_summary` stays the short form."
+        ),
+    ] = None
 
 
 class Effect(StrEnum):
@@ -453,6 +459,12 @@ class ActingRecord(BaseRecord):
     execution_id: str | None = None
     execution_status: ExecutionStatus
     outcome: Outcome
+    output_payload: Annotated[
+        ContentRef | None,
+        Field(
+            description="What was handed over or written back (the final answer, the submitted object), in the content library. `action_summary` stays the short form."
+        ),
+    ] = None
 
 
 class Kind(StrEnum):

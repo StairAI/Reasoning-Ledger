@@ -402,7 +402,11 @@ export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView 
     case "Observing": {
       return {
         chip: chipOf(rec, "trigger_type"),
-        description: str(rec, "trigger_description") || str(rec, "trigger_source"),
+        // The payload itself when the record carries it (0.5), the description otherwise.
+        description:
+          contentText(rec.trigger_payload, contents) ||
+          str(rec, "trigger_description") ||
+          str(rec, "trigger_source"),
         upstream: 0,
       };
     }
@@ -416,7 +420,7 @@ export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView 
       return thinkingCard(rec, contents, upstream);
     }
     case "Acting": {
-      return actingCard(rec, upstream);
+      return actingCard(rec, contents, upstream);
     }
     case "Reflecting": {
       return {
@@ -503,7 +507,7 @@ function attestingCard(rec: TraceRecord, upstream: number): CardView {
   };
 }
 
-function actingCard(rec: TraceRecord, upstream: number): CardView {
+function actingCard(rec: TraceRecord, contents: ContentMap, upstream: number): CardView {
   const status = str(rec, "execution_status").toUpperCase();
   const kind =
     status === "CONFIRMED" || status === "SIMULATED"
@@ -513,7 +517,8 @@ function actingCard(rec: TraceRecord, upstream: number): CardView {
         : "neutral";
   return {
     chip: str(rec, "action_type").toUpperCase() || undefined,
-    description: str(rec, "action_summary"),
+    // What was handed over when the record carries it (0.5), the summary otherwise.
+    description: contentText(rec.output_payload, contents) || str(rec, "action_summary"),
     status: status ? { kind, label: status } : undefined,
     upstream,
   };
@@ -614,6 +619,8 @@ function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
         },
         { kind: "text", label: "DESCRIPTION", text: str(rec, "trigger_description") },
         { kind: "text", label: "PAYLOAD SUMMARY", text: str(rec, "trigger_payload_summary") },
+        // The payload itself is optional (0.5).
+        ...optionalText("PAYLOAD", contentText(rec.trigger_payload, contents)),
       ];
     }
     case "ToolCalling": {
@@ -644,6 +651,8 @@ function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
           ]),
         },
         { kind: "text", label: "SUMMARY", text: str(rec, "action_summary") },
+        // What was handed over is optional (0.5).
+        ...optionalText("OUTPUT", contentText(rec.output_payload, contents)),
         ...optionalCode("PARAMETERS", rec.parameters),
       ];
     }
