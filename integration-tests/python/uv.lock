@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -232,7 +232,7 @@ wheels = [
 
 [[package]]
 name = "reasoning-ledger"
-version = "1.0.0"
+version = "2.0.0rc1"
 source = { editable = "../../python-sdk" }
 dependencies = [
     { name = "httpx" },

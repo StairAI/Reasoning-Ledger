@@ -1,10 +1,10 @@
 # Changelog
 
-The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; the unreleased changes below write `0.5`.
+The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0-rc.1 and later write `0.5`.
 
-## Unreleased
+## 2.0.0-rc.1 — 2026-10-28
 
-Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/SCHEMA.md`](./schema/SCHEMA.md); the `0.4` schema is kept under [`schema/history/0.4/`](./schema/history/0.4/).
+A pre-release of the server, the TypeScript SDK and the Python SDK, deployed to staging. Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/SCHEMA.md`](./schema/SCHEMA.md); the `0.4` schema is kept under [`schema/history/0.4/`](./schema/history/0.4/).
 
 ### Changed
 
