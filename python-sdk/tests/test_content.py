@@ -414,7 +414,9 @@ class TestAutoUpload:
         observing, acting = server.records
         assert observing["trigger_payload"] == server.ref_for(b"Why does the build fail?", TEXT)
         assert observing["trigger_payload_summary"] == "a question about the build"
-        assert acting["output_payload"] == server.ref_for(b"The lockfile is stale; run install again.", TEXT)
+        assert acting["output_payload"] == server.ref_for(
+            b"The lockfile is stale; run install again.", TEXT
+        )
         assert acting["action_summary"] == "final answer"
 
     def test_escalating_delegating_and_memorizing_positions_are_uploaded(self) -> None:
