@@ -90,12 +90,39 @@ own_content_dir() {
   return 1
 }
 
+# What the store does for an upload: a directory per owner, and an object
+# written into it through a temporary file. A probe that does both, as the
+# given user, is the only honest check: a mount can let a user create files
+# and still refuse directories. Prints nothing; the exit status says.
+probe_content_dir() {
+  probe=$content_dir/.write-check.$$
+  if mkdir "$probe" 2>/dev/null && : >"$probe/object" 2>/dev/null; then
+    rm -f "$probe/object"
+    rmdir "$probe"
+    return 0
+  fi
+  rm -f "$probe/object" 2>/dev/null
+  rmdir "$probe" 2>/dev/null
+  return 1
+}
+
 # Fail before migrating or listening when uploads could not be stored.
 check_content_dir() {
   mkdir -p "$content_dir" || die "cannot create CONTENT_DIR $content_dir as uid $(id -u)"
-  probe=$(mktemp "$content_dir/.write-check.XXXXXX" 2>/dev/null) ||
-    die "CONTENT_DIR $content_dir is not writable by uid $(id -u); mount a writable volume there, or give it to this user"
-  rm -f "$probe"
+  probe_content_dir ||
+    die "CONTENT_DIR $content_dir is not writable by uid $(id -u): a directory and a file in it must be creatable there; mount a writable volume, or give it to this user"
+}
+
+# As root, after handing the directory over: can the server's user really
+# create an owner directory and an object there? Better to know now than at
+# the first upload.
+server_user_can_write() {
+  if as_server_user sh "$0" probe-content-dir; then
+    return 0
+  fi
+  log "warning: $run_as (uid $uid) cannot create a directory and a file in $content_dir after the change of owner." \
+    "Running as root, as earlier images did. To run as $run_as, make the directory writable for uid $uid on the host"
+  return 1
 }
 
 check_database_url() {
@@ -129,6 +156,13 @@ case $mode in
   start | migrate | serve)
     [ $# -eq 1 ] || die "$mode takes no arguments"
     ;;
+  probe-content-dir)
+    # Used by server_user_can_write, as the server's user: can an owner
+    # directory and an object be created in the content directory?
+    resolve_content_dir
+    probe_content_dir
+    exit $?
+    ;;
   *)
     exec "$@"
     ;;
@@ -147,7 +181,7 @@ if [ "$(id -u)" -eq 0 ]; then
     log "warning: cannot switch to $run_as (uid $uid): $err." \
       "Running as root, as earlier images did. To run as $run_as, keep the" \
       "SETUID, SETGID and CHOWN capabilities, or start the container with --user $uid"
-  elif [ "$mode" = migrate ] || own_content_dir; then
+  elif [ "$mode" = migrate ] || { own_content_dir && server_user_can_write; }; then
     HOME=$(getent passwd "$run_as" | cut -d: -f6)
     export HOME
     exec setpriv --reuid="$uid" --regid="$gid" --clear-groups -- sh "$0" "$@"

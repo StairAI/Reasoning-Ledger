@@ -2,6 +2,14 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## 2.0.1 — 2026-10-29
+
+The server image only; the SDKs stay at 2.0.0.
+
+### Fixed
+
+- **The entrypoint checks that the server's user can really write the content directory.** It hands the directory to `rl` as before, then creates an owner directory and an object in it as `rl`, as an upload does; when that fails (a mount that accepts the change of owner and still refuses the user, as a directory created by a non-root deployment user can) it runs as root and says so, and before listening it probes the same way and stops when even that fails. Until now a probe that only created a file could pass while every upload then failed with `EACCES`.
+
 ## 2.0.0 — 2026-10-29
 
 The release of 2.0.0-rc.1 and 2.0.0-rc.2 below, unchanged: schema 0.5 in the server and both SDKs, content encrypted on the writer's machine, registration by invitation. Writes of schema `0.4` are refused from this version on; records written earlier stay readable. The hosted ledger runs this version with `RL_REGISTRATION=invite`.
