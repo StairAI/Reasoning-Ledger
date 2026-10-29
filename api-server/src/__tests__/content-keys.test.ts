@@ -129,7 +129,7 @@ describe("content keys", () => {
     const plain = Buffer.from("the prompt", "utf-8");
     const ciphertext = seal(dataKey, plain, keyId);
     const sha256 = createHash("sha256").update(ciphertext).digest("hex");
-    await writeObject(owner.ownerId, sha256, new Blob([ciphertext]).stream());
+    await writeObject(owner.ownerId, sha256, new Blob([new Uint8Array(ciphertext)]).stream());
     await prisma.contentObject.create({
       data: {
         bytes: ciphertext.length,

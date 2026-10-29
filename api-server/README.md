@@ -242,28 +242,28 @@ Authenticate with the owner's API key in the `X-API-Key` header. The API referen
 
 The read endpoints also accept the administrator's token in `X-Admin-Token`, which reads across every owner; each such read is logged as one `admin_read` line on stdout. Writes always need an owner's API key: a record belongs to an owner, so there is nobody to attribute an administrator's write to. So do viewer sign-in links: the administrator signs into the viewer only at `/login`.
 
-| Method         | Path                        | Description                                                                    |
-| -------------- | --------------------------- | ------------------------------------------------------------------------------ |
-| `POST`         | `/v1/owners`                | Register an owner (see `RL_REGISTRATION`; `invite_code` when by invitation)    |
-| `GET`          | `/v1/owners/me`             | The calling owner                                                              |
-| `PATCH`        | `/v1/owners/me`             | Update owner metadata                                                          |
-| `POST`         | `/v1/owners/me/rotate-key`  | Rotate the owner's API key                                                     |
-| `POST`         | `/v1/agents`                | Register an agent (SDK: `registerAgent`)                                       |
-| `GET`          | `/v1/agents?name=`          | Look up an agent by name (SDK: `resolveAgentId`)                               |
-| `GET`, `PATCH` | `/v1/agents/{agent_id}`     | Read or update an agent                                                        |
-| `POST`         | `/v1/records`               | Submit one record (SDK: `submit`)                                              |
-| `POST`         | `/v1/records/batch`         | Submit up to 50 records, 1 MB in total (SDK: `submitBatch`)                    |
-| `GET`          | `/v1/records/{record_id}`   | One record (SDK: `getRecord`)                                                  |
-| `GET`          | `/v1/sessions/{session_id}` | The records of a session, in sequence order (SDK: `getSession`)                |
-| `GET`          | `/v1/traces/{agent_id}`     | An agent's records, newest first, paginated by cursor (SDK: `getTrace`)        |
-| `GET`          | `/v1/traces`                | The calling owner's sessions, most recent first                                |
-| `PUT`          | `/v1/content/{sha256}`      | Upload raw content; the body's SHA-256 must equal the path (SDK: `putContent`) |
-| `GET`, `HEAD`  | `/v1/content/{sha256}`      | Read uploaded content (SDK: `getContent`); `410` once deleted                  |
-| `PUT`          | `/v1/content-keys/{key_id}` | Register a wrapped data key for encrypted content (SDK: `put_content_key`)     |
-| `GET`          | `/v1/content-keys[/{id}]`   | One wrapped key, or a page of the owner's keys (SDK: `get_content_key`, `list_content_keys`) |
-| `POST`         | `/v1/viewer/tickets`        | A one-time link that signs a browser into the trace viewer as the owner        |
-| `POST`, `GET`  | `/v1/admin/invites`         | Make or list invite codes (administrator token only)                           |
-| `POST`         | `/v1/admin/invites/{code}/revoke` | Revoke an invite code (administrator token only)                          |
+| Method         | Path                              | Description                                                                                  |
+| -------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `POST`         | `/v1/owners`                      | Register an owner (see `RL_REGISTRATION`; `invite_code` when by invitation)                  |
+| `GET`          | `/v1/owners/me`                   | The calling owner                                                                            |
+| `PATCH`        | `/v1/owners/me`                   | Update owner metadata                                                                        |
+| `POST`         | `/v1/owners/me/rotate-key`        | Rotate the owner's API key                                                                   |
+| `POST`         | `/v1/agents`                      | Register an agent (SDK: `registerAgent`)                                                     |
+| `GET`          | `/v1/agents?name=`                | Look up an agent by name (SDK: `resolveAgentId`)                                             |
+| `GET`, `PATCH` | `/v1/agents/{agent_id}`           | Read or update an agent                                                                      |
+| `POST`         | `/v1/records`                     | Submit one record (SDK: `submit`)                                                            |
+| `POST`         | `/v1/records/batch`               | Submit up to 50 records, 1 MB in total (SDK: `submitBatch`)                                  |
+| `GET`          | `/v1/records/{record_id}`         | One record (SDK: `getRecord`)                                                                |
+| `GET`          | `/v1/sessions/{session_id}`       | The records of a session, in sequence order (SDK: `getSession`)                              |
+| `GET`          | `/v1/traces/{agent_id}`           | An agent's records, newest first, paginated by cursor (SDK: `getTrace`)                      |
+| `GET`          | `/v1/traces`                      | The calling owner's sessions, most recent first                                              |
+| `PUT`          | `/v1/content/{sha256}`            | Upload raw content; the body's SHA-256 must equal the path (SDK: `putContent`)               |
+| `GET`, `HEAD`  | `/v1/content/{sha256}`            | Read uploaded content (SDK: `getContent`); `410` once deleted                                |
+| `PUT`          | `/v1/content-keys/{key_id}`       | Register a wrapped data key for encrypted content (SDK: `put_content_key`)                   |
+| `GET`          | `/v1/content-keys[/{id}]`         | One wrapped key, or a page of the owner's keys (SDK: `get_content_key`, `list_content_keys`) |
+| `POST`         | `/v1/viewer/tickets`              | A one-time link that signs a browser into the trace viewer as the owner                      |
+| `POST`, `GET`  | `/v1/admin/invites`               | Make or list invite codes (administrator token only)                                         |
+| `POST`         | `/v1/admin/invites/{code}/revoke` | Revoke an invite code (administrator token only)                                             |
 
 Every read is limited to the calling owner's data: another owner's agent, record or session answers `404`.
 

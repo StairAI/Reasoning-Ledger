@@ -39,7 +39,12 @@ describe("invite codes", () => {
     await prisma.invite.deleteMany({ where: { code: { in: codes } } });
   });
 
-  async function mint(input: Parameters<typeof createInviteCodes>[0] extends infer T ? T : never) {
+  async function mint(input?: {
+    count?: number;
+    expires_in_days?: number;
+    max_uses?: number;
+    note?: string;
+  }) {
     const { invites } = await call(createInviteCodes, input, adminCtx());
     codes.push(...invites.map((i) => i.code));
     return invites;

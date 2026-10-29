@@ -100,6 +100,7 @@ def test_an_unregistered_key_is_refused(client: LedgerClient, agent_id: str) -> 
                 "trigger_type": "signal_trigger",
                 "trigger_source": "integration-test",
                 "trigger_description": "an orphaned key",
+                "trigger_payload_summary": "14 bytes, encrypted",
                 "trigger_payload": {**ref, "enc": enc},
             }
         )

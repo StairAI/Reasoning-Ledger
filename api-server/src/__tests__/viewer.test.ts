@@ -552,17 +552,15 @@ describe("Trace viewer encrypted content", () => {
         wrapped_key: Buffer.alloc(60, 1).toString("base64"),
       },
     });
-    const ref: ContentRef = {
-      ...stored,
-      enc: {
-        alg: "A256GCM",
-        key_id: keyId,
-        plaintext_bytes: 4,
-        plaintext_media_type: "application/json",
-        plaintext_sha256: "a".repeat(64),
-      },
+    const enc = {
+      alg: "A256GCM",
+      key_id: keyId,
+      plaintext_bytes: 4,
+      plaintext_media_type: "application/json",
+      plaintext_sha256: "a".repeat(64),
     };
-    const orphan: ContentRef = { ...ref, enc: { ...ref.enc, key_id: "never-registered" } };
+    const ref: ContentRef = { ...stored, enc };
+    const orphan: ContentRef = { ...ref, enc: { ...enc, key_id: "never-registered" } };
     const records = [
       record({ behavior: "Observing", trigger_payload: ref }),
       record({ behavior: "Acting", output_payload: orphan }),
