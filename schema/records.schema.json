@@ -3,7 +3,7 @@
   "$id": "https://stair-ai.com/schemas/records.schema.json",
   "title": "Reasoning Ledger Record Schemas",
   "description": "Canonical record schemas for the Reasoning Ledger. Prose reference: SCHEMA.md.",
-  "version": "0.4",
+  "version": "0.5",
   "retired_versions": [
     "1.0"
   ],
@@ -18,6 +18,9 @@
         "Acting",
         "Reflecting",
         "Attesting",
+        "Escalating",
+        "Delegating",
+        "Memorizing",
         "Other"
       ]
     },
@@ -35,7 +38,7 @@
     },
     "ContentRef": {
       "type": "object",
-      "description": "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them.",
+      "description": "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them. sha256, bytes and media_type describe the bytes the ledger holds; when those bytes are ciphertext, enc says how to decrypt them and what the plaintext was.",
       "required": [
         "sha256",
         "bytes",
@@ -44,7 +47,7 @@
       "properties": {
         "sha256": {
           "$ref": "#/$defs/Sha256Hex",
-          "description": "SHA-256 of the raw bytes, lowercase hex."
+          "description": "SHA-256 of the bytes the ledger holds, lowercase hex."
         },
         "bytes": {
           "type": "integer",
@@ -57,6 +60,51 @@
             "text/plain; charset=utf-8",
             "application/json"
           ]
+        },
+        "enc": {
+          "type": "object",
+          "description": "Present when the referenced bytes are ciphertext: the content was encrypted on the writer's machine before upload (AES-256-GCM; the object is nonce (12 bytes) + ciphertext + tag (16 bytes), with the key id as associated data). The data key is named by key_id; its wrapped copy is registered under PUT /v1/content-keys/{key_id}. The plaintext digest is a commitment: it shows what the content was without revealing it, and equal plaintexts have equal digests.",
+          "required": [
+            "alg",
+            "key_id",
+            "plaintext_sha256",
+            "plaintext_bytes",
+            "plaintext_media_type"
+          ],
+          "properties": {
+            "alg": {
+              "type": "string",
+              "enum": [
+                "A256GCM"
+              ],
+              "description": "The content cipher. A256GCM: AES-256-GCM."
+            },
+            "key_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "The data key that encrypts this object, as registered with the ledger (one key per session, wrapped with the owner's master key)."
+            },
+            "plaintext_sha256": {
+              "$ref": "#/$defs/Sha256Hex",
+              "description": "SHA-256 of the plaintext, lowercase hex."
+            },
+            "plaintext_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Size of the plaintext."
+            },
+            "plaintext_media_type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Media type of the plaintext, e.g. \"text/plain; charset=utf-8\".",
+              "examples": [
+                "text/plain; charset=utf-8",
+                "application/json"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -86,7 +134,8 @@
         "failure",
         "denied",
         "escalated",
-        "timeout"
+        "timeout",
+        "cancelled"
       ]
     },
     "SourceDescriptor": {
@@ -106,7 +155,8 @@
             "reference_data",
             "api",
             "document",
-            "human"
+            "human",
+            "record"
           ]
         },
         "ref": {
@@ -120,13 +170,22 @@
         "sha256": {
           "$ref": "#/$defs/Sha256Hex",
           "description": "Content hash of what was fetched."
-        },
-        "record_id": {
-          "$ref": "#/$defs/UuidV4",
-          "description": "Record that fetched it."
         }
       },
       "additionalProperties": true
+    },
+    "DecidedBy": {
+      "type": "string",
+      "enum": [
+        "human",
+        "model",
+        "rule",
+        "policy",
+        "classifier",
+        "config",
+        "consensus"
+      ],
+      "description": "Who or what made the judgment. Machine approvals (config, policy, classifier) are recorded here on the record they decided, never as an Attesting record."
     },
     "Verdict": {
       "type": "object",
@@ -140,8 +199,7 @@
           "description": "The judgment itself (any JSON value)."
         },
         "decided_by": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/DecidedBy"
         },
         "signals": {
           "type": "array",
@@ -164,22 +222,6 @@
           ],
           "minimum": 0,
           "maximum": 1
-        },
-        "sources": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/SourceDescriptor"
-          }
-        },
-        "counterfactual": {
-          "type": "string"
-        },
-        "dissent": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": true
-          }
         }
       },
       "additionalProperties": true
@@ -203,6 +245,57 @@
       },
       "additionalProperties": false
     },
+    "Classification": {
+      "type": "object",
+      "description": "How the record came to carry its behavior: declared by the instrumented writer, inferred by a rule, judged by a model or labelled by a person.",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "instrumented",
+            "rule",
+            "judge",
+            "human"
+          ]
+        },
+        "mapper": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name and version of the writer or mapper, e.g. 'collector@0.3'."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "behavior",
+              "confidence"
+            ],
+            "properties": {
+              "behavior": {
+                "$ref": "#/$defs/BehaviorType"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "maxItems": 8
+        }
+      },
+      "additionalProperties": false
+    },
     "ModelInvocation": {
       "type": "object",
       "required": [
@@ -211,15 +304,41 @@
       ],
       "properties": {
         "provider": {
-          "type": "string",
-          "minLength": 1
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Null is meaningful only when invocation_kind is replay or simulated; the schema does not enforce this."
         },
         "model_name": {
-          "type": "string",
-          "minLength": 1
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Null is meaningful only when invocation_kind is replay or simulated; the schema does not enforce this."
         },
-        "model_version": {
-          "type": "string"
+        "invocation_kind": {
+          "type": "string",
+          "enum": [
+            "live",
+            "replay",
+            "cached",
+            "simulated"
+          ],
+          "description": "live = a real call; replay = a recorded response played back; cached = served from a cache; simulated = produced without a model."
+        },
+        "replay_of": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UuidV4"
+            },
+            {
+              "$ref": "#/$defs/ContentRef"
+            }
+          ],
+          "description": "The record or content a replay reproduces."
         },
         "tokens_in": {
           "type": "integer",
@@ -229,15 +348,29 @@
           "type": "integer",
           "minimum": 0
         },
+        "cache_read_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_creation_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
         "cost_usd": {
           "type": "number",
           "minimum": 0
         },
         "temperature": {
-          "type": "number"
+          "type": "number",
+          "description": "Only callers that set it themselves can fill this."
         },
         "finish_reason": {
           "type": "string"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The provider's request id, for reconciliation with provider logs."
         },
         "internal_reasoning": {
           "$ref": "#/$defs/ContentRef",
@@ -263,7 +396,7 @@
           "type": "string",
           "minLength": 1,
           "examples": [
-            "0.4"
+            "0.5"
           ]
         },
         "agent_id": {
@@ -303,11 +436,7 @@
             "$ref": "#/$defs/UuidV4"
           },
           "maxItems": 32,
-          "description": "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted."
-        },
-        "parent_record_id": {
-          "$ref": "#/$defs/UuidV4",
-          "description": "Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
+          "description": "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted. An Attesting record lists the Escalating record it answers here."
         },
         "executor": {
           "$ref": "#/$defs/Executor"
@@ -320,7 +449,14 @@
         },
         "duration_ms": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "On Attesting and Escalating: how long the pending item waited for a person."
+        },
+        "error_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Low-cardinality error class when outcome is failure, timeout, denied or cancelled, e.g. tool.not_found, permission.denied, http.5xx, validation.rejected, user.abort."
         },
         "sources": {
           "type": "array",
@@ -331,6 +467,17 @@
         },
         "verdict": {
           "$ref": "#/$defs/Verdict"
+        },
+        "written_by": {
+          "$ref": "#/$defs/WrittenBy",
+          "description": "Which program wrote the record and with what credential. Required on Attesting, recommended everywhere else."
+        },
+        "on_behalf_of_agent_id": {
+          "$ref": "#/$defs/UuidV4",
+          "description": "Set when the writer is not the agent whose behavior this is, e.g. a platform recording a fill or a settlement for an agent."
+        },
+        "classification": {
+          "$ref": "#/$defs/Classification"
         }
       }
     },
@@ -389,6 +536,50 @@
       },
       "additionalProperties": false
     },
+    "ToolMeta": {
+      "type": "object",
+      "description": "Which tool was called. Only name is required; unknown keys are allowed.",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "call_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The harness's own id for this call (OTel gen_ai.tool.call.id, ATIF tool_call_id, Claude Code tool_use_id)."
+        },
+        "tool_type": {
+          "type": "string",
+          "enum": [
+            "function",
+            "mcp",
+            "skill",
+            "subagent",
+            "shell",
+            "http",
+            "datastore"
+          ]
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The application's grouping of tools, e.g. an MCP server name."
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
     "ObservingRecord": {
       "allOf": [
         {
@@ -409,17 +600,19 @@
             },
             "trigger_source": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Prefer a stable URI-like name, e.g. 'claude-code://user_prompt', 'arena://fixtures/<code>/window_open'."
             },
             "trigger_type": {
               "type": "string",
               "enum": [
                 "signal_trigger",
-                "cron_trigger"
-              ]
-            },
-            "external_trigger_id": {
-              "type": "string"
+                "cron_trigger",
+                "human_trigger",
+                "outcome_trigger",
+                "agent_trigger"
+              ],
+              "description": "signal = a system event; cron = a schedule; human = a person's message or action; outcome = the result of an earlier action (settlement, test result, revert); agent = another agent or a parent harness."
             },
             "event_ts_utc": {
               "$ref": "#/$defs/EpochMs"
@@ -431,6 +624,10 @@
             "trigger_payload_summary": {
               "type": "string",
               "maxLength": 4096
+            },
+            "trigger_payload": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "The trigger's payload itself (a person's message, the event's content), in the content library. `trigger_payload_summary` stays the short form."
             }
           }
         }
@@ -447,7 +644,6 @@
           "required": [
             "behavior",
             "tool_meta",
-            "description",
             "input_payload",
             "output_payload",
             "outcome"
@@ -457,12 +653,20 @@
               "const": "ToolCalling"
             },
             "tool_meta": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/$defs/ToolMeta"
             },
             "description": {
               "type": "string",
               "minLength": 1
+            },
+            "effect": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write",
+                "execute"
+              ],
+              "description": "What the call did to the world: read only, changed state, or ran something."
             },
             "input_payload": {
               "$ref": "#/$defs/ContentRef"
@@ -472,7 +676,7 @@
             },
             "outcome": {
               "$ref": "#/$defs/Outcome",
-              "description": "Result of the call; replaces the 0.3 'success' flag."
+              "description": "Result of the call."
             }
           }
         }
@@ -480,6 +684,7 @@
       "unevaluatedProperties": false
     },
     "PlanningRecord": {
+      "description": "An explicit, ordered plan for the work ahead, or a revision of an earlier plan: the goal, the steps and what to do if they fail. A vague intention inside a thought is Thinking.",
       "allOf": [
         {
           "$ref": "#/$defs/BaseRecord"
@@ -497,19 +702,26 @@
             },
             "goal": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "What the plan is for."
             },
             "steps": {
               "type": "array",
               "items": {
                 "$ref": "#/$defs/PlanningStep"
-              }
+              },
+              "description": "The ordered steps; may be empty when the plan is only a goal."
             },
             "contingencies": {
               "type": "array",
               "items": {
                 "type": "string"
-              }
+              },
+              "description": "What to do when a step fails or an assumption does not hold."
+            },
+            "revision_of": {
+              "$ref": "#/$defs/UuidV4",
+              "description": "The earlier Planning record this plan revises."
             }
           }
         }
@@ -517,6 +729,7 @@
       "unevaluatedProperties": false
     },
     "ThinkingRecord": {
+      "description": "A deliberate reasoning step inside the cycle: analysis, option comparison, a decision. An explicit, ordered plan is a Planning record.",
       "allOf": [
         {
           "$ref": "#/$defs/BaseRecord"
@@ -525,8 +738,6 @@
           "type": "object",
           "required": [
             "behavior",
-            "prompt",
-            "inputs",
             "output_payload"
           ],
           "properties": {
@@ -551,6 +762,7 @@
       "unevaluatedProperties": false
     },
     "ActingRecord": {
+      "description": "The terminal commitment of a cycle: handing the result over or writing it back. Side effects along the way are ToolCalling.",
       "allOf": [
         {
           "$ref": "#/$defs/BaseRecord"
@@ -562,9 +774,8 @@
             "action_type",
             "target_system",
             "action_summary",
-            "parameters",
-            "dry_run",
-            "execution_status"
+            "execution_status",
+            "outcome"
           ],
           "properties": {
             "behavior": {
@@ -572,7 +783,8 @@
             },
             "action_type": {
               "type": "string",
-              "minLength": 1
+              "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)+$",
+              "description": "Namespaced '<domain>.<verb>', e.g. prediction.submit, order.fill, answer.final, git.commit, stage.conclude."
             },
             "target_system": {
               "type": "string",
@@ -586,9 +798,6 @@
               "type": "object",
               "additionalProperties": true
             },
-            "dry_run": {
-              "type": "boolean"
-            },
             "execution_id": {
               "type": "string"
             },
@@ -598,8 +807,16 @@
                 "confirmed",
                 "failed",
                 "simulated",
-                "pending"
+                "pending",
+                "cancelled"
               ]
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome"
+            },
+            "output_payload": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "What was handed over or written back (the final answer, the submitted object), in the content library. `action_summary` stays the short form."
             }
           },
           "allOf": [
@@ -630,6 +847,7 @@
       "unevaluatedProperties": false
     },
     "ReflectingRecord": {
+      "description": "The agent's evaluation of its own earlier behavior, during the cycle (record_phase concurrent: a test run read, a check) or after it (post_execution: a settlement, a retrospective).",
       "allOf": [
         {
           "$ref": "#/$defs/BaseRecord"
@@ -644,6 +862,15 @@
           "properties": {
             "behavior": {
               "const": "Reflecting"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "process",
+                "evaluation",
+                "settlement"
+              ],
+              "description": "process = reviewing how it worked; evaluation = judging the output against criteria; settlement = an external result coming back."
             },
             "inputs": {
               "type": "array",
@@ -660,7 +887,7 @@
       "unevaluatedProperties": false
     },
     "AttestingRecord": {
-      "description": "A person's disposition of a pending action, submitted by the upper-layer application on the person's behalf.",
+      "description": "A person's disposition of a pending item, submitted by the upper-layer application on the person's behalf. Answers an Escalating record when there is one (listed in upstream_record_id).",
       "allOf": [
         {
           "$ref": "#/$defs/BaseRecord"
@@ -673,7 +900,8 @@
             "operator_id",
             "disposition",
             "gate_kind",
-            "written_by"
+            "written_by",
+            "outcome"
           ],
           "properties": {
             "behavior": {
@@ -692,9 +920,11 @@
               "enum": [
                 "approve",
                 "reject",
-                "edit"
+                "edit",
+                "cancel",
+                "no_response"
               ],
-              "description": "For value-choosing decisions: approve = accepted the default suggestion, edit = changed it."
+              "description": "approve = accepted as proposed; edit = changed it; reject = refused; cancel = the person stopped the pending item; no_response = nobody answered (headless, or the wait ran out)."
             },
             "decision": {
               "description": "Structured decision content: the value the person chose or entered. Shape declared by the upper-layer application."
@@ -709,30 +939,33 @@
               "additionalProperties": true,
               "description": "Changes to the original parameters when disposition is edit."
             },
-            "evidence_refs": {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/UuidV4"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentRef"
-                  }
-                ]
-              },
-              "maxItems": 64,
-              "description": "Record ids or content references the disposition relied on."
-            },
             "seen_digest": {
               "type": "string",
               "minLength": 1,
               "description": "Digest of what the person saw when deciding."
             },
+            "seen_completeness": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "partial",
+                "unknown"
+              ],
+              "description": "Whether what the person saw covered everything the decision depended on."
+            },
+            "channel": {
+              "type": "string",
+              "enum": [
+                "interactive",
+                "async",
+                "headless"
+              ],
+              "description": "interactive = the person was present; async = handled later from a queue; headless = no person could answer."
+            },
             "gate_kind": {
               "type": "string",
               "minLength": 1,
-              "description": "Checkpoint type, defined by the upper-layer application."
+              "description": "Checkpoint type, defined by the upper-layer application; starting registry: column, plan, permission, question, deploy."
             },
             "policy_snapshot": {
               "type": "object",
@@ -745,6 +978,10 @@
             },
             "written_by": {
               "$ref": "#/$defs/WrittenBy"
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome",
+              "description": "success = a disposition was recorded; timeout = no_response; cancelled = cancel."
             }
           },
           "allOf": [
@@ -764,8 +1001,209 @@
                   "reason"
                 ]
               }
+            },
+            {
+              "if": {
+                "properties": {
+                  "disposition": {
+                    "const": "no_response"
+                  }
+                },
+                "required": [
+                  "disposition"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "outcome": {
+                    "const": "timeout"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "disposition": {
+                    "const": "cancel"
+                  }
+                },
+                "required": [
+                  "disposition"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "outcome": {
+                    "const": "cancelled"
+                  }
+                }
+              }
             }
           ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "EscalatingRecord": {
+      "description": "The agent hands a decision to a person: a question, a permission request, a plan to approve, or giving up and handing the work over. The person's disposition is a separate Attesting record.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "kind",
+            "asked",
+            "outcome"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Escalating"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "question",
+                "permission",
+                "plan",
+                "handoff"
+              ]
+            },
+            "asked": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "What was put to the person."
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 32
+            },
+            "default": {
+              "type": "string",
+              "description": "The option proposed as default, if any."
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome",
+              "description": "success = a person disposed of it; timeout = nobody answered; cancelled = withdrawn."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "DelegatingRecord": {
+      "description": "The agent hands a goal to another agent: spawning a sub-agent, handing the work off, or messaging another agent. The delegate's own cycle lives in its own session.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "kind",
+            "goal",
+            "outcome"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Delegating"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "spawn",
+                "handoff",
+                "message"
+              ]
+            },
+            "goal": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "What the delegate was asked to do."
+            },
+            "delegate_agent_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The delegate's agent id when it has one, else its type or name."
+            },
+            "child_session_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The session that holds the delegate's own records."
+            },
+            "awaited": {
+              "type": "boolean",
+              "description": "Whether this agent waited for the result."
+            },
+            "result": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "What came back."
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "MemorizingRecord": {
+      "description": "A write to state that outlives the cycle: memory, standing rules, skills, settings, a knowledge base. Reading such state is ToolCalling.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "scope",
+            "target",
+            "op",
+            "outcome"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Memorizing"
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "session",
+                "project",
+                "user",
+                "customer",
+                "org",
+                "global"
+              ],
+              "description": "How far the written state reaches."
+            },
+            "target": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "What was written: the content, with its location in notes or tags if needed."
+            },
+            "op": {
+              "type": "string",
+              "enum": [
+                "add",
+                "update",
+                "delete"
+              ]
+            },
+            "approved_by": {
+              "$ref": "#/$defs/UuidV4",
+              "description": "The Attesting record of the person who confirmed this write, when one did."
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome"
+            }
+          }
         }
       ],
       "unevaluatedProperties": false
@@ -793,6 +1231,11 @@
             "data": {
               "type": "object",
               "additionalProperties": true
+            },
+            "proposed_behavior": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The behavior the writer thinks this should be, if the taxonomy lacked it."
             }
           }
         }
@@ -823,6 +1266,15 @@
           "$ref": "#/$defs/AttestingRecord"
         },
         {
+          "$ref": "#/$defs/EscalatingRecord"
+        },
+        {
+          "$ref": "#/$defs/DelegatingRecord"
+        },
+        {
+          "$ref": "#/$defs/MemorizingRecord"
+        },
+        {
           "$ref": "#/$defs/OtherRecord"
         }
       ],
@@ -836,6 +1288,9 @@
           "Acting": "#/$defs/ActingRecord",
           "Reflecting": "#/$defs/ReflectingRecord",
           "Attesting": "#/$defs/AttestingRecord",
+          "Escalating": "#/$defs/EscalatingRecord",
+          "Delegating": "#/$defs/DelegatingRecord",
+          "Memorizing": "#/$defs/MemorizingRecord",
           "Other": "#/$defs/OtherRecord"
         }
       }

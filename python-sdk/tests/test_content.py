@@ -381,6 +381,133 @@ class TestAutoUpload:
         assert record["output_payload"] == server.ref_for(b"lower the threshold", TEXT)
         assert record["inputs"][0]["input_payload"] == server.ref_for(b'{"score":0.4}', JSON_TYPE)
 
+    def test_observing_and_acting_positions_are_uploaded(self) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        client.submit(
+            {
+                "behavior": "Observing",
+                "executor": "human",
+                "record_phase": "pre_execution",
+                "session_id": "s-1",
+                "trigger_description": "user prompt",
+                "trigger_payload": "Why does the build fail?",
+                "trigger_payload_summary": "a question about the build",
+                "trigger_source": "claude-code://user_prompt",
+                "trigger_type": "human_trigger",
+            }
+        )
+        client.submit(
+            {
+                "action_summary": "final answer",
+                "action_type": "answer.final",
+                "behavior": "Acting",
+                "execution_status": "confirmed",
+                "executor": "ai",
+                "outcome": "success",
+                "output_payload": "The lockfile is stale; run install again.",
+                "record_phase": "post_execution",
+                "session_id": "s-1",
+                "target_system": "user",
+            }
+        )
+        observing, acting = server.records
+        assert observing["trigger_payload"] == server.ref_for(b"Why does the build fail?", TEXT)
+        assert observing["trigger_payload_summary"] == "a question about the build"
+        assert acting["output_payload"] == server.ref_for(
+            b"The lockfile is stale; run install again.", TEXT
+        )
+        assert acting["action_summary"] == "final answer"
+
+    def test_escalating_delegating_and_memorizing_positions_are_uploaded(self) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        common = {
+            "executor": "ai",
+            "outcome": "success",
+            "record_phase": "post_execution",
+            "session_id": "s-1",
+        }
+
+        client.submit({**common, "asked": "Deploy now?", "behavior": "Escalating", "kind": "plan"})
+        client.submit(
+            {
+                **common,
+                "behavior": "Delegating",
+                "goal": "Review the diff",
+                "kind": "spawn",
+                "result": {"approved": True},
+            }
+        )
+        client.submit(
+            {
+                **common,
+                "behavior": "Memorizing",
+                "op": "add",
+                "scope": "user",
+                "target": "Prefers short answers",
+            }
+        )
+
+        escalating, delegating, memorizing = server.records
+        assert escalating["asked"] == server.ref_for(b"Deploy now?", TEXT)
+        assert delegating["goal"] == server.ref_for(b"Review the diff", TEXT)
+        assert delegating["result"] == server.ref_for(b'{"approved":true}', JSON_TYPE)
+        assert memorizing["target"] == server.ref_for(b"Prefers short answers", TEXT)
+        methods = [c["method"] for c in server.calls]
+        assert methods == ["PUT", "POST", "PUT", "PUT", "POST", "PUT", "POST"]
+
+    @pytest.mark.parametrize(
+        "replay_of",
+        ["recorded completion", "6ba7b810-9dad-01d1-80b4-00c04fd430c8"],  # no UUID version
+    )
+    def test_replay_of_any_other_string_is_text_content(self, replay_of: str) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        invocation = {"model_name": "m", "provider": "p", "replay_of": replay_of}
+
+        client.submit({**observing(), "model_invocation": invocation})
+
+        sent = posted(server)["model_invocation"]["replay_of"]
+        assert sent == server.ref_for(replay_of.encode(), TEXT)
+
+    def test_raw_replay_of_is_uploaded_with_internal_reasoning(self) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        invocation = {
+            "internal_reasoning": "why",
+            "invocation_kind": "replay",
+            "model_name": None,
+            "provider": None,
+            "replay_of": {"completion": "recorded"},
+        }
+
+        client.submit({**observing(), "model_invocation": invocation})
+
+        sent = posted(server)["model_invocation"]
+        assert sent["replay_of"] == server.ref_for(b'{"completion":"recorded"}', JSON_TYPE)
+        assert sent["internal_reasoning"] == server.ref_for(b"why", TEXT)
+        assert invocation["replay_of"] == {"completion": "recorded"}
+
+    @pytest.mark.parametrize(
+        "replay_of",
+        [
+            "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
+            "6BA7B810-9DAD-41D1-80B4-00C04FD430C8",
+            "01890a5d-ac96-774b-bcce-b302099a8057",
+            {"bytes": 3, "media_type": TEXT, "sha256": "c" * 64},
+        ],
+    )
+    def test_replay_of_a_record_id_or_content_ref_is_left_alone(self, replay_of: Any) -> None:
+        server = FakeLedgerServer()
+        client = make_client(server)
+        invocation = {"model_name": "m", "provider": "p", "replay_of": replay_of}
+
+        client.submit({**observing(), "model_invocation": invocation})
+
+        assert server.uploads == []
+        assert posted(server)["model_invocation"]["replay_of"] == replay_of
+
     def test_default_model_invocation_is_uploaded_without_mutating_config(self) -> None:
         server = FakeLedgerServer()
         default = {"internal_reasoning": "why", "model_name": "m", "provider": "p"}

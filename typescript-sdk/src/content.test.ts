@@ -52,6 +52,9 @@ describe(isContentRef, () => {
   test("accepts an object whose keys are exactly sha256, bytes and media_type", () => {
     expect(isContentRef(REF)).toBeTruthy();
     expect(isContentRef({ bytes: 0, media_type: "x", sha256: "0".repeat(64) })).toBeTruthy();
+    // Encrypted content: the same reference, plus how to open it.
+    expect(isContentRef({ ...REF, enc: { alg: "A256GCM", key_id: "k" } })).toBeTruthy();
+    expect(isContentRef({ ...REF, enc: "A256GCM" })).toBeFalsy();
   });
 
   test.each([
@@ -175,26 +178,114 @@ describe(prepareContent, () => {
     expect(uploads).toHaveLength(2);
   });
 
-  test("Attesting: effects is uploaded; evidence_refs are left as given", () => {
-    const evidence = [RECORD_ID, REF, { note: "not a ref" }];
+  test("Attesting: effects", () => {
+    const decision = { value: "not content" };
     const { record, uploads } = prepareContent({
       behavior: "Attesting",
+      decision,
       effects: { rules_changed: 1 },
-      evidence_refs: evidence,
     });
     expect(record["effects"]).toStrictEqual(jsonRef({ rules_changed: 1 }));
-    expect(record["evidence_refs"]).toBe(evidence);
+    expect(record["decision"]).toBe(decision);
     expect(uploads).toHaveLength(1);
   });
 
-  test("other behaviours only have model_invocation.internal_reasoning", () => {
-    const parameters = { prompt: "not content" };
+  test("Escalating: asked", () => {
+    const options = ["allow once", "deny"];
     const { record, uploads } = prepareContent({
-      behavior: "Acting",
-      model_invocation: { internal_reasoning: "why", model_name: "m", provider: "p" },
-      parameters,
+      asked: "May I run the migration?",
+      behavior: "Escalating",
+      options,
     });
-    expect(record["parameters"]).toBe(parameters);
+    expect(record["asked"]).toStrictEqual(textRef("May I run the migration?"));
+    expect(record["options"]).toBe(options);
+    expect(uploads.map((upload) => upload.ref)).toStrictEqual([
+      textRef("May I run the migration?"),
+    ]);
+  });
+
+  test("Delegating: goal and result", () => {
+    const { record, uploads } = prepareContent({
+      behavior: "Delegating",
+      delegate_agent_id: "code-reviewer",
+      goal: "Review the diff",
+      result: { findings: 2 },
+    });
+    expect(record["goal"]).toStrictEqual(textRef("Review the diff"));
+    expect(record["result"]).toStrictEqual(jsonRef({ findings: 2 }));
+    expect(record["delegate_agent_id"]).toBe("code-reviewer");
+    expect(uploads).toHaveLength(2);
+  });
+
+  test("Memorizing: target", () => {
+    const { record, uploads } = prepareContent({
+      behavior: "Memorizing",
+      op: "add",
+      scope: "project",
+      target: "Run the linter before committing.",
+    });
+    expect(record["target"]).toStrictEqual(textRef("Run the linter before committing."));
+    expect(uploads).toHaveLength(1);
+  });
+
+  test("Observing: trigger_payload (the summary stays a string)", () => {
+    const { record, uploads } = prepareContent({
+      behavior: "Observing",
+      trigger_payload: "Why does the build fail?",
+      trigger_payload_summary: "a question about the build",
+    });
+    expect(record["trigger_payload"]).toStrictEqual(textRef("Why does the build fail?"));
+    expect(record["trigger_payload_summary"]).toBe("a question about the build");
+    expect(uploads).toHaveLength(1);
+  });
+
+  test("Acting: output_payload (the summary stays a string)", () => {
+    const { record, uploads } = prepareContent({
+      action_summary: "final answer",
+      behavior: "Acting",
+      output_payload: "The lockfile is stale; run install again.",
+    });
+    expect(record["output_payload"]).toStrictEqual(
+      textRef("The lockfile is stale; run install again."),
+    );
+    expect(record["action_summary"]).toBe("final answer");
+    expect(uploads).toHaveLength(1);
+  });
+
+  test("model_invocation.replay_of: raw content is uploaded; a record id or a ContentRef is left as given", () => {
+    const replayed = prepareContent({
+      behavior: "Thinking",
+      model_invocation: { model_name: null, provider: null, replay_of: "recorded answer" },
+    });
+    expect(replayed.record["model_invocation"]).toStrictEqual({
+      model_name: null,
+      provider: null,
+      replay_of: textRef("recorded answer"),
+    });
+    expect(replayed.uploads).toHaveLength(1);
+
+    for (const replayOf of [RECORD_ID, REF]) {
+      const invocation = { model_name: null, provider: null, replay_of: replayOf };
+      const { record, uploads } = prepareContent({
+        behavior: "Thinking",
+        model_invocation: invocation,
+      });
+      expect(record["model_invocation"]).toStrictEqual(invocation);
+      expect((record["model_invocation"] as Record<string, unknown>)["replay_of"]).toBe(replayOf);
+      expect(uploads).toStrictEqual([]);
+    }
+  });
+
+  test("other behaviours only have model_invocation.internal_reasoning", () => {
+    const steps = [{ description: "not content" }];
+    const { record, uploads } = prepareContent({
+      behavior: "Planning",
+      goal: "not content either",
+      model_invocation: { internal_reasoning: "why", model_name: "m", provider: "p" },
+      steps,
+    });
+    expect(record["steps"]).toBe(steps);
+    expect(record["goal"]).toBe("not content either");
     expect(uploads.map((upload) => upload.ref)).toStrictEqual([textRef("why")]);
   });
 

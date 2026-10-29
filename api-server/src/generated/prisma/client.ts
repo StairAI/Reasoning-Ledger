@@ -79,3 +79,13 @@ export type VizSession = Prisma.VizSessionModel;
  *
  */
 export type ViewerTicket = Prisma.ViewerTicketModel;
+/**
+ * Model ContentKey
+ *
+ */
+export type ContentKey = Prisma.ContentKeyModel;
+/**
+ * Model Invite
+ *
+ */
+export type Invite = Prisma.InviteModel;

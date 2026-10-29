@@ -4,6 +4,15 @@ reasoning-ledger — Python SDK for the Reasoning Ledger API.
 
 from .client import LedgerClient
 from .constants import SCHEMA_VERSION, SIZE_LIMITS
+from .encryption import (
+    ContentEncryption,
+    generate_master_key,
+    load_master_key,
+    master_key_fragment,
+    master_key_from_fragment,
+    master_key_id,
+    save_master_key,
+)
 from .errors import (
     AuthError,
     IdempotencyConflictError,
@@ -22,6 +31,7 @@ from .types import (
     AgentWalletInput,
     AttestingInput,
     BatchAck,
+    ContentEncryptionInfo,
     ContentRef,
     GetTraceOpts,
     HttpRequest,
@@ -50,6 +60,8 @@ __all__ = [
     "AttestingInput",
     "AuthError",
     "BatchAck",
+    "ContentEncryption",
+    "ContentEncryptionInfo",
     "ContentRef",
     "GetTraceOpts",
     "HttpRequest",
@@ -75,10 +87,16 @@ __all__ = [
     "TracePage",
     "ValidationError",
     "build_url",
+    "generate_master_key",
     "is_valid_record_id",
+    "load_master_key",
     "map_http_error",
+    "master_key_fragment",
+    "master_key_from_fragment",
+    "master_key_id",
     "new_record_id",
     "now_epoch_ms",
+    "save_master_key",
     "should_retry",
     "validate_batch",
     "validate_record",

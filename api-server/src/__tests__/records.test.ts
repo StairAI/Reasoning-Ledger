@@ -1,10 +1,13 @@
-import { call } from "@orpc/server";
+import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, expectTypeOf } from "vitest";
 import { registerAgent } from "#/routes/agents";
 import { getRecord, submitBatch, submitRecord } from "#/routes/records";
 import { prisma } from "#/lib/prisma";
-import { ctx, makeObservingInput, makeTestOwner } from "./helpers";
+import { SCHEMA_VERSION } from "#/generated/version";
+import { call, ctx, makeObservingInput, makeTestOwner } from "./helpers";
 import type { TestOwner } from "./helpers";
+
+const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
 describe("Records", () => {
   let owner: TestOwner;
@@ -70,7 +73,7 @@ describe("Records", () => {
       const input = makeObservingInput(agentId, { schema_version: "1.0" });
       await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
         code: "BAD_REQUEST",
-        message: expect.stringContaining("upgrade to an SDK that writes 0.4"),
+        message: expect.stringContaining(`upgrade to an SDK that writes ${SCHEMA_VERSION}`),
       });
     });
 
@@ -105,17 +108,11 @@ describe("Records", () => {
       });
     });
 
-    it("accepts valid upstream_record_id and parent_record_id references", async () => {
+    it("accepts a valid upstream_record_id reference", async () => {
       const upstream = makeObservingInput(agentId);
       await call(submitRecord, upstream, ctx(owner.apiKey));
 
-      const parent = makeObservingInput(agentId);
-      await call(submitRecord, parent, ctx(owner.apiKey));
-
-      const child = makeObservingInput(agentId, {
-        parent_record_id: parent.record_id,
-        upstream_record_id: [upstream.record_id],
-      });
+      const child = makeObservingInput(agentId, { upstream_record_id: [upstream.record_id] });
       const ack = await call(submitRecord, child, ctx(owner.apiKey));
       expect(ack.is_duplicate).toBeFalsy();
     });
@@ -205,30 +202,121 @@ describe("Records", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Fixtures for behaviours other than Observing
+  // -------------------------------------------------------------------------
+
+  const writtenBy = { component: "test-harness", credential: "owner-key" };
+
+  function attesting(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeObservingInput(agentId),
+      behavior: "Attesting" as const,
+      disposition: "approve" as const,
+      executor: "human" as const,
+      gate_kind: "approval",
+      operator_id: "reviewer-1",
+      outcome: "success" as const,
+      record_phase: "concurrent" as const,
+      trigger_description: undefined,
+      trigger_payload_summary: undefined,
+      trigger_source: undefined,
+      trigger_type: undefined,
+      written_by: writtenBy,
+      ...overrides,
+    };
+  }
+
+  function acting(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeObservingInput(agentId),
+      action_summary: "publish",
+      action_type: "chain.publish",
+      behavior: "Acting" as const,
+      execution_status: "confirmed" as const,
+      executor: "ai" as const,
+      outcome: "success" as const,
+      target_system: "public-chain",
+      trigger_description: undefined,
+      trigger_payload_summary: undefined,
+      trigger_source: undefined,
+      trigger_type: undefined,
+      ...overrides,
+    };
+  }
+
+  /** A reference to content this owner has uploaded: the row an upload leaves behind. */
+  async function uploaded(text: string) {
+    const ref = { bytes: Buffer.byteLength(text), media_type: "text/plain", sha256: sha(text) };
+    await prisma.contentObject.upsert({
+      create: { ...ref, owner_id: owner.ownerId },
+      update: {},
+      where: { owner_id_sha256: { owner_id: owner.ownerId, sha256: ref.sha256 } },
+    });
+    return ref;
+  }
+
+  /** A well-formed reference to content nobody uploaded. */
+  function notUploaded() {
+    return { bytes: 1, media_type: "text/plain", sha256: sha(crypto.randomUUID()) };
+  }
+
+  function escalating(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeObservingInput(agentId),
+      asked: notUploaded(),
+      behavior: "Escalating" as const,
+      executor: "ai" as const,
+      kind: "question" as const,
+      outcome: "success" as const,
+      record_phase: "concurrent" as const,
+      trigger_description: undefined,
+      trigger_payload_summary: undefined,
+      trigger_source: undefined,
+      trigger_type: undefined,
+      ...overrides,
+    };
+  }
+
+  function delegating(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeObservingInput(agentId),
+      behavior: "Delegating" as const,
+      executor: "ai" as const,
+      goal: notUploaded(),
+      kind: "spawn" as const,
+      outcome: "success" as const,
+      record_phase: "post_execution" as const,
+      trigger_description: undefined,
+      trigger_payload_summary: undefined,
+      trigger_source: undefined,
+      trigger_type: undefined,
+      ...overrides,
+    };
+  }
+
+  function memorizing(overrides: Record<string, unknown> = {}) {
+    return {
+      ...makeObservingInput(agentId),
+      behavior: "Memorizing" as const,
+      executor: "ai" as const,
+      op: "add" as const,
+      outcome: "success" as const,
+      record_phase: "post_execution" as const,
+      scope: "project" as const,
+      target: notUploaded(),
+      trigger_description: undefined,
+      trigger_payload_summary: undefined,
+      trigger_source: undefined,
+      trigger_type: undefined,
+      ...overrides,
+    };
+  }
+
+  // -------------------------------------------------------------------------
   // Schema 0.4
   // -------------------------------------------------------------------------
 
   describe("schema 0.4", () => {
-    const writtenBy = { component: "test-harness", credential: "owner-key" };
-
-    function attesting(overrides: Record<string, unknown> = {}) {
-      return {
-        ...makeObservingInput(agentId),
-        behavior: "Attesting" as const,
-        disposition: "approve" as const,
-        executor: "human" as const,
-        gate_kind: "approval",
-        operator_id: "reviewer-1",
-        record_phase: "concurrent" as const,
-        trigger_description: undefined,
-        trigger_payload_summary: undefined,
-        trigger_source: undefined,
-        trigger_type: undefined,
-        written_by: writtenBy,
-        ...overrides,
-      };
-    }
-
     it("stores executor, record_phase, outcome and duration_ms and reads them back with a sequence", async () => {
       const first = makeObservingInput(agentId, { duration_ms: 12, outcome: "success" });
       const second = makeObservingInput(agentId);
@@ -242,7 +330,7 @@ describe("Records", () => {
         executor: "det",
         outcome: "success",
         record_phase: "post_execution",
-        schema_version: "0.4",
+        schema_version: SCHEMA_VERSION,
       });
       expect(b["outcome"]).toBeUndefined();
       expect(Number(b["sequence"])).toBeGreaterThan(Number(a["sequence"]));
@@ -291,24 +379,12 @@ describe("Records", () => {
     });
 
     it("requires execution_id for a confirmed public-chain Acting record", async () => {
-      const acting = {
-        ...makeObservingInput(agentId),
-        action_summary: "publish",
-        action_type: "publish",
-        behavior: "Acting" as const,
-        dry_run: false,
-        execution_status: "confirmed" as const,
-        parameters: {},
-        target_system: "public-chain",
-        trigger_description: undefined,
-        trigger_payload_summary: undefined,
-        trigger_source: undefined,
-        trigger_type: undefined,
-      };
-      await expect(call(submitRecord, acting, ctx(owner.apiKey))).rejects.toMatchObject({
+      await expect(call(submitRecord, acting(), ctx(owner.apiKey))).rejects.toMatchObject({
         code: "BAD_REQUEST",
         message: expect.stringContaining("execution_id is required"),
       });
+      const ack = await call(submitRecord, acting({ execution_id: "0xabc" }), ctx(owner.apiKey));
+      expect(ack.is_duplicate).toBeFalsy();
     });
 
     it("keeps records written before 0.4 readable", async () => {
@@ -340,6 +416,326 @@ describe("Records", () => {
             payload: {},
             record_id: crypto.randomUUID(),
             schema_version: "0.4",
+            server_ts_utc: BigInt(Date.now()),
+            session_id: "no-executor",
+          },
+        }),
+      ).rejects.toThrow(/trace_records_executor_phase_check/);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Schema 0.5
+  // -------------------------------------------------------------------------
+
+  describe("schema 0.5", () => {
+    it("rejects writes stamped 0.4, which stay readable only", async () => {
+      const input = makeObservingInput(agentId, { schema_version: "0.4" });
+      await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          `'0.4' is readable but no longer accepted for writes; upgrade to an SDK that writes ${SCHEMA_VERSION}`,
+        ),
+      });
+    });
+
+    it("accepts a Planning record, and keeps a plan's steps off Thinking", async () => {
+      const revised = crypto.randomUUID();
+      const planning = {
+        ...makeObservingInput(agentId),
+        behavior: "Planning" as const,
+        contingencies: ["roll back"],
+        executor: "ai" as const,
+        goal: "ship the fix",
+        revision_of: revised,
+        steps: [{ description: "run the tests", index: 0 }],
+        trigger_description: undefined,
+        trigger_payload_summary: undefined,
+        trigger_source: undefined,
+        trigger_type: undefined,
+      };
+      const ack = await call(submitRecord, planning, ctx(owner.apiKey));
+      expect(ack.is_duplicate).toBeFalsy();
+      const stored = await call(getRecord, { record_id: planning.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        behavior: "Planning",
+        contingencies: ["roll back"],
+        goal: "ship the fix",
+        revision_of: revised,
+        steps: [{ description: "run the tests", index: 0 }],
+      });
+      const thinking = {
+        ...planning,
+        behavior: "Thinking" as const,
+        contingencies: undefined,
+        goal: undefined,
+        output_payload: await uploaded("plan: run the tests"),
+        record_id: crypto.randomUUID(),
+        revision_of: undefined,
+      };
+      // Deliberately invalid: cast past the input type.
+      await expect(call(submitRecord, thinking as never, ctx(owner.apiKey))).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    it("accepts an Escalating record and the Attesting record that answers it", async () => {
+      const question = escalating({
+        asked: await uploaded("Deploy to production now?"),
+        default: "no",
+        duration_ms: 42_000,
+        options: ["yes", "no"],
+      });
+      await call(submitRecord, question, ctx(owner.apiKey));
+      const answer = attesting({
+        channel: "interactive",
+        decision: "yes",
+        gate_kind: "question",
+        seen_completeness: "complete",
+        upstream_record_id: [question.record_id],
+      });
+      await call(submitRecord, answer, ctx(owner.apiKey));
+
+      const stored = await call(getRecord, { record_id: question.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        asked: question.asked,
+        behavior: "Escalating",
+        default: "no",
+        duration_ms: 42_000,
+        kind: "question",
+        options: ["yes", "no"],
+        outcome: "success",
+      });
+      const disposition = await call(getRecord, { record_id: answer.record_id }, ctx(owner.apiKey));
+      expect(disposition).toMatchObject({
+        channel: "interactive",
+        seen_completeness: "complete",
+        upstream_record_id: [question.record_id],
+      });
+    });
+
+    it("accepts a Delegating record", async () => {
+      const result = await uploaded("Two issues found");
+      const input = delegating({
+        awaited: true,
+        child_session_id: "child-session",
+        delegate_agent_id: "code-reviewer",
+        goal: await uploaded("Review the diff"),
+        result,
+      });
+      await call(submitRecord, input, ctx(owner.apiKey));
+      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        awaited: true,
+        behavior: "Delegating",
+        child_session_id: "child-session",
+        delegate_agent_id: "code-reviewer",
+        goal: input.goal,
+        kind: "spawn",
+        outcome: "success",
+        result,
+      });
+    });
+
+    it("accepts a Memorizing record approved by a person", async () => {
+      const approval = attesting({ gate_kind: "permission" });
+      await call(submitRecord, approval, ctx(owner.apiKey));
+      const input = memorizing({
+        approved_by: approval.record_id,
+        op: "update",
+        target: await uploaded("Always run the linter before committing."),
+      });
+      await call(submitRecord, input, ctx(owner.apiKey));
+      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        approved_by: approval.record_id,
+        behavior: "Memorizing",
+        op: "update",
+        outcome: "success",
+        scope: "project",
+        target: input.target,
+      });
+    });
+
+    it("requires an outcome on Acting, Attesting, Escalating, Delegating and Memorizing", async () => {
+      const records = [acting(), attesting(), escalating(), delegating(), memorizing()];
+      for (const record of records) {
+        // Deliberately invalid: cast past the input type.
+        const input = { ...record, outcome: undefined } as never;
+        await expect(call(submitRecord, input, ctx(owner.apiKey))).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+        });
+      }
+    });
+
+    it("requires a namespaced action_type and accepts a cancelled Acting record", async () => {
+      await expect(
+        call(submitRecord, acting({ action_type: "publish" }), ctx(owner.apiKey)),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      const ack = await call(
+        submitRecord,
+        acting({
+          action_type: "answer.final",
+          execution_status: "cancelled",
+          outcome: "cancelled",
+          target_system: "chat",
+        }),
+        ctx(owner.apiKey),
+      );
+      expect(ack.is_duplicate).toBeFalsy();
+    });
+
+    it("requires outcome timeout when nobody answered and cancelled when the person cancelled", async () => {
+      await expect(
+        call(
+          submitRecord,
+          attesting({ channel: "headless", disposition: "no_response" }),
+          ctx(owner.apiKey),
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "outcome must be 'timeout' when disposition is 'no_response'",
+        ),
+      });
+      await expect(
+        call(submitRecord, attesting({ disposition: "cancel" }), ctx(owner.apiKey)),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "outcome must be 'cancelled' when disposition is 'cancel'",
+        ),
+      });
+
+      const { results } = await call(
+        submitBatch,
+        {
+          records: [
+            attesting({ channel: "headless", disposition: "no_response", outcome: "timeout" }),
+            attesting({ disposition: "cancel", outcome: "cancelled" }),
+            attesting({ disposition: "cancel", outcome: "timeout" }),
+          ],
+        },
+        ctx(owner.apiKey),
+      );
+      expect(results[0]).toMatchObject({ is_duplicate: false });
+      expect(results[1]).toMatchObject({ is_duplicate: false });
+      expect(results[2]).toMatchObject({
+        code: "validation_failed",
+        message: expect.stringContaining("outcome must be 'cancelled'"),
+      });
+    });
+
+    it("checks content referenced at the positions 0.5 added", async () => {
+      const present = await uploaded("an uploaded goal");
+      const records = [
+        escalating(),
+        delegating(),
+        delegating({ goal: present, result: notUploaded() }),
+        memorizing(),
+        delegating({
+          goal: present,
+          model_invocation: {
+            invocation_kind: "replay",
+            model_name: null,
+            provider: null,
+            replay_of: notUploaded(),
+          },
+        }),
+      ];
+      for (const record of records) {
+        await expect(call(submitRecord, record, ctx(owner.apiKey))).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: expect.stringContaining("has not been uploaded"),
+        });
+      }
+    });
+
+    it("stores the 0.5 base fields with the record and reads them back", async () => {
+      const classification = {
+        alternatives: [{ behavior: "ToolCalling" as const, confidence: 0.2 }],
+        confidence: 0.8,
+        mapper: "test-mapper@1",
+        source: "rule" as const,
+      };
+      const modelInvocation = {
+        cache_creation_tokens: 5,
+        cache_read_tokens: 1200,
+        invocation_kind: "replay" as const,
+        model_name: null,
+        provider: null,
+        replay_of: crypto.randomUUID(),
+        request_id: "req_123",
+      };
+      const onBehalfOf = crypto.randomUUID();
+      const input = memorizing({
+        classification,
+        error_type: "permission.denied",
+        model_invocation: modelInvocation,
+        on_behalf_of_agent_id: onBehalfOf,
+        outcome: "denied",
+        target: await uploaded("a memory the platform refused"),
+        written_by: writtenBy,
+      });
+      await call(submitRecord, input, ctx(owner.apiKey));
+      const stored = await call(getRecord, { record_id: input.record_id }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        classification,
+        error_type: "permission.denied",
+        model_invocation: modelInvocation,
+        on_behalf_of_agent_id: onBehalfOf,
+        outcome: "denied",
+        schema_version: SCHEMA_VERSION,
+        written_by: writtenBy,
+      });
+    });
+
+    it("keeps 0.4 records readable, with the fields 0.5 removed", async () => {
+      const parent = makeObservingInput(agentId);
+      await call(submitRecord, parent, ctx(owner.apiKey));
+      const recordId = crypto.randomUUID();
+      await prisma.traceRecord.create({
+        data: {
+          agent_id: agentId,
+          behavior: "Planning",
+          client_ts_utc: BigInt(Date.now()),
+          executor: "ai",
+          model_invocation: { model_name: "m", model_version: "2026-01", provider: "p" },
+          parent_record_id: parent.record_id,
+          payload: {
+            contingencies: ["roll back"],
+            goal: "ship the fix",
+            steps: [{ description: "run the tests", index: 0 }],
+          },
+          record_id: recordId,
+          record_phase: "pre_execution",
+          schema_version: "0.4",
+          server_ts_utc: BigInt(Date.now()),
+          session_id: "legacy-0.4-session",
+        },
+      });
+      const stored = await call(getRecord, { record_id: recordId }, ctx(owner.apiKey));
+      expect(stored).toMatchObject({
+        behavior: "Planning",
+        contingencies: ["roll back"],
+        goal: "ship the fix",
+        model_invocation: { model_version: "2026-01" },
+        parent_record_id: parent.record_id,
+        schema_version: "0.4",
+        steps: [{ description: "run the tests", index: 0 }],
+      });
+    });
+
+    it("refuses a current-version row without executor at the database level", async () => {
+      await expect(
+        prisma.traceRecord.create({
+          data: {
+            agent_id: agentId,
+            behavior: "Escalating",
+            client_ts_utc: BigInt(Date.now()),
+            payload: {},
+            record_id: crypto.randomUUID(),
+            schema_version: SCHEMA_VERSION,
             server_ts_utc: BigInt(Date.now()),
             session_id: "no-executor",
           },

@@ -29,6 +29,10 @@ def _str_byte_length(value: str) -> int:
     return len(value.encode("utf-8"))
 
 
+# Attesting dispositions that fix the outcome (schema if/then).
+_ATTESTING_OUTCOMES: dict[str, str] = {"cancel": "cancelled", "no_response": "timeout"}
+
+
 # ---------------------------------------------------------------------------
 # validate_record
 #
@@ -36,6 +40,7 @@ def _str_byte_length(value: str) -> int:
 # ContentRefs) against:
 #   1. The Pydantic schema from generated/records.py
 #   2. The cross-field rules of the schema that the generated models miss
+#      (Acting on public-chain; Attesting reject, no_response and cancel)
 #   3. Per-record total JSON size (64 KB)
 #   4. Behavior-specific field size caps (§10.2)
 #
@@ -71,11 +76,18 @@ def validate_record(record: Any) -> None:
             "and execution_status is 'confirmed'",
             {"field": "execution_id", "reason": "required"},
         )
-    if isinstance(typed, AttestingRecord) and typed.disposition == "reject" and not typed.reason:
-        raise ValidationError(
-            "reason is required when disposition is 'reject'",
-            {"field": "reason", "reason": "required"},
-        )
+    if isinstance(typed, AttestingRecord):
+        if typed.disposition == "reject" and not typed.reason:
+            raise ValidationError(
+                "reason is required when disposition is 'reject'",
+                {"field": "reason", "reason": "required"},
+            )
+        expected = _ATTESTING_OUTCOMES.get(typed.disposition)
+        if expected is not None and typed.outcome != expected:
+            raise ValidationError(
+                f"outcome must be '{expected}' when disposition is '{typed.disposition}'",
+                {"field": "outcome", "reason": f"must be '{expected}'"},
+            )
 
     # 3. Per-record total JSON size.
     total_bytes = _json_byte_length(record)
@@ -99,7 +111,7 @@ def validate_record(record: Any) -> None:
             )
 
     elif isinstance(typed, ToolCallingRecord):
-        meta_bytes = _json_byte_length(typed.tool_meta)
+        meta_bytes = _json_byte_length(typed.tool_meta.model_dump(mode="json", exclude_unset=True))
         tool_meta_limit = SIZE_LIMITS["TOOL_META"]
         if meta_bytes > tool_meta_limit:
             kb = tool_meta_limit // 1024
@@ -108,7 +120,7 @@ def validate_record(record: Any) -> None:
                 {"field": "tool_meta", "reason": "size exceeded"},
             )
 
-    elif isinstance(typed, ActingRecord):
+    elif isinstance(typed, ActingRecord) and typed.parameters is not None:
         param_bytes = _json_byte_length(typed.parameters)
         param_limit = SIZE_LIMITS["ACTING_PARAMETERS"]
         if param_bytes > param_limit:
@@ -128,9 +140,10 @@ def validate_record(record: Any) -> None:
                 {"field": "data", "reason": "size exceeded"},
             )
 
-    # Planning, Thinking, Reflecting and Attesting have no extra field-level
-    # size caps beyond the record total; tags/notes are capped by the Pydantic
-    # schema (max_length / max_items) rather than byte limits.
+    # Thinking, Reflecting, Attesting, Escalating, Delegating and Memorizing
+    # have no extra field-level size caps beyond the record total; tags/notes
+    # are capped by the Pydantic schema (max_length / max_items) rather than
+    # byte limits.
 
 
 # ---------------------------------------------------------------------------

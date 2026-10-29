@@ -55,6 +55,8 @@ export const ModelName = {
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
   ViewerTicket: "ViewerTicket",
+  ContentKey: "ContentKey",
+  Invite: "Invite",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -82,6 +84,7 @@ export const OwnerScalarFieldEnum = {
   display_name: "display_name",
   website: "website",
   contact_email: "contact_email",
+  invite_code: "invite_code",
   created_at: "created_at",
   updated_at: "updated_at",
 } as const;
@@ -172,6 +175,34 @@ export const ViewerTicketScalarFieldEnum = {
 
 export type ViewerTicketScalarFieldEnum =
   (typeof ViewerTicketScalarFieldEnum)[keyof typeof ViewerTicketScalarFieldEnum];
+
+export const ContentKeyScalarFieldEnum = {
+  owner_id: "owner_id",
+  key_id: "key_id",
+  agent_id: "agent_id",
+  session_id: "session_id",
+  wrap_alg: "wrap_alg",
+  master_key_id: "master_key_id",
+  wrapped_key: "wrapped_key",
+  created_at: "created_at",
+  updated_at: "updated_at",
+} as const;
+
+export type ContentKeyScalarFieldEnum =
+  (typeof ContentKeyScalarFieldEnum)[keyof typeof ContentKeyScalarFieldEnum];
+
+export const InviteScalarFieldEnum = {
+  code: "code",
+  note: "note",
+  max_uses: "max_uses",
+  uses: "uses",
+  expires_at: "expires_at",
+  revoked_at: "revoked_at",
+  created_at: "created_at",
+} as const;
+
+export type InviteScalarFieldEnum =
+  (typeof InviteScalarFieldEnum)[keyof typeof InviteScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",

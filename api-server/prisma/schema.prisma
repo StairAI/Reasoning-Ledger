@@ -28,6 +28,9 @@ enum BehaviorType {
   Reflecting
   Other
   Attesting
+  Escalating
+  Delegating
+  Memorizing
 }
 
 /// Who performed the step (schema 0.4+).
@@ -50,6 +53,7 @@ enum Outcome {
   denied
   escalated
   timeout
+  cancelled
 }
 
 // ---------------------------------------------------------------------------
@@ -68,11 +72,14 @@ model Owner {
   display_name         String?
   website              String?
   contact_email        String?
+  /// The invite code this owner registered with, when registration asked for one (lib/invites.ts).
+  invite_code          String?
   created_at           DateTime   @default(now())
   updated_at           DateTime   @updatedAt
 
   agents         Agent[]
   content        ContentObject[]
+  content_keys   ContentKey[]
   viz_sessions   VizSession[]
   viewer_tickets ViewerTicket[]
 
@@ -235,4 +242,52 @@ model ViewerTicket {
 
   @@index([owner_id])
   @@map("viewer_tickets")
+}
+
+// ---------------------------------------------------------------------------
+// ContentKey — a wrapped data key (design: content encryption). Content is
+// encrypted on the writer's machine with a data key, one per session; the
+// data key is wrapped with the owner's master key and the wrapped copy is
+// registered here, so a reader with the master key can open the content.
+// The server holds only the wrapped key, which it cannot unwrap.
+// ---------------------------------------------------------------------------
+
+model ContentKey {
+  owner_id      String
+  owner         Owner    @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  /// Chosen by the writer; named by ContentRef.enc.key_id.
+  key_id        String
+  agent_id      String?
+  session_id    String?
+  /// How the data key is wrapped. A256GCM: AES-256-GCM under the master key, nonce + ciphertext + tag, key_id as associated data.
+  wrap_alg      String
+  /// Which master key wrapped it: the first 16 hex characters of SHA-256(master key).
+  master_key_id String
+  /// The wrapped data key, base64.
+  wrapped_key   String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@id([owner_id, key_id])
+  @@index([owner_id, session_id])
+  @@map("content_keys")
+}
+
+// ---------------------------------------------------------------------------
+// Invite — a registration code (lib/invites.ts). With RL_REGISTRATION=invite
+// a self-service registration must carry a code that is unused, unexpired
+// and not revoked; the code stays recorded on the owner it admitted.
+// ---------------------------------------------------------------------------
+
+model Invite {
+  code       String    @id
+  /// Who it was made for, in the operator's words.
+  note       String?
+  max_uses   Int       @default(1)
+  uses       Int       @default(0)
+  expires_at DateTime?
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  @@map("invites")
 }

@@ -48,8 +48,14 @@ const SIGN_IN_AGAIN = `/login?next=${encodeURIComponent("/")}&expired=1`;
  * The page's only script. It reads the destination from the link rather than
  * holding it, so it never changes and the Content-Security-Policy below can
  * allow exactly this script and nothing else.
+ *
+ * First it keeps the content master key, when the link carries one in its
+ * fragment (`#k=`, which the browser never sends to the server), in the tab's
+ * sessionStorage: the viewer pages decrypt content with it (scripts/decrypt.ts).
  */
-const NAVIGATE = 'location.replace(document.getElementById("next").getAttribute("href"));';
+const NAVIGATE =
+  'try{var k=location.hash;if(k.slice(0,3)==="#k="){sessionStorage.setItem("rl_mk",k.slice(3));}}catch(e){}' +
+  'location.replace(document.getElementById("next").getAttribute("href"));';
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",

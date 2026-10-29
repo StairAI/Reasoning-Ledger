@@ -5,6 +5,14 @@ export interface ContentRef {
   sha256: string;
   bytes: number;
   media_type: string;
+  /** Present when the bytes the ledger holds are ciphertext (schema 0.5 `enc`). */
+  enc?: {
+    alg: string;
+    key_id: string;
+    plaintext_sha256: string;
+    plaintext_bytes: number;
+    plaintext_media_type: string;
+  };
 }
 
 function isContentRef(value: unknown): value is ContentRef {
@@ -26,9 +34,13 @@ function field(value: unknown, key: string): unknown {
     : undefined;
 }
 
-/** Every content reference a record carries, at the positions schema 0.4 defines. */
+/** Every content reference a record carries, at the positions schema 0.5 defines. */
 export function contentRefsOf(record: Record<string, unknown>): ContentRef[] {
-  const candidates: unknown[] = [field(record.model_invocation, "internal_reasoning")];
+  const candidates: unknown[] = [
+    field(record.model_invocation, "internal_reasoning"),
+    // A replay names either a record (a uuid, skipped below) or a ContentRef.
+    field(record.model_invocation, "replay_of"),
+  ];
   switch (record.behavior) {
     case "ToolCalling": {
       candidates.push(record.input_payload, record.output_payload);
@@ -45,7 +57,27 @@ export function contentRefsOf(record: Record<string, unknown>): ContentRef[] {
       break;
     }
     case "Attesting": {
-      candidates.push(record.effects, ...items(record.evidence_refs));
+      candidates.push(record.effects);
+      break;
+    }
+    case "Escalating": {
+      candidates.push(record.asked);
+      break;
+    }
+    case "Delegating": {
+      candidates.push(record.goal, record.result);
+      break;
+    }
+    case "Memorizing": {
+      candidates.push(record.target);
+      break;
+    }
+    case "Observing": {
+      candidates.push(record.trigger_payload);
+      break;
+    }
+    case "Acting": {
+      candidates.push(record.output_payload);
       break;
     }
     default: {
@@ -81,6 +113,31 @@ export async function assertContentPresent(ownerId: string, refs: ContentRef[]):
     if (Number(row.bytes) !== ref.bytes) {
       throw new ORPCError("BAD_REQUEST", {
         message: `content ${ref.sha256} is ${row.bytes} bytes, but the reference says ${ref.bytes}`,
+      });
+    }
+  }
+  await assertContentKeysRegistered(ownerId, refs);
+}
+
+/**
+ * Encrypted content names the data key that opens it (enc.key_id); the wrapped
+ * copy of that key must already be registered by this owner, or nobody could
+ * ever read the content again (lib/content-keys.ts).
+ */
+async function assertContentKeysRegistered(ownerId: string, refs: ContentRef[]): Promise<void> {
+  const keyIds = [...new Set(refs.flatMap((ref) => (ref.enc ? [ref.enc.key_id] : [])))];
+  if (keyIds.length === 0) {
+    return;
+  }
+  const rows = await prisma.contentKey.findMany({
+    select: { key_id: true },
+    where: { key_id: { in: keyIds }, owner_id: ownerId },
+  });
+  const known = new Set(rows.map((row) => row.key_id));
+  for (const keyId of keyIds) {
+    if (!known.has(keyId)) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `content key ${keyId} has not been registered by this owner; PUT /v1/content-keys/${keyId} before submitting the record`,
       });
     }
   }

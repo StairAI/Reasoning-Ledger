@@ -1,5 +1,5 @@
 """
-Content positions and raw-content encoding (schema 0.4).
+Content positions and raw-content encoding (schema 0.5).
 
 Raw text never goes into a record: a content position holds a ContentRef
 {sha256, bytes, media_type} pointing at bytes in the content library. In
@@ -8,6 +8,10 @@ hold a raw value instead; the SDK encodes it as below, uploads it and puts the
 returned ContentRef in its place. Both SDKs use the same encodings, so the same
 text or bytes get the same hash; a JSON value hashes the same only if both
 languages print it the same way (floats such as 1.0 may differ).
+
+model_invocation.replay_of names a record or content: a UUID string (RFC 9562,
+as the schema's uuid format checks it) is a record id and is left as given; any
+other value is content.
 """
 
 from __future__ import annotations
@@ -24,17 +28,29 @@ BINARY_MEDIA_TYPE = "application/octet-stream"
 JSON_MEDIA_TYPE = "application/json"
 
 _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+# The uuid format of the schema (RFC 9562), as the server and the TypeScript SDK check it.
+_UUID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"
+    r"|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff"
+)
 _CONTENT_REF_KEYS = frozenset({"sha256", "bytes", "media_type"})
 
 # Top-level content positions, by behavior.
 _CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
     "Attesting": ("effects",),
+    "Acting": ("output_payload",),
+    "Delegating": ("goal", "result"),
+    "Escalating": ("asked",),
+    "Memorizing": ("target",),
+    "Observing": ("trigger_payload",),
     "Reflecting": ("output_payload",),
     "Thinking": ("prompt", "output_payload"),
     "ToolCalling": ("input_payload", "output_payload"),
 }
 # Behaviors whose inputs[].input_payload is a content position.
 _INPUT_BEHAVIORS = frozenset({"Reflecting", "Thinking"})
+# Content positions of model_invocation, on every behavior.
+_INVOCATION_FIELDS = ("internal_reasoning", "replay_of")
 
 
 def sha256_hex(data: bytes) -> str:
@@ -48,8 +64,11 @@ def is_sha256_hex(value: object) -> bool:
 
 def is_content_ref(value: Any) -> bool:
     """True iff value is a dict whose keys are exactly sha256 (64 lowercase hex),
-    bytes (non-negative integer) and media_type (string)."""
-    if not isinstance(value, dict) or value.keys() != _CONTENT_REF_KEYS:
+    bytes (non-negative integer) and media_type (string), plus `enc` (a dict)
+    when the bytes are ciphertext."""
+    if not isinstance(value, dict) or value.keys() - {"enc"} != _CONTENT_REF_KEYS:
+        return False
+    if "enc" in value and not isinstance(value["enc"], dict):
         return False
     size = value["bytes"]
     return (
@@ -118,9 +137,18 @@ def content_slots(record: dict[str, Any]) -> list[tuple[dict[str, Any], str, str
                 slots.append((item, "input_payload", f"inputs.{index}.input_payload"))
 
     invocation = record.get("model_invocation")
-    if isinstance(invocation, dict) and "internal_reasoning" in invocation:
-        invocation = dict(invocation)
-        record["model_invocation"] = invocation
-        slots.append((invocation, "internal_reasoning", "model_invocation.internal_reasoning"))
+    if isinstance(invocation, dict):
+        keys = [key for key in _INVOCATION_FIELDS if key in invocation]
+        if _is_record_id(invocation.get("replay_of")):
+            keys.remove("replay_of")
+        if keys:
+            invocation = dict(invocation)
+            record["model_invocation"] = invocation
+            slots.extend((invocation, key, f"model_invocation.{key}") for key in keys)
 
     return slots
+
+
+def _is_record_id(value: object) -> bool:
+    """True iff value is a UUID string: a record id, not content."""
+    return isinstance(value, str) and _UUID.fullmatch(value) is not None

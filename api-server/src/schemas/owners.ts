@@ -8,6 +8,8 @@ export const RegisterOwnerInput = z.object({
   contact_email: z.string().email().optional(),
   display_name: z.string().optional(),
   email: z.string().email(),
+  /** An invite code, required when the ledger registers by invitation (RL_REGISTRATION=invite). */
+  invite_code: z.string().min(1).max(64).optional(),
   /** Required when wallet_mode is "byow"; ignored in custodial mode. */
   owner_wallet_address: z.string().optional(),
   wallet_mode: z.enum(["custodial", "byow"]).default("custodial"),

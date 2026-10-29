@@ -7,6 +7,7 @@
  * server-assigned `sequence` are converted to Number so the result is JSON-safe.
  * Columns added in schema 0.4 (executor, record_phase, outcome, duration_ms)
  * are omitted when empty, so older records read back as they were written.
+ * parent_record_id left the schema in 0.5; only older records carry one.
  */
 export function reconstructRecord(row: {
   record_id: string;

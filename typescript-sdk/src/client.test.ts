@@ -182,14 +182,64 @@ function thinkingInput() {
   };
 }
 
+function planningInput() {
+  return {
+    behavior: "Planning" as const,
+    contingencies: ["roll back"],
+    executor: "ai" as const,
+    goal: "ship the fix",
+    record_phase: "pre_execution" as const,
+    session_id: SESSION_ID,
+    steps: [{ description: "run the tests", index: 0 }],
+  };
+}
+
 function attestingInput() {
   return {
     decision: { value: 42 },
     disposition: "approve" as const,
     gate_kind: "manual-review",
     operator_id: "operator-1",
+    outcome: "success" as const,
     session_id: SESSION_ID,
     written_by: { component: "review-ui", credential: "svc-review" },
+  };
+}
+
+function escalatingInput() {
+  return {
+    asked: REF as ContentInput,
+    behavior: "Escalating" as const,
+    executor: "ai" as const,
+    kind: "permission" as const,
+    outcome: "success" as const,
+    record_phase: "concurrent" as const,
+    session_id: SESSION_ID,
+  };
+}
+
+function delegatingInput() {
+  return {
+    behavior: "Delegating" as const,
+    executor: "ai" as const,
+    goal: REF as ContentInput,
+    kind: "spawn" as const,
+    outcome: "success" as const,
+    record_phase: "post_execution" as const,
+    session_id: SESSION_ID,
+  };
+}
+
+function memorizingInput() {
+  return {
+    behavior: "Memorizing" as const,
+    executor: "ai" as const,
+    op: "add" as const,
+    outcome: "success" as const,
+    record_phase: "post_execution" as const,
+    scope: "project" as const,
+    session_id: SESSION_ID,
+    target: REF as ContentInput,
   };
 }
 
@@ -210,6 +260,33 @@ describe("input and record types", () => {
       ...thinkingInput(),
       inputs: [{ input_payload: "raw" }],
     }).toExtend<SubmitInput>();
+    expectTypeOf({ ...escalatingInput(), asked: "May I?" }).toExtend<SubmitInput>();
+    expectTypeOf({
+      ...delegatingInput(),
+      goal: "Review the diff",
+      result: { findings: 2 },
+    }).toExtend<SubmitInput>();
+    expectTypeOf({ ...memorizingInput(), target: new Uint8Array(1) }).toExtend<SubmitInput>();
+    expectTypeOf({
+      ...minimalObservingInput(),
+      model_invocation: { model_name: null, provider: null, replay_of: "recorded answer" },
+    }).toExtend<SubmitInput>();
+  });
+
+  test("Thinking needs neither prompt nor inputs, and Acting no parameters", () => {
+    const { inputs: _inputs, prompt: _prompt, ...bareThinking } = thinkingInput();
+    expectTypeOf(bareThinking).toExtend<SubmitInput>();
+    expectTypeOf({
+      action_summary: "answered",
+      action_type: "answer.final",
+      behavior: "Acting" as const,
+      execution_status: "confirmed" as const,
+      executor: "ai" as const,
+      outcome: "success" as const,
+      record_phase: "post_execution" as const,
+      session_id: SESSION_ID,
+      target_system: "chat",
+    }).toExtend<SubmitInput>();
   });
 
   test("executor is required, and Acting / Attesting are typed rather than any", () => {
@@ -219,6 +296,14 @@ describe("input and record types", () => {
     expectTypeOf<AttestingRecord["executor"]>().toEqualTypeOf<"human">();
     expectTypeOf(attestingInput()).toExtend<AttestingInput>();
     expectTypeOf<AttestingInput>().not.toHaveProperty("behavior");
+  });
+
+  test("Planning needs a goal, and Attesting needs an outcome", () => {
+    expectTypeOf(planningInput()).toExtend<SubmitInput>();
+    const { goal: _goal, ...withoutGoal } = planningInput();
+    expectTypeOf(withoutGoal).not.toExtend<SubmitInput>();
+    const { outcome: _outcome, ...withoutOutcome } = attestingInput();
+    expectTypeOf(withoutOutcome).not.toExtend<AttestingInput>();
   });
 });
 
@@ -289,7 +374,7 @@ describe("LedgerClient.submit", () => {
 
     const body = jsonBody(call);
     expect(body["agent_id"]).toBe(AGENT_ID);
-    expect(body["schema_version"]).toBe("0.4");
+    expect(body["schema_version"]).toBe("0.5");
     expect(body["executor"]).toBe("det");
     expect(body["record_phase"]).toBe("post_execution");
     expect(isValidRecordId(body["record_id"] as string)).toBeTruthy();
@@ -521,6 +606,71 @@ describe("LedgerClient.submit — raw content", () => {
     expect(input.prompt).toBe("raw prompt");
     expect(input.inputs[0]?.input_payload).toBe("raw");
   });
+
+  test("Escalating.asked is uploaded", async () => {
+    await client.submit({ ...escalatingInput(), asked: "May I run the migration?" });
+
+    expect(transport.calls.map((call) => call.method)).toStrictEqual(["PUT", "POST"]);
+    expect(transport.uploads[0]?.body).toStrictEqual(utf8("May I run the migration?"));
+    expect(jsonBody(transport.calls[1])["asked"]).toStrictEqual(
+      textRef("May I run the migration?"),
+    );
+  });
+
+  test("Delegating.goal and result are uploaded", async () => {
+    await client.submit({
+      ...delegatingInput(),
+      child_session_id: "session-002",
+      goal: "Review the diff",
+      result: { findings: 2 },
+    });
+
+    expect(transport.uploads).toHaveLength(2);
+    const body = jsonBody(transport.calls[2]);
+    expect(body["goal"]).toStrictEqual(textRef("Review the diff"));
+    expect(body["result"]).toStrictEqual(jsonRef({ findings: 2 }));
+    expect(body["child_session_id"]).toBe("session-002");
+  });
+
+  test("Memorizing.target is uploaded", async () => {
+    await client.submit({ ...memorizingInput(), target: "Run the linter before committing." });
+
+    expect(transport.uploads).toHaveLength(1);
+    expect(jsonBody(transport.calls[1])["target"]).toStrictEqual(
+      textRef("Run the linter before committing."),
+    );
+  });
+
+  test("model_invocation.replay_of: raw content is uploaded, a record id is sent as is", async () => {
+    await client.submit({
+      ...minimalObservingInput(),
+      model_invocation: {
+        invocation_kind: "replay",
+        model_name: null,
+        provider: null,
+        replay_of: "recorded answer",
+      },
+    });
+    expect(transport.uploads).toHaveLength(1);
+    expect(jsonBody(transport.calls[1])["model_invocation"]).toStrictEqual({
+      invocation_kind: "replay",
+      model_name: null,
+      provider: null,
+      replay_of: textRef("recorded answer"),
+    });
+
+    transport.enqueue(ok(RECORD_ACK));
+    await client.submit({
+      ...minimalObservingInput(),
+      model_invocation: { model_name: null, provider: null, replay_of: UPSTREAM_ID },
+    });
+    expect(transport.uploads).toHaveLength(1);
+    expect(jsonBody(transport.calls[2])["model_invocation"]).toStrictEqual({
+      model_name: null,
+      provider: null,
+      replay_of: UPSTREAM_ID,
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -681,7 +831,7 @@ describe("LedgerClient.submitAttesting", () => {
     expect(body["executor"]).toBe("human");
     expect(body["record_phase"]).toBe("concurrent");
     expect(body["agent_id"]).toBe(AGENT_ID);
-    expect(body["schema_version"]).toBe("0.4");
+    expect(body["schema_version"]).toBe("0.5");
     expect(isValidRecordId(body["record_id"] as string)).toBeTruthy();
     expect(body["client_ts_utc"]).toBeTypeOf("number");
     expect(body["decision"]).toStrictEqual({ value: 42 });
@@ -694,17 +844,17 @@ describe("LedgerClient.submitAttesting", () => {
     expect(jsonBody(transport.calls[0])["record_phase"]).toBe("post_execution");
   });
 
-  test("uploads raw effects; evidence_refs are sent as given", async () => {
+  test("uploads raw effects", async () => {
     transport.enqueue(ok(RECORD_ACK));
     await client.submitAttesting({
       ...attestingInput(),
       effects: { rules_changed: 1 },
-      evidence_refs: [UPSTREAM_ID, REF],
+      upstream_record_id: [UPSTREAM_ID],
     });
     expect(transport.uploads).toHaveLength(1);
     const body = jsonBody(transport.calls[1]);
     expect(body["effects"]).toStrictEqual(jsonRef({ rules_changed: 1 }));
-    expect(body["evidence_refs"]).toStrictEqual([UPSTREAM_ID, REF]);
+    expect(body["upstream_record_id"]).toStrictEqual([UPSTREAM_ID]);
   });
 
   test("a reject without a reason fails locally with ValidationError", async () => {
@@ -725,6 +875,23 @@ describe("LedgerClient.submitAttesting", () => {
     });
     expect(jsonBody(transport.calls[0])["reason"]).toBe("amount exceeds the approved budget");
   });
+
+  test.each([
+    ["no_response", "timeout"],
+    ["cancel", "cancelled"],
+  ] as const)(
+    "disposition %s needs outcome %s: fails locally otherwise, is sent with it",
+    async (disposition, outcome) => {
+      const error = await rejectionOf(client.submitAttesting({ ...attestingInput(), disposition }));
+      expect(error).toBeInstanceOf(ValidationError);
+      expect((error as ValidationError).details).toHaveProperty("field", "outcome");
+      expect(transport.calls).toHaveLength(0);
+
+      transport.enqueue(ok(RECORD_ACK));
+      await client.submitAttesting({ ...attestingInput(), disposition, outcome });
+      expect(jsonBody(transport.calls[0])).toMatchObject({ disposition, outcome });
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,45 @@
 # Changelog
 
-The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`.
+The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
+
+## 2.0.0 — 2026-10-29
+
+The release of 2.0.0-rc.1 and 2.0.0-rc.2 below, unchanged: schema 0.5 in the server and both SDKs, content encrypted on the writer's machine, registration by invitation. Writes of schema `0.4` are refused from this version on; records written earlier stay readable. The hosted ledger runs this version with `RL_REGISTRATION=invite`.
+
+## 2.0.0-rc.2 — 2026-10-29
+
+A pre-release of the server, the TypeScript SDK and the Python SDK, deployed to staging. Content encryption and registration by invitation.
+
+### Added
+
+- **Encrypted content.** A `ContentRef` may carry `enc`: the bytes the ledger holds are AES-256-GCM ciphertext made on the writer's machine with a data key, one per session, named by `enc.key_id`; `enc` also carries the plaintext's digest, size and media type ([schema](./schema/SCHEMA.md#encrypted-content--enc)). The wrapped data key, under the owner's master key, is registered at `PUT /v1/content-keys/{key_id}` and read back at `GET /v1/content-keys` and `GET /v1/content-keys/{key_id}`; a record whose encrypted content names an unregistered key is rejected. The master key never reaches the ledger.
+- **The viewer decrypts in the browser.** Encrypted content renders as a placeholder; the page carries the ciphertext and the wrapped keys, and the browser decrypts with the master key from the sign-in link's fragment (`#k=`), which the ticket page keeps in the tab's sessionStorage and never sends. Without the key, a note says how to open the viewer with one.
+- **Python SDK: `ContentEncryption`.** `LedgerClientConfig.encryption` encrypts every content position before upload and registers each session's wrapped key first; `open_content()` reads a reference back and decrypts it; `put_content_key`, `get_content_key`, `list_content_keys` and the master key helpers (`generate_master_key`, `save_master_key`, `load_master_key`, `master_key_fragment`) are new. The SDK now depends on `cryptography`. The TypeScript SDK accepts references with `enc` and does not encrypt yet.
+- **Invite codes.** `RL_REGISTRATION=invite` asks a self-service registration for an `invite_code` (`POST /v1/owners`), spent in the transaction that creates the owner and recorded on it; the administrator makes, lists and revokes codes at `/v1/admin/invites`. `open` keeps working as before, and still records a code when one is given.
+
+### Changed
+
+- `ContentRef.sha256` and `bytes` describe the bytes the ledger holds, which for encrypted content are the ciphertext; the reference is closed to these three keys plus `enc`.
+
+## 2.0.0-rc.1 — 2026-10-28
+
+A pre-release of the server, the TypeScript SDK and the Python SDK, deployed to staging. Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/SCHEMA.md`](./schema/SCHEMA.md); the `0.4` schema is kept under [`schema/history/0.4/`](./schema/history/0.4/).
+
+### Changed
+
+- **Eleven behaviors instead of eight.** `Planning` stays, with its `0.4` fields (`goal`, `steps`, `contingencies`) and a new optional `revision_of`, the earlier plan it revises. Three behaviors are new: `Escalating` (the agent hands a decision to a person: a question, a permission request, a plan to approve, a handoff), `Delegating` (a goal handed to another agent, which runs its own session) and `Memorizing` (a write to memory, rules, skills, settings or a knowledge base, which outlives the cycle).
+- **Every record can say who wrote it and how it was classified.** `written_by` moves from `Attesting` to every record (still required on `Attesting`); `on_behalf_of_agent_id` names the agent when a platform writes for it; `classification` says whether the behavior was declared by the writer or inferred by a rule, a model or a person, and how confidently.
+- **Results.** `outcome` is required on `Acting`, `Attesting`, `Escalating`, `Delegating` and `Memorizing` as well as `ToolCalling`, and gains the value `cancelled`; `error_type` carries a low-cardinality error class when the outcome is not `success`.
+- **Model calls.** `ModelInvocation.invocation_kind` separates live calls from replays, cache hits and simulations (`provider` and `model_name` may be null on a replay or simulation, and `replay_of` points at what was replayed); `cache_read_tokens`, `cache_creation_tokens` and `request_id` are new; `model_version` is gone.
+- **Tool calls.** `tool_meta` is typed: `name` is required, `call_id`, `tool_type`, `namespace`, `server` and `version` are known keys, unknown keys are still allowed; `description` is optional; `effect` says whether the call read, wrote or executed.
+- **Acting.** `action_type` is a namespaced `<domain>.<verb>`; `dry_run` is gone (`execution_status: "simulated"` already says it); `parameters` is optional; `execution_status` gains `cancelled`.
+- **Attesting.** `disposition` gains `cancel` and `no_response`; `channel` and `seen_completeness` are new; `evidence_refs` is gone (use `sources`). `no_response` requires `outcome: "timeout"` and `cancel` requires `outcome: "cancelled"`; the server and both SDKs enforce these like the existing rules.
+- **Observing.** `trigger_type` gains `human_trigger`, `outcome_trigger` and `agent_trigger`; `external_trigger_id` is gone.
+- `Reflecting.kind` (`process`, `evaluation`, `settlement`), `Other.proposed_behavior`, `Verdict.decided_by` as a fixed vocabulary (`human`, `model`, `rule`, `policy`, `classifier`, `config`, `consensus`).
+- **Removed fields:** `parent_record_id`, `Verdict.sources`, `Verdict.counterfactual`, `Verdict.dissent`, `SourceDescriptor.record_id`, `Thinking.prompt` and `Thinking.inputs` are now optional.
+- **Requirement levels.** Fields are required, recommended or optional; the schema reference marks the recommended ones. Completeness (the share of recommended fields filled) and the session shape (opened by an `Observing`, closed by an `Acting`) are measured, not enforced.
+- Writes accept schema `0.5` only, as `0.4` was accepted only before; the database gains the three behavior values and `cancelled`, with no new columns.
+- **Unknown top-level fields are rejected** by the server and the TypeScript SDK, as the schema's closed records say and as the Python SDK already did. The generated Zod schemas are closed objects now instead of intersections, which let an unknown key through and dropped it.
 
 ## 1.1.0 — 2026-10-08
 

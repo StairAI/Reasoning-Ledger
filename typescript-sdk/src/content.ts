@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { ValidationError } from "./errors.js";
+import { UuidV4 } from "./generated/records.js";
 import type { ContentRef } from "./generated/records.js";
 
 // ---------------------------------------------------------------------------
@@ -34,17 +35,19 @@ export function sha256Hex(data: Uint8Array): string {
 /**
  * True iff `value` is a ContentRef: an object whose keys are exactly `sha256`
  * (64 lowercase hex), `bytes` (a non-negative integer) and `media_type` (a
- * string). Anything else at a content position is raw content.
+ * string), plus `enc` (an object) when the bytes are ciphertext. Anything
+ * else at a content position is raw content.
  */
 export function isContentRef(value: unknown): value is ContentRef {
   if (!isObject(value)) {
     return false;
   }
-  const keys = Object.keys(value);
-  const { bytes, media_type: mediaType, sha256 } = value;
+  const keys = Object.keys(value).filter((key) => key !== "enc");
+  const { bytes, enc, media_type: mediaType, sha256 } = value;
   return (
     keys.length === CONTENT_REF_KEYS.size &&
     keys.every((key) => CONTENT_REF_KEYS.has(key)) &&
+    (enc === undefined || isObject(enc)) &&
     isSha256Hex(sha256) &&
     typeof bytes === "number" &&
     Number.isInteger(bytes) &&
@@ -94,16 +97,21 @@ export function encodeContent(value: unknown, field: string): EncodedContent {
 }
 
 // ---------------------------------------------------------------------------
-// Content positions (schema 0.4).
+// Content positions (schema 0.5).
 //
-// Every behaviour: model_invocation.internal_reasoning. Per behaviour: the
-// fields below, plus inputs[].input_payload for Thinking and Reflecting.
-// Attesting.evidence_refs may mix record ids and ContentRefs and is left as
-// given.
+// Every behaviour: model_invocation.internal_reasoning, and
+// model_invocation.replay_of unless it holds a record id (a UUID string, left
+// as given). Per behaviour: the fields below, plus inputs[].input_payload for
+// Thinking and Reflecting.
 // ---------------------------------------------------------------------------
 
 const CONTENT_FIELDS = new Map<string, readonly string[]>([
+  ["Acting", ["output_payload"]],
   ["Attesting", ["effects"]],
+  ["Delegating", ["goal", "result"]],
+  ["Escalating", ["asked"]],
+  ["Memorizing", ["target"]],
+  ["Observing", ["trigger_payload"]],
   ["Reflecting", ["output_payload"]],
   ["Thinking", ["prompt", "output_payload"]],
   ["ToolCalling", ["input_payload", "output_payload"]],
@@ -111,7 +119,9 @@ const CONTENT_FIELDS = new Map<string, readonly string[]>([
 
 const WITH_CONTENT_INPUTS = new Set(["Reflecting", "Thinking"]);
 
-function mapInputs(inputs: unknown[], fn: (value: unknown, field: string) => unknown): unknown[] {
+type ContentFn = (value: unknown, field: string) => unknown;
+
+function mapInputs(inputs: unknown[], fn: ContentFn): unknown[] {
   return inputs.map((entry: unknown, index) =>
     isObject(entry) && entry["input_payload"] !== undefined
       ? { ...entry, input_payload: fn(entry["input_payload"], `inputs.${index}.input_payload`) }
@@ -119,25 +129,38 @@ function mapInputs(inputs: unknown[], fn: (value: unknown, field: string) => unk
   );
 }
 
+/** True iff `field` of a model_invocation holds content rather than nothing or a record id. */
+function isInvocationContent(invocation: JsonObject, field: string): boolean {
+  const value = invocation[field];
+  return value !== undefined && !(field === "replay_of" && UuidV4.safeParse(value).success);
+}
+
+/** `invocation` with `fn` applied at its content positions; undefined if it has none. */
+function mapInvocation(invocation: JsonObject, fn: ContentFn): JsonObject | undefined {
+  const fields = ["internal_reasoning", "replay_of"].filter((field) =>
+    isInvocationContent(invocation, field),
+  );
+  if (fields.length === 0) {
+    return undefined;
+  }
+  const out: JsonObject = { ...invocation };
+  for (const field of fields) {
+    out[field] = fn(invocation[field], `model_invocation.${field}`);
+  }
+  return out;
+}
+
 /**
  * Rebuild `record` with `fn` applied to the value at each content position
  * that holds one. Only the containers on the way to a content position are
  * copied; `record` and everything it references stay untouched.
  */
-export function mapContent(
-  record: JsonObject,
-  fn: (value: unknown, field: string) => unknown,
-): JsonObject {
+export function mapContent(record: JsonObject, fn: ContentFn): JsonObject {
   const out: JsonObject = { ...record };
   const { behavior, inputs, model_invocation: invocation } = record;
-  if (isObject(invocation) && invocation["internal_reasoning"] !== undefined) {
-    out["model_invocation"] = {
-      ...invocation,
-      internal_reasoning: fn(
-        invocation["internal_reasoning"],
-        "model_invocation.internal_reasoning",
-      ),
-    };
+  const mappedInvocation = isObject(invocation) ? mapInvocation(invocation, fn) : undefined;
+  if (mappedInvocation !== undefined) {
+    out["model_invocation"] = mappedInvocation;
   }
   const kind = typeof behavior === "string" ? behavior : "";
   for (const field of CONTENT_FIELDS.get(kind) ?? []) {

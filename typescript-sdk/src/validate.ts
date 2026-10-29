@@ -1,10 +1,12 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 import {
   ActingRecord,
   AttestingRecord,
   BehaviorType,
-  Record as LedgerRecord,
+  DelegatingRecord,
+  EscalatingRecord,
+  MemorizingRecord,
   ObservingRecord,
   OtherRecord,
   PlanningRecord,
@@ -53,6 +55,9 @@ function tooLarge(field: string, limit: number, bytes: number): ValidationError 
 const SCHEMAS: Record<BehaviorType, z.ZodType> = {
   Acting: ActingRecord,
   Attesting: AttestingRecord,
+  Delegating: DelegatingRecord,
+  Escalating: EscalatingRecord,
+  Memorizing: MemorizingRecord,
   Observing: ObservingRecord,
   Other: OtherRecord,
   Planning: PlanningRecord,
@@ -61,12 +66,16 @@ const SCHEMAS: Record<BehaviorType, z.ZodType> = {
   ToolCalling: ToolCallingRecord,
 };
 
+// No schema of the union matches a record whose behaviour is missing or
+// unknown (such as a behaviour from a later schema); report that on `behavior`.
+const KNOWN_BEHAVIOR = z.object({ behavior: BehaviorType });
+
 function schemaFor(record: unknown): z.ZodType {
   const behavior =
     typeof record === "object" && record !== null
       ? BehaviorType.safeParse((record as Record<string, unknown>)["behavior"])
       : undefined;
-  return behavior?.success ? SCHEMAS[behavior.data] : LedgerRecord;
+  return behavior?.success ? SCHEMAS[behavior.data] : KNOWN_BEHAVIOR;
 }
 
 function parseRecord(record: unknown): Record<string, unknown> {
@@ -111,6 +120,26 @@ function checkRules(record: Record<string, unknown>): void {
       reason: "required when disposition is 'reject'",
     });
   }
+  if (
+    record["behavior"] === "Attesting" &&
+    record["disposition"] === "no_response" &&
+    record["outcome"] !== "timeout"
+  ) {
+    throw new ValidationError("outcome must be 'timeout' when disposition is 'no_response'", {
+      field: "outcome",
+      reason: "must be 'timeout' when disposition is 'no_response'",
+    });
+  }
+  if (
+    record["behavior"] === "Attesting" &&
+    record["disposition"] === "cancel" &&
+    record["outcome"] !== "cancelled"
+  ) {
+    throw new ValidationError("outcome must be 'cancelled' when disposition is 'cancel'", {
+      field: "outcome",
+      reason: "must be 'cancelled' when disposition is 'cancel'",
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +171,7 @@ function checkSizes(record: unknown, parsed: Record<string, unknown>): void {
   }
 
   const cap = typeof behavior === "string" ? FIELD_CAPS[behavior] : undefined;
-  if (cap !== undefined) {
+  if (cap !== undefined && parsed[cap.field] !== undefined) {
     const bytes = jsonByteLength(parsed[cap.field], cap.field);
     if (bytes > cap.limit) {
       throw tooLarge(cap.field, cap.limit, bytes);
@@ -156,7 +185,8 @@ function checkSizes(record: unknown, parsed: Record<string, unknown>): void {
 // Validates a *complete* record (after auto-fill, with ContentRefs at every
 // content position) against:
 //   1. The generated zod schema for its behaviour
-//   2. The cross-field rules (Acting on public-chain; Attesting reject)
+//   2. The cross-field rules (Acting on public-chain; Attesting reject,
+//      cancel and no_response)
 //   3. Per-record total JSON size (64 KB) and behavior-specific field caps
 //
 // Throws ValidationError on the first violation. Called before any

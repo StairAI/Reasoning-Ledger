@@ -1,0 +1,845 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stair-ai.com/schemas/records.schema.json",
+  "title": "Reasoning Ledger Record Schemas",
+  "description": "Canonical record schemas for the Reasoning Ledger. Prose reference: SCHEMA.md.",
+  "version": "0.4",
+  "retired_versions": [
+    "1.0"
+  ],
+  "$defs": {
+    "BehaviorType": {
+      "type": "string",
+      "enum": [
+        "Observing",
+        "ToolCalling",
+        "Planning",
+        "Thinking",
+        "Acting",
+        "Reflecting",
+        "Attesting",
+        "Other"
+      ]
+    },
+    "UuidV4": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "EpochMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "Sha256Hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ContentRef": {
+      "type": "object",
+      "description": "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them.",
+      "required": [
+        "sha256",
+        "bytes",
+        "media_type"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/Sha256Hex",
+          "description": "SHA-256 of the raw bytes, lowercase hex."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "text/plain; charset=utf-8",
+            "application/json"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Executor": {
+      "type": "string",
+      "enum": [
+        "ai",
+        "det",
+        "human"
+      ],
+      "description": "Who performed the step: a model (ai), deterministic code (det) or a person (human)."
+    },
+    "RecordPhase": {
+      "type": "string",
+      "enum": [
+        "pre_execution",
+        "concurrent",
+        "post_execution"
+      ],
+      "description": "When the record was written relative to the action it describes."
+    },
+    "Outcome": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure",
+        "denied",
+        "escalated",
+        "timeout"
+      ]
+    },
+    "SourceDescriptor": {
+      "type": "object",
+      "description": "Where an input came from. Only kind and ref are required; other fields are open.",
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "model",
+            "rule",
+            "reference_data",
+            "api",
+            "document",
+            "human"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable reference to the source."
+        },
+        "fetched_at": {
+          "$ref": "#/$defs/EpochMs"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256Hex",
+          "description": "Content hash of what was fetched."
+        },
+        "record_id": {
+          "$ref": "#/$defs/UuidV4",
+          "description": "Record that fetched it."
+        }
+      },
+      "additionalProperties": true
+    },
+    "Verdict": {
+      "type": "object",
+      "description": "Basis of a judgment. Only conclusion and decided_by are required; other fields are open.",
+      "required": [
+        "conclusion",
+        "decided_by"
+      ],
+      "properties": {
+        "conclusion": {
+          "description": "The judgment itself (any JSON value)."
+        },
+        "decided_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "rule_ref": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceDescriptor"
+          }
+        },
+        "counterfactual": {
+          "type": "string"
+        },
+        "dissent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "WrittenBy": {
+      "type": "object",
+      "description": "Declared by the submitter: which component wrote the record, with which credential. A record, not a permission.",
+      "required": [
+        "component",
+        "credential"
+      ],
+      "properties": {
+        "component": {
+          "type": "string",
+          "minLength": 1
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ModelInvocation": {
+      "type": "object",
+      "required": [
+        "provider",
+        "model_name"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "type": "string"
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "finish_reason": {
+          "type": "string"
+        },
+        "internal_reasoning": {
+          "$ref": "#/$defs/ContentRef",
+          "description": "Raw internal reasoning / chain-of-thought emitted by the foundation model alongside (and distinct from) its final output, stored in the content library. Maps to provider-specific reasoning channels, e.g. DeepSeek 'reasoning_content', OpenAI o-series reasoning summaries, Anthropic extended-thinking blocks, Gemini thoughts. Distinct from the SDK 'Thinking' behavior, which records a deliberate agent thinking step."
+        }
+      },
+      "additionalProperties": false
+    },
+    "BaseRecord": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "agent_id",
+        "session_id",
+        "record_id",
+        "behavior",
+        "client_ts_utc",
+        "executor",
+        "record_phase"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "0.4"
+          ]
+        },
+        "agent_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "behavior": {
+          "$ref": "#/$defs/BehaviorType"
+        },
+        "client_ts_utc": {
+          "$ref": "#/$defs/EpochMs"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "maxItems": 32
+        },
+        "model_invocation": {
+          "$ref": "#/$defs/ModelInvocation"
+        },
+        "upstream_record_id": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UuidV4"
+          },
+          "maxItems": 32,
+          "description": "DAG dependency / trace sequence. Records this one builds on. May be empty/omitted."
+        },
+        "parent_record_id": {
+          "$ref": "#/$defs/UuidV4",
+          "description": "Sub-thread / sub-process containment. Set when this record is produced inside a sub-thread spawned by another record. Records outside the sub-thread do not list internal sub-thread records as upstream. For ordinary DAG dependencies use upstream_record_id instead."
+        },
+        "executor": {
+          "$ref": "#/$defs/Executor"
+        },
+        "record_phase": {
+          "$ref": "#/$defs/RecordPhase"
+        },
+        "outcome": {
+          "$ref": "#/$defs/Outcome"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceDescriptor"
+          },
+          "maxItems": 64
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        }
+      }
+    },
+    "ThinkingInput": {
+      "type": "object",
+      "required": [
+        "input_payload"
+      ],
+      "properties": {
+        "input_record_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "input_payload": {
+          "$ref": "#/$defs/ContentRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReflectingInput": {
+      "type": "object",
+      "required": [
+        "input_payload"
+      ],
+      "properties": {
+        "input_record_id": {
+          "$ref": "#/$defs/UuidV4"
+        },
+        "input_payload": {
+          "$ref": "#/$defs/ContentRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlanningStep": {
+      "type": "object",
+      "required": [
+        "index",
+        "description"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObservingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "trigger_source",
+            "trigger_type",
+            "trigger_description",
+            "trigger_payload_summary"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Observing"
+            },
+            "trigger_source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trigger_type": {
+              "type": "string",
+              "enum": [
+                "signal_trigger",
+                "cron_trigger"
+              ]
+            },
+            "external_trigger_id": {
+              "type": "string"
+            },
+            "event_ts_utc": {
+              "$ref": "#/$defs/EpochMs"
+            },
+            "trigger_description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trigger_payload_summary": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ToolCallingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "tool_meta",
+            "description",
+            "input_payload",
+            "output_payload",
+            "outcome"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "ToolCalling"
+            },
+            "tool_meta": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_payload": {
+              "$ref": "#/$defs/ContentRef"
+            },
+            "output_payload": {
+              "$ref": "#/$defs/ContentRef"
+            },
+            "outcome": {
+              "$ref": "#/$defs/Outcome",
+              "description": "Result of the call; replaces the 0.3 'success' flag."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PlanningRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "goal",
+            "steps"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Planning"
+            },
+            "goal": {
+              "type": "string",
+              "minLength": 1
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PlanningStep"
+              }
+            },
+            "contingencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ThinkingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "prompt",
+            "inputs",
+            "output_payload"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Thinking"
+            },
+            "prompt": {
+              "$ref": "#/$defs/ContentRef"
+            },
+            "inputs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThinkingInput"
+              }
+            },
+            "output_payload": {
+              "$ref": "#/$defs/ContentRef"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ActingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "action_type",
+            "target_system",
+            "action_summary",
+            "parameters",
+            "dry_run",
+            "execution_status"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Acting"
+            },
+            "action_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_system": {
+              "type": "string",
+              "minLength": 1
+            },
+            "action_summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "parameters": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "dry_run": {
+              "type": "boolean"
+            },
+            "execution_id": {
+              "type": "string"
+            },
+            "execution_status": {
+              "type": "string",
+              "enum": [
+                "confirmed",
+                "failed",
+                "simulated",
+                "pending"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "target_system": {
+                    "const": "public-chain"
+                  },
+                  "execution_status": {
+                    "const": "confirmed"
+                  }
+                },
+                "required": [
+                  "target_system",
+                  "execution_status"
+                ]
+              },
+              "then": {
+                "required": [
+                  "execution_id"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ReflectingRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "inputs",
+            "output_payload"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Reflecting"
+            },
+            "inputs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReflectingInput"
+              }
+            },
+            "output_payload": {
+              "$ref": "#/$defs/ContentRef"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AttestingRecord": {
+      "description": "A person's disposition of a pending action, submitted by the upper-layer application on the person's behalf.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "executor",
+            "operator_id",
+            "disposition",
+            "gate_kind",
+            "written_by"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Attesting"
+            },
+            "executor": {
+              "const": "human"
+            },
+            "operator_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The person who made the disposition."
+            },
+            "disposition": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "edit"
+              ],
+              "description": "For value-choosing decisions: approve = accepted the default suggestion, edit = changed it."
+            },
+            "decision": {
+              "description": "Structured decision content: the value the person chose or entered. Shape declared by the upper-layer application."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Required when disposition is reject."
+            },
+            "patch": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Changes to the original parameters when disposition is edit."
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/UuidV4"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentRef"
+                  }
+                ]
+              },
+              "maxItems": 64,
+              "description": "Record ids or content references the disposition relied on."
+            },
+            "seen_digest": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Digest of what the person saw when deciding."
+            },
+            "gate_kind": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Checkpoint type, defined by the upper-layer application."
+            },
+            "policy_snapshot": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Policy in force at the time, or a content reference to it."
+            },
+            "effects": {
+              "$ref": "#/$defs/ContentRef",
+              "description": "Side effects of the disposition in the upper-layer application, e.g. configuration or rule changes."
+            },
+            "written_by": {
+              "$ref": "#/$defs/WrittenBy"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "disposition": {
+                    "const": "reject"
+                  }
+                },
+                "required": [
+                  "disposition"
+                ]
+              },
+              "then": {
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "OtherRecord": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/BaseRecord"
+        },
+        {
+          "type": "object",
+          "required": [
+            "behavior",
+            "label",
+            "data"
+          ],
+          "properties": {
+            "behavior": {
+              "const": "Other"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Record": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ObservingRecord"
+        },
+        {
+          "$ref": "#/$defs/ToolCallingRecord"
+        },
+        {
+          "$ref": "#/$defs/PlanningRecord"
+        },
+        {
+          "$ref": "#/$defs/ThinkingRecord"
+        },
+        {
+          "$ref": "#/$defs/ActingRecord"
+        },
+        {
+          "$ref": "#/$defs/ReflectingRecord"
+        },
+        {
+          "$ref": "#/$defs/AttestingRecord"
+        },
+        {
+          "$ref": "#/$defs/OtherRecord"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "behavior",
+        "mapping": {
+          "Observing": "#/$defs/ObservingRecord",
+          "ToolCalling": "#/$defs/ToolCallingRecord",
+          "Planning": "#/$defs/PlanningRecord",
+          "Thinking": "#/$defs/ThinkingRecord",
+          "Acting": "#/$defs/ActingRecord",
+          "Reflecting": "#/$defs/ReflectingRecord",
+          "Attesting": "#/$defs/AttestingRecord",
+          "Other": "#/$defs/OtherRecord"
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/Record"
+}

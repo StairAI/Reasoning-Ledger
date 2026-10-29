@@ -73,7 +73,6 @@ function extractPayload(record: z.infer<typeof LedgerRecord>): Record<string, un
     tags: _t,
     model_invocation: _mi,
     upstream_record_id: _up,
-    parent_record_id: _pr,
     executor: _ex,
     record_phase: _ph,
     outcome: _oc,
@@ -100,15 +99,11 @@ async function assertAgentOwnership(agentId: string, ownerId: string) {
 }
 
 /**
- * Validate that each entry in upstream_record_id / parent_record_id resolves
- * to an existing record under the same agent_id (§10.1 server-side rules).
+ * Validate that each entry in upstream_record_id resolves to an existing
+ * record under the same agent_id (§10.1 server-side rules).
  */
-async function validateRecordRefs(
-  agentId: string,
-  upstreamIds: string[],
-  parentId: string | undefined,
-) {
-  const allIds = [...new Set([...upstreamIds, ...(parentId ? [parentId] : [])])];
+async function validateRecordRefs(agentId: string, upstreamIds: string[]) {
+  const allIds = [...new Set(upstreamIds)];
   if (allIds.length === 0) {
     return;
   }
@@ -125,11 +120,6 @@ async function validateRecordRefs(
         message: `upstream_record_id '${id}' does not exist under this agent`,
       });
     }
-  }
-  if (parentId && !foundSet.has(parentId)) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: `parent_record_id '${parentId}' does not exist under this agent`,
-    });
   }
 }
 
@@ -168,7 +158,6 @@ async function persistRecord(
       model_invocation: (record.model_invocation as object) ?? null,
       notes: record.notes,
       outcome: record.outcome as Outcome | undefined,
-      parent_record_id: record.parent_record_id,
       payload: extractPayload(record) as object,
       record_id: record.record_id,
       record_phase: record.record_phase as RecordPhase,
@@ -207,7 +196,7 @@ async function validateRecord(
 
   await assertAgentOwnership(agentId, ownerId);
 
-  await validateRecordRefs(agentId, record.upstream_record_id ?? [], record.parent_record_id);
+  await validateRecordRefs(agentId, record.upstream_record_id ?? []);
 
   await assertContentPresent(ownerId, contentRefsOf(record as Record<string, unknown>));
 }
@@ -223,7 +212,7 @@ export const submitRecord = singleVersionGuard
       "Submit a single reasoning record. " +
       `Only \`schema_version\` ${SCHEMA_VERSION} is accepted; records stamped with older versions stay readable but cannot be written. ` +
       "The server verifies that `agent_id` belongs to the calling owner, " +
-      "checks that any `upstream_record_id` and `parent_record_id` references resolve to existing records under the same agent, " +
+      "checks that any `upstream_record_id` references resolve to existing records under the same agent, " +
       "stamps `server_ts_utc` on receipt, and persists the record. " +
       "Submission is idempotent on `(agent_id, record_id)`: a duplicate returns the original ack with `is_duplicate: true` without creating a second row.",
     method: "POST",

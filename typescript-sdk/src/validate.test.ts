@@ -4,10 +4,11 @@ import { ValidationError } from "./errors.js";
 import { validateBatch, validateRecord } from "./validate.js";
 
 // ---------------------------------------------------------------------------
-// Shared minimal valid record builders (schema 0.4)
+// Shared minimal valid record builders (schema 0.5)
 // ---------------------------------------------------------------------------
 
 const REF = { bytes: 5, media_type: "text/plain; charset=utf-8", sha256: "c".repeat(64) };
+const OTHER_RECORD_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 
 function base(behavior: string, executor = "det"): Record<string, unknown> {
   return {
@@ -17,7 +18,7 @@ function base(behavior: string, executor = "det"): Record<string, unknown> {
     executor,
     record_id: "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
     record_phase: "post_execution",
-    schema_version: "0.4",
+    schema_version: "0.5",
     session_id: "session-001",
   };
 }
@@ -40,7 +41,7 @@ function makeToolCalling(overrides: Record<string, unknown> = {}): Record<string
     input_payload: REF,
     outcome: "success",
     output_payload: REF,
-    tool_meta: { category: "external_api", tool_id: "weather_api" },
+    tool_meta: { name: "weather_api" },
     ...overrides,
   };
 }
@@ -59,10 +60,9 @@ function makeActing(overrides: Record<string, unknown> = {}): Record<string, unk
   return {
     ...base("Acting"),
     action_summary: "Sent email",
-    action_type: "email",
-    dry_run: false,
+    action_type: "email.send",
     execution_status: "confirmed",
-    parameters: {},
+    outcome: "success",
     target_system: "smtp",
     ...overrides,
   };
@@ -74,8 +74,41 @@ function makeAttesting(overrides: Record<string, unknown> = {}): Record<string, 
     disposition: "approve",
     gate_kind: "manual-review",
     operator_id: "operator-1",
+    outcome: "success",
     record_phase: "concurrent",
     written_by: { component: "review-ui", credential: "svc-review" },
+    ...overrides,
+  };
+}
+
+function makeEscalating(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...base("Escalating", "ai"),
+    asked: REF,
+    kind: "permission",
+    outcome: "success",
+    record_phase: "concurrent",
+    ...overrides,
+  };
+}
+
+function makeDelegating(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...base("Delegating", "ai"),
+    goal: REF,
+    kind: "spawn",
+    outcome: "success",
+    ...overrides,
+  };
+}
+
+function makeMemorizing(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...base("Memorizing", "ai"),
+    op: "add",
+    outcome: "success",
+    scope: "project",
+    target: REF,
     ...overrides,
   };
 }
@@ -118,7 +151,7 @@ describe("validateRecord — valid records", () => {
     expect(() => validateRecord(makeThinking())).not.toThrow();
   });
 
-  test("Acting passes", () => {
+  test("Acting passes, without parameters", () => {
     expect(() => validateRecord(makeActing())).not.toThrow();
   });
 
@@ -126,18 +159,20 @@ describe("validateRecord — valid records", () => {
     expect(() => validateRecord(makeAttesting())).not.toThrow();
   });
 
-  test("Other passes", () => {
-    expect(() => validateRecord(makeOther())).not.toThrow();
+  test("Escalating passes", () => {
+    expect(() => validateRecord(makeEscalating())).not.toThrow();
   });
 
-  test("Planning passes", () => {
-    expect(() =>
-      validateRecord({
-        ...base("Planning", "ai"),
-        goal: "Win the match",
-        steps: [{ description: "Analyse data", index: 0 }],
-      }),
-    ).not.toThrow();
+  test("Delegating passes", () => {
+    expect(() => validateRecord(makeDelegating())).not.toThrow();
+  });
+
+  test("Memorizing passes", () => {
+    expect(() => validateRecord(makeMemorizing())).not.toThrow();
+  });
+
+  test("Other passes", () => {
+    expect(() => validateRecord(makeOther())).not.toThrow();
   });
 
   test("Reflecting passes", () => {
@@ -150,17 +185,139 @@ describe("validateRecord — valid records", () => {
     ).not.toThrow();
   });
 
-  test("optional 0.4 base fields pass", () => {
+  test("optional base fields pass", () => {
     expect(() =>
       validateRecord(
         makeObserving({
+          classification: {
+            alternatives: [{ behavior: "Other", confidence: 0.1 }],
+            confidence: 0.9,
+            mapper: "collector@0.3",
+            source: "rule",
+          },
           duration_ms: 12,
-          outcome: "success",
-          sources: [{ kind: "url", ref: "https://example.com" }],
-          verdict: { conclusion: "ok", decided_by: "rule-7" },
+          error_type: "http.5xx",
+          on_behalf_of_agent_id: OTHER_RECORD_ID,
+          outcome: "failure",
+          sources: [{ kind: "record", ref: OTHER_RECORD_ID }],
+          verdict: { conclusion: "ok", decided_by: "rule" },
+          written_by: { component: "collector", credential: "svc-collector" },
         }),
       ),
     ).not.toThrow();
+  });
+
+  test.each(["human_trigger", "outcome_trigger", "agent_trigger"])(
+    "Observing with trigger_type %s passes",
+    (triggerType) => {
+      expect(() => validateRecord(makeObserving({ trigger_type: triggerType }))).not.toThrow();
+    },
+  );
+
+  test("ToolCalling passes with typed tool_meta, effect and extra tool_meta keys, without description", () => {
+    const record = makeToolCalling({
+      effect: "read",
+      tool_meta: { call_id: "call-1", category: "weather", name: "get_weather", tool_type: "mcp" },
+    });
+    delete record["description"];
+    expect(() => validateRecord(record)).not.toThrow();
+  });
+
+  test("Thinking passes without prompt and inputs", () => {
+    expect(() =>
+      validateRecord({
+        ...base("Thinking", "ai"),
+        output_payload: REF,
+      }),
+    ).not.toThrow();
+  });
+
+  test("Planning passes with its steps, contingencies and the plan it revises", () => {
+    expect(() =>
+      validateRecord({
+        ...base("Planning", "ai"),
+        contingencies: ["roll back"],
+        goal: "Ship the fix",
+        revision_of: OTHER_RECORD_ID,
+        steps: [
+          { description: "Read the failing test", index: 0 },
+          { depends_on: [0], description: "Fix the parser", index: 1 },
+        ],
+      }),
+    ).not.toThrow();
+  });
+
+  test("Acting passes with execution_status cancelled and outcome cancelled", () => {
+    expect(() =>
+      validateRecord(makeActing({ execution_status: "cancelled", outcome: "cancelled" })),
+    ).not.toThrow();
+  });
+
+  test("Reflecting, Attesting and Other pass with their new optional fields", () => {
+    expect(() =>
+      validateRecord({
+        ...base("Reflecting", "det"),
+        inputs: [],
+        kind: "settlement",
+        output_payload: REF,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateRecord(makeAttesting({ channel: "async", seen_completeness: "partial" })),
+    ).not.toThrow();
+    expect(() =>
+      validateRecord(makeOther({ label: "context.compaction", proposed_behavior: "Compacting" })),
+    ).not.toThrow();
+  });
+
+  test("the new behaviours pass with their optional fields", () => {
+    expect(() =>
+      validateRecord(makeEscalating({ default: "allow once", options: ["allow once", "deny"] })),
+    ).not.toThrow();
+    expect(() =>
+      validateRecord(
+        makeDelegating({
+          awaited: true,
+          child_session_id: "session-002",
+          delegate_agent_id: "code-reviewer",
+          result: REF,
+        }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateRecord(makeMemorizing({ approved_by: OTHER_RECORD_ID, op: "delete" })),
+    ).not.toThrow();
+  });
+
+  test("model_invocation: a live call and a replay without provider or model", () => {
+    expect(() =>
+      validateRecord(
+        makeObserving({
+          model_invocation: {
+            cache_creation_tokens: 0,
+            cache_read_tokens: 1200,
+            invocation_kind: "live",
+            model_name: "m",
+            provider: "p",
+            request_id: "req-1",
+          },
+        }),
+      ),
+    ).not.toThrow();
+    for (const replayOf of [OTHER_RECORD_ID, REF]) {
+      expect(() =>
+        validateRecord(
+          makeObserving({
+            model_invocation: {
+              invocation_kind: "replay",
+              model_name: null,
+              provider: null,
+              replay_of: replayOf,
+            },
+          }),
+        ),
+      ).not.toThrow();
+    }
   });
 });
 
@@ -212,6 +369,70 @@ describe("validateRecord — schema violations", () => {
     const record = makeToolCalling({ success: true });
     delete record["outcome"];
     expect(validationErrorOf(record)?.details).toHaveProperty("field", "outcome");
+  });
+
+  test("Planning needs a goal, and a plan's steps do not belong on Thinking", () => {
+    const withoutGoal = validationErrorOf({
+      ...base("Planning", "ai"),
+      steps: [{ description: "Analyse data", index: 0 }],
+    });
+    expect(withoutGoal).toBeInstanceOf(ValidationError);
+    expect(withoutGoal?.details).toHaveProperty("field", "goal");
+    expect(
+      validationErrorOf({
+        ...base("Thinking", "ai"),
+        output_payload: REF,
+        steps: [{ description: "Analyse data", index: 0 }],
+      }),
+    ).toBeInstanceOf(ValidationError);
+  });
+
+  test.each([
+    ["Acting", makeActing],
+    ["Attesting", makeAttesting],
+    ["Escalating", makeEscalating],
+    ["Delegating", makeDelegating],
+    ["Memorizing", makeMemorizing],
+  ])("%s requires outcome", (_behavior, make) => {
+    const record = make();
+    delete record["outcome"];
+    expect(validationErrorOf(record)?.details).toHaveProperty("field", "outcome");
+  });
+
+  test.each([
+    ["Escalating", "asked", makeEscalating],
+    ["Escalating", "kind", makeEscalating],
+    ["Delegating", "goal", makeDelegating],
+    ["Delegating", "kind", makeDelegating],
+    ["Memorizing", "target", makeMemorizing],
+    ["Memorizing", "scope", makeMemorizing],
+    ["Memorizing", "op", makeMemorizing],
+  ])("%s without %s is rejected, naming the field", (_behavior, field, make) => {
+    const record = Object.fromEntries(Object.entries(make()).filter(([key]) => key !== field));
+    expect(validationErrorOf(record)?.details).toHaveProperty("field", field);
+  });
+
+  test.each(["email", "Email.Send", "email.", "email send"])(
+    "Acting.action_type %j is not a namespaced <domain>.<verb>",
+    (actionType) => {
+      expect(validationErrorOf(makeActing({ action_type: actionType }))?.details).toHaveProperty(
+        "field",
+        "action_type",
+      );
+    },
+  );
+
+  test("tool_meta needs a name", () => {
+    expect(
+      validationErrorOf(makeToolCalling({ tool_meta: { tool_id: "weather_api" } }))?.details,
+    ).toHaveProperty("field", "tool_meta.name");
+  });
+
+  test("verdict.decided_by must be one of the fixed values", () => {
+    expect(
+      validationErrorOf(makeObserving({ verdict: { conclusion: "ok", decided_by: "rule-7" } }))
+        ?.details,
+    ).toHaveProperty("field", "verdict.decided_by");
   });
 
   test("raw text at a content position is not a ContentRef", () => {
@@ -278,6 +499,19 @@ describe("validateRecord — cross-field rules", () => {
     ).not.toThrow();
   });
 
+  test.each([
+    ["no_response", "timeout"],
+    ["cancel", "cancelled"],
+  ])("Attesting with disposition %s requires outcome %s", (disposition, outcome) => {
+    const error = validationErrorOf(makeAttesting({ disposition, outcome: "success" }));
+    expect(error).toBeInstanceOf(ValidationError);
+    expect(error?.message).toBe(
+      `outcome must be '${outcome}' when disposition is '${disposition}'`,
+    );
+    expect(error?.details).toHaveProperty("field", "outcome");
+    expect(() => validateRecord(makeAttesting({ disposition, outcome }))).not.toThrow();
+  });
+
   test("validateBatch reports a rule violation for that record only", () => {
     const results = validateBatch([makeAttesting({ disposition: "reject" }), makeActing()]);
     expect(results[0]?.details).toHaveProperty("field", "reason");
@@ -303,10 +537,9 @@ describe("validateRecord — size limit violations", () => {
     const big = Object.fromEntries(
       Array.from({ length: 400 }, (_, i) => [`key${i}`, "x".repeat(45)]),
     );
-    expect(validationErrorOf(makeToolCalling({ tool_meta: big }))?.details).toHaveProperty(
-      "field",
-      "tool_meta",
-    );
+    expect(
+      validationErrorOf(makeToolCalling({ tool_meta: { ...big, name: "big" } }))?.details,
+    ).toHaveProperty("field", "tool_meta");
   });
 
   test("Acting parameters exceeding limit throws ValidationError", () => {

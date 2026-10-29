@@ -24,8 +24,8 @@ export function nowEpochMs(): number {
 /**
  * Returns true iff `value` is a syntactically valid UUID v4.
  * Useful for validating record IDs read from external systems before
- * passing them to `upstream_record_id`, `parent_record_id`, or
- * `input_record_id`.
+ * passing them to `upstream_record_id`, `input_record_id`, `revision_of` or
+ * `approved_by`.
  */
 export function isValidRecordId(value: string): boolean {
   return /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i.test(value);

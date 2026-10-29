@@ -8,12 +8,18 @@
  * (`reconstructRecord`): base columns lifted to top level, behaviour-specific
  * payload fields spread in alongside them.
  *
- * Content positions (prompts, outputs, tool payloads, model reasoning) hold the
- * value itself in schema 0.1–0.3 records and a ContentRef from 0.4. The server
- * resolves the references a page needs into a ContentMap (lib/content-view.ts);
- * the view helpers below take it and show the content, or say why they cannot.
+ * Content positions (prompts, outputs, tool payloads, model reasoning, and from
+ * 0.5 what an escalation asked, a delegated goal and its result, and what a
+ * memory write stored) hold the value itself in schema 0.1–0.3 records and a
+ * ContentRef from 0.4. The server resolves the references a page needs into a
+ * ContentMap (lib/content-view.ts); the view helpers below take it and show the
+ * content, or say why they cannot.
+ *
+ * Stored records keep the shape they were written in, so the helpers still
+ * render what 0.5 dropped: parent_record_id, model_version.
  */
 
+/** Every behaviour a stored record may carry. */
 export type Behavior =
   | "Observing"
   | "ToolCalling"
@@ -22,34 +28,85 @@ export type Behavior =
   | "Acting"
   | "Reflecting"
   | "Attesting"
+  | "Escalating"
+  | "Delegating"
+  | "Memorizing"
   | "Other";
 
 export interface ContentRef {
   sha256: string;
   bytes: number;
   media_type: string;
+  /** Present when the bytes the ledger holds are ciphertext (schema 0.5 `enc`). */
+  enc?: {
+    alg: string;
+    key_id: string;
+    plaintext_sha256: string;
+    plaintext_bytes: number;
+    plaintext_media_type: string;
+  };
 }
 
-/** What the viewer can show for one piece of referenced content. */
+/**
+ * What the viewer can show for one piece of referenced content. Encrypted
+ * content is carried as ciphertext: the server cannot open it, the browser
+ * does (scripts/decrypt.ts), and until then the page shows a placeholder.
+ */
 export type ContentView =
   | { state: "text"; text: string }
   | { state: "json"; value: unknown }
+  | {
+      state: "encrypted";
+      alg: string;
+      key_id: string;
+      ciphertext: string;
+      media_type: string;
+      bytes: number;
+    }
   | { state: "binary" | "too_large" | "deleted" | "missing" | "unreadable" };
+
+/**
+ * Where encrypted content goes in the rendered page until the browser
+ * decrypts it: a token naming the object, which scripts/decrypt.ts replaces
+ * with the plaintext wherever it appears in the page's text.
+ */
+export const ENCRYPTED_TOKEN = /\[encrypted:([0-9a-f]{64})\]/g;
+
+export function encryptedPlaceholder(sha256: string): string {
+  return `[encrypted:${sha256}]`;
+}
 
 /** Resolved content, keyed by SHA-256. */
 export type ContentMap = Record<string, ContentView>;
 
 export interface ModelInvocation {
-  provider: string;
-  model_name: string;
+  /** Null from 0.5 when the invocation is a replay or simulated. */
+  provider: string | null;
+  model_name: string | null;
+  /** Records before 0.5 only; 0.5 folds it into model_name. */
   model_version?: string;
+  /** From 0.5: live, replay, cached or simulated. */
+  invocation_kind?: string;
+  /** From 0.5: the record id, or the content, that a replay reproduces. */
+  replay_of?: string | ContentRef;
   tokens_in?: number;
   tokens_out?: number;
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
   cost_usd?: number;
   temperature?: number;
   finish_reason?: string;
+  request_id?: string;
   /** Text in 0.1–0.3 records, a ContentRef from 0.4. */
   internal_reasoning?: string | ContentRef;
+}
+
+/** How a 0.5 record came to carry its behaviour. */
+export interface Classification {
+  source: string;
+  mapper?: string;
+  confidence?: number;
+  alternatives?: { behavior: string; confidence: number }[];
 }
 
 export interface TraceRecord {
@@ -64,6 +121,7 @@ export interface TraceRecord {
   tags?: string[];
   model_invocation?: ModelInvocation;
   upstream_record_id?: string[];
+  /** Records before 0.5 only: the record whose sub-thread this one ran in. */
   parent_record_id?: string;
   /** Position in the server's total order. */
   sequence?: number;
@@ -72,6 +130,11 @@ export interface TraceRecord {
   record_phase?: string;
   outcome?: string;
   duration_ms?: number;
+  // Schema 0.5 base fields (written_by was Attesting's own in 0.4).
+  error_type?: string;
+  written_by?: { component: string; credential: string };
+  on_behalf_of_agent_id?: string;
+  classification?: Classification;
   // behaviour-specific fields live alongside, accessed via helpers
   [key: string]: unknown;
 }
@@ -83,6 +146,14 @@ export const BEHAVIOR_META: Record<
 > = {
   Acting: { color: "#00b2a4", icon: "pointer", label: "ACTING", token: "acting" },
   Attesting: { color: "#e8e2d6", icon: "check-circle", label: "ATTESTING", token: "attesting" },
+  Delegating: { color: "#7c8cf8", icon: "bot", label: "DELEGATING", token: "delegating" },
+  Escalating: {
+    color: "#f0884a",
+    icon: "message-circle-question-mark",
+    label: "ESCALATING",
+    token: "escalating",
+  },
+  Memorizing: { color: "#c5d85a", icon: "notebook-pen", label: "MEMORIZING", token: "memorizing" },
   Observing: { color: "#ebb447", icon: "eye", label: "OBSERVING", token: "observing" },
   Other: { color: "#9a9a9a", icon: "shapes", label: "OTHER", token: "other" },
   Planning: { color: "#7ee055", icon: "list-checks", label: "PLANNING", token: "planning" },
@@ -91,13 +162,20 @@ export const BEHAVIOR_META: Record<
   ToolCalling: { color: "#3c9add", icon: "pen-tool", label: "TOOLCALLING", token: "toolcalling" },
 };
 
-/** Legend order: the Figma legend, with Attesting where it falls in a cycle. */
+/**
+ * Legend order: the behaviours a 0.5 record can carry, in the order they fall in
+ * a cycle, with Escalating next to the Attesting that answers it. Other keeps
+ * its style but has no entry.
+ */
 export const LEGEND_ORDER: Behavior[] = [
   "Observing",
   "ToolCalling",
   "Planning",
   "Thinking",
+  "Escalating",
   "Attesting",
+  "Delegating",
+  "Memorizing",
   "Acting",
   "Reflecting",
 ];
@@ -110,6 +188,9 @@ export type IconName =
   | "pointer"
   | "brain"
   | "shapes"
+  | "message-circle-question-mark"
+  | "bot"
+  | "notebook-pen"
   | "clock"
   | "copy"
   | "x"
@@ -235,6 +316,9 @@ export function contentText(value: unknown, contents: ContentMap): string {
   if (view?.state === "text") {
     return view.text;
   }
+  if (view?.state === "encrypted") {
+    return encryptedPlaceholder(value.sha256);
+  }
   return view?.state === "json" ? prettyJSON(view.value) : unavailable(value, view);
 }
 
@@ -246,6 +330,9 @@ export function contentValue(value: unknown, contents: ContentMap): unknown {
   const view = contents[value.sha256];
   if (view?.state === "json") {
     return view.value;
+  }
+  if (view?.state === "encrypted") {
+    return encryptedPlaceholder(value.sha256);
   }
   return view?.state === "text" ? view.text : unavailable(value, view);
 }
@@ -302,6 +389,7 @@ export function modelSummary(rec: TraceRecord): CardView["model"] | undefined {
 type Status = NonNullable<CardView["status"]>;
 
 const OUTCOME_KIND: Record<string, Status["kind"]> = {
+  cancelled: "neutral",
   denied: "fail",
   escalated: "neutral",
   failure: "fail",
@@ -309,7 +397,7 @@ const OUTCOME_KIND: Record<string, Status["kind"]> = {
   timeout: "fail",
 };
 
-/** A tool call's result: `outcome` from 0.4, the boolean `success` before. */
+/** A record's result: `outcome` from 0.4, a tool call's boolean `success` before. */
 function outcomeStatus(rec: TraceRecord): CardView["status"] {
   if (typeof rec.outcome === "string") {
     return { kind: OUTCOME_KIND[rec.outcome] ?? "neutral", label: rec.outcome.toUpperCase() };
@@ -322,9 +410,26 @@ function outcomeStatus(rec: TraceRecord): CardView["status"] {
 
 const DISPOSITION: Record<string, Status> = {
   approve: { kind: "success", label: "APPROVED" },
+  cancel: { kind: "neutral", label: "CANCELLED" },
   edit: { kind: "neutral", label: "EDITED" },
+  no_response: { kind: "fail", label: "NO RESPONSE" },
   reject: { kind: "fail", label: "REJECTED" },
 };
+
+/** A neutral chip from one or more of the record's fields, e.g. "ADD · PROJECT". */
+function chipOf(rec: TraceRecord, ...keys: string[]): string | undefined {
+  const text = keys
+    .map((key) => str(rec, key))
+    .filter(Boolean)
+    .join(" · ");
+  return text ? text.toUpperCase() : undefined;
+}
+
+/** "3 STEPS" when the record carries an explicit plan. */
+function stepsChip(rec: TraceRecord): string | undefined {
+  const steps = Array.isArray(rec.steps) ? rec.steps.length : 0;
+  return steps ? `${steps} STEPS` : undefined;
+}
 
 export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView {
   const upstream = rec.upstream_record_id?.length ?? 0;
@@ -333,8 +438,12 @@ export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView 
   switch (rec.behavior) {
     case "Observing": {
       return {
-        chip: str(rec, "trigger_type").toUpperCase() || undefined,
-        description: str(rec, "trigger_description") || str(rec, "trigger_source"),
+        chip: chipOf(rec, "trigger_type"),
+        // The payload itself when the record carries it (0.5), the description otherwise.
+        description:
+          contentText(rec.trigger_payload, contents) ||
+          str(rec, "trigger_description") ||
+          str(rec, "trigger_source"),
         upstream: 0,
       };
     }
@@ -342,28 +451,17 @@ export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView 
       return toolCallingCard(rec, upstream);
     }
     case "Planning": {
-      const steps = Array.isArray(rec.steps) ? rec.steps.length : 0;
-      return {
-        chip: steps ? `${steps} STEPS` : undefined,
-        description: str(rec, "goal"),
-        upstream,
-      };
+      return { chip: stepsChip(rec), description: str(rec, "goal"), upstream };
     }
     case "Thinking": {
-      return {
-        description: contentText(rec.prompt, contents),
-        model,
-        status: rec.model_invocation?.internal_reasoning
-          ? { kind: "reasoning", label: "REASONING" }
-          : undefined,
-        upstream,
-      };
+      return thinkingCard(rec, contents, upstream);
     }
     case "Acting": {
-      return actingCard(rec, upstream);
+      return actingCard(rec, contents, upstream);
     }
     case "Reflecting": {
       return {
+        chip: chipOf(rec, "kind"),
         description: contentText(rec.output_payload, contents),
         model,
         upstream,
@@ -372,8 +470,28 @@ export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView 
     case "Attesting": {
       return attestingCard(rec, upstream);
     }
+    case "Escalating": {
+      return {
+        chip: chipOf(rec, "kind"),
+        description: contentText(rec.asked, contents),
+        status: outcomeStatus(rec),
+        upstream,
+      };
+    }
+    case "Delegating": {
+      return delegatingCard(rec, contents, upstream);
+    }
+    case "Memorizing": {
+      return {
+        chip: chipOf(rec, "op", "scope"),
+        description: contentText(rec.target, contents),
+        status: outcomeStatus(rec),
+        upstream,
+      };
+    }
     default: {
       return {
+        chip: chipOf(rec, "proposed_behavior"),
         description: str(rec, "label") || str(rec, "notes") || rec.behavior,
         upstream,
       };
@@ -384,9 +502,32 @@ export function cardView(rec: TraceRecord, contents: ContentMap = {}): CardView 
 function toolCallingCard(rec: TraceRecord, upstream: number): CardView {
   const toolName = (rec.tool_meta as Record<string, unknown> | undefined)?.name;
   const name = typeof toolName === "string" ? toolName : "";
-  const desc = str(rec, "description");
   return {
-    description: name ? `${name} · ${desc}` : desc,
+    // The description is optional from 0.5.
+    description: [name, str(rec, "description")].filter(Boolean).join(" · "),
+    status: outcomeStatus(rec),
+    upstream,
+  };
+}
+
+function thinkingCard(rec: TraceRecord, contents: ContentMap, upstream: number): CardView {
+  return {
+    // The prompt is optional from 0.5; without one, show what the thinking produced.
+    description: contentText(rec.prompt ?? rec.output_payload, contents),
+    model: modelSummary(rec),
+    status: rec.model_invocation?.internal_reasoning
+      ? { kind: "reasoning", label: "REASONING" }
+      : undefined,
+    upstream,
+  };
+}
+
+function delegatingCard(rec: TraceRecord, contents: ContentMap, upstream: number): CardView {
+  const delegate = str(rec, "delegate_agent_id");
+  const goal = contentText(rec.goal, contents);
+  return {
+    chip: chipOf(rec, "kind"),
+    description: delegate ? `${delegate} · ${goal}` : goal,
     status: outcomeStatus(rec),
     upstream,
   };
@@ -403,7 +544,7 @@ function attestingCard(rec: TraceRecord, upstream: number): CardView {
   };
 }
 
-function actingCard(rec: TraceRecord, upstream: number): CardView {
+function actingCard(rec: TraceRecord, contents: ContentMap, upstream: number): CardView {
   const status = str(rec, "execution_status").toUpperCase();
   const kind =
     status === "CONFIRMED" || status === "SIMULATED"
@@ -413,7 +554,8 @@ function actingCard(rec: TraceRecord, upstream: number): CardView {
         : "neutral";
   return {
     chip: str(rec, "action_type").toUpperCase() || undefined,
-    description: str(rec, "action_summary"),
+    // What was handed over when the record carries it (0.5), the summary otherwise.
+    description: contentText(rec.output_payload, contents) || str(rec, "action_summary"),
     status: status ? { kind, label: status } : undefined,
     upstream,
   };
@@ -429,7 +571,7 @@ export type Section =
   | { kind: "code"; label: string; value: unknown }
   | { kind: "status"; label: string; status: CardView["status"] };
 
-/** Inspector sections: the record's 0.4 base fields, its behaviour, then its judgment basis. */
+/** Inspector sections: the record's base fields, its behaviour, then its judgment basis. */
 export function overviewSections(rec: TraceRecord, contents: ContentMap = {}): Section[] {
   const base = recordRows(rec);
   return [
@@ -440,24 +582,64 @@ export function overviewSections(rec: TraceRecord, contents: ContentMap = {}): S
   ];
 }
 
+/** Behaviours that show their outcome as a status in their own section instead of a row here. */
+const OUTCOME_SECTIONS = new Set<string>(["ToolCalling", "Escalating", "Delegating", "Memorizing"]);
+
 function recordRows(rec: TraceRecord): [string, string][] {
   return filterRows([
     ["executor", strOf(rec.executor)],
     ["phase", strOf(rec.record_phase).replaceAll("_", " ")],
-    // A tool call shows its outcome as the RESULT status instead.
-    ["outcome", rec.behavior === "ToolCalling" ? "" : strOf(rec.outcome)],
+    ["outcome", OUTCOME_SECTIONS.has(rec.behavior) ? "" : strOf(rec.outcome)],
+    ["error type", strOf(rec.error_type)],
     [
       "duration",
       rec.duration_ms === null || rec.duration_ms === undefined
         ? ""
         : `${formatNumber(rec.duration_ms)} ms`,
     ],
+    ["written by", writtenByText(rec.written_by)],
+    ["on behalf of", strOf(rec.on_behalf_of_agent_id)],
+    ...classificationRows(rec.classification),
     ["sequence", strOf(rec.sequence)],
   ]);
 }
 
+function writtenByText(value: unknown): string {
+  const writtenBy = (value ?? {}) as Record<string, unknown>;
+  return [strOf(writtenBy.component), strOf(writtenBy.credential)].filter(Boolean).join(" · ");
+}
+
+/** "rule · mapper@1 · 0.8", then the behaviours it was weighed against. */
+function classificationRows(value: unknown): [string, string][] {
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+  const { alternatives, confidence, mapper, source } = value as Record<string, unknown>;
+  const others = Array.isArray(alternatives)
+    ? alternatives.map(
+        (alt: Record<string, unknown>) => `${strOf(alt.behavior)} ${strOf(alt.confidence)}`,
+      )
+    : [];
+  return [
+    [
+      "classification",
+      [strOf(source), strOf(mapper), strOf(confidence)].filter(Boolean).join(" · "),
+    ],
+    ["alternatives", others.join(", ")],
+  ];
+}
+
 function optionalCode(label: string, value: unknown): Section[] {
   return value === undefined ? [] : [{ kind: "code", label, value }];
+}
+
+function optionalText(label: string, text: string): Section[] {
+  return text ? [{ kind: "text", label, text }] : [];
+}
+
+function optionalRows(label: string, rows: [string, string][]): Section[] {
+  const shown = filterRows(rows);
+  return shown.length > 0 ? [{ kind: "rows", label, rows: shown }] : [];
 }
 
 function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
@@ -470,40 +652,23 @@ function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
           rows: filterRows([
             ["source", str(rec, "trigger_source")],
             ["type", str(rec, "trigger_type")],
-            ["external id", str(rec, "external_trigger_id")],
           ]),
         },
         { kind: "text", label: "DESCRIPTION", text: str(rec, "trigger_description") },
         { kind: "text", label: "PAYLOAD SUMMARY", text: str(rec, "trigger_payload_summary") },
+        // The payload itself is optional (0.5).
+        ...optionalText("PAYLOAD", contentText(rec.trigger_payload, contents)),
       ];
     }
     case "ToolCalling": {
-      const meta = (rec.tool_meta as Record<string, unknown>) ?? {};
-      return [
-        {
-          kind: "rows",
-          label: "TOOL",
-          rows: filterRows([
-            ["name", strOf(meta.name)],
-            ["endpoint", strOf(meta.endpoint)],
-            ["via", strOf(meta.via)],
-          ]),
-        },
-        { kind: "text", label: "DESCRIPTION", text: str(rec, "description") },
-        { kind: "code", label: "INPUT", value: contentValue(rec.input_payload, contents) },
-        { kind: "code", label: "OUTPUT", value: contentValue(rec.output_payload, contents) },
-        { kind: "status", label: "RESULT", status: outcomeStatus(rec) },
-      ];
+      return toolCallingSections(rec, contents);
     }
     case "Planning": {
-      const steps = Array.isArray(rec.steps) ? (rec.steps as Record<string, unknown>[]) : [];
       return [
         { kind: "text", label: "GOAL", text: str(rec, "goal") },
-        {
-          kind: "rows",
-          label: "STEPS",
-          rows: steps.map((s) => [`${s.index}`, strOf(s.description)]),
-        },
+        // The plan this one revises (0.5).
+        ...optionalRows("PLAN", [["revision of", str(rec, "revision_of")]]),
+        { kind: "rows", label: "STEPS", rows: stepRows(rec.steps) },
         { kind: "code", label: "CONTINGENCIES", value: rec.contingencies },
       ];
     }
@@ -519,16 +684,18 @@ function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
             ["type", str(rec, "action_type")],
             ["target", str(rec, "target_system")],
             ["status", str(rec, "execution_status")],
-            ["dry run", rec.dry_run ? "true" : "false"],
             ["execution id", str(rec, "execution_id")],
           ]),
         },
         { kind: "text", label: "SUMMARY", text: str(rec, "action_summary") },
-        { kind: "code", label: "PARAMETERS", value: rec.parameters },
+        // What was handed over is optional (0.5).
+        ...optionalText("OUTPUT", contentText(rec.output_payload, contents)),
+        ...optionalCode("PARAMETERS", rec.parameters),
       ];
     }
     case "Reflecting": {
       return [
+        ...optionalRows("REFLECTION", [["kind", str(rec, "kind")]]),
         { kind: "text", label: "OUTPUT", text: contentText(rec.output_payload, contents) },
         { kind: "code", label: "INPUTS", value: resolvedInputs(rec.inputs, contents) },
       ];
@@ -536,13 +703,62 @@ function behaviorSections(rec: TraceRecord, contents: ContentMap): Section[] {
     case "Attesting": {
       return attestingSections(rec, contents);
     }
+    case "Escalating": {
+      return escalatingSections(rec, contents);
+    }
+    case "Delegating": {
+      return delegatingSections(rec, contents);
+    }
+    case "Memorizing": {
+      return memorizingSections(rec, contents);
+    }
     default: {
       return [
         { kind: "text", label: "LABEL", text: str(rec, "label") },
+        ...optionalText("PROPOSED BEHAVIOR", str(rec, "proposed_behavior")),
         { kind: "code", label: "DATA", value: rec.data },
       ];
     }
   }
+}
+
+function toolCallingSections(rec: TraceRecord, contents: ContentMap): Section[] {
+  const meta = (rec.tool_meta as Record<string, unknown>) ?? {};
+  return [
+    {
+      kind: "rows",
+      label: "TOOL",
+      rows: filterRows([
+        ["name", strOf(meta.name)],
+        ["type", strOf(meta.tool_type)],
+        ["namespace", strOf(meta.namespace)],
+        ["server", strOf(meta.server)],
+        ["version", strOf(meta.version)],
+        ["call id", strOf(meta.call_id)],
+        ["effect", str(rec, "effect")],
+        ["endpoint", strOf(meta.endpoint)],
+        ["via", strOf(meta.via)],
+      ]),
+    },
+    ...optionalText("DESCRIPTION", str(rec, "description")),
+    { kind: "code", label: "INPUT", value: contentValue(rec.input_payload, contents) },
+    { kind: "code", label: "OUTPUT", value: contentValue(rec.output_payload, contents) },
+    { kind: "status", label: "RESULT", status: outcomeStatus(rec) },
+  ];
+}
+
+/** A plan's steps as rows: the index, then the step and the steps it waits on. */
+function stepRows(value: unknown): [string, string][] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((step: Record<string, unknown>): [string, string] => {
+    const after = Array.isArray(step.depends_on) ? step.depends_on.join(", ") : "";
+    return [
+      strOf(step.index),
+      after ? `${strOf(step.description)} (after ${after})` : strOf(step.description),
+    ];
+  });
 }
 
 function thinkingSections(rec: TraceRecord, contents: ContentMap): Section[] {
@@ -550,7 +766,8 @@ function thinkingSections(rec: TraceRecord, contents: ContentMap): Section[] {
   const inputs = Array.isArray(rec.inputs) ? rec.inputs : [];
   return [
     { kind: "rows", label: "MODEL", rows: modelRows(rec) },
-    { kind: "text", label: "PROMPT", text: contentText(rec.prompt, contents) },
+    // The prompt and inputs are optional from 0.5.
+    ...optionalText("PROMPT", contentText(rec.prompt, contents)),
     ...(inputs.length > 0
       ? [{ kind: "code" as const, label: "INPUTS", value: resolvedInputs(inputs, contents) }]
       : []),
@@ -562,7 +779,6 @@ function thinkingSections(rec: TraceRecord, contents: ContentMap): Section[] {
 }
 
 function attestingSections(rec: TraceRecord, contents: ContentMap): Section[] {
-  const writtenBy = (rec.written_by ?? {}) as Record<string, unknown>;
   return [
     { kind: "status", label: "DISPOSITION", status: DISPOSITION[str(rec, "disposition")] },
     {
@@ -571,11 +787,9 @@ function attestingSections(rec: TraceRecord, contents: ContentMap): Section[] {
       rows: filterRows([
         ["operator", str(rec, "operator_id")],
         ["gate", str(rec, "gate_kind")],
-        [
-          "written by",
-          [strOf(writtenBy.component), strOf(writtenBy.credential)].filter(Boolean).join(" · "),
-        ],
+        ["channel", str(rec, "channel")],
         ["seen digest", str(rec, "seen_digest")],
+        ["seen completeness", str(rec, "seen_completeness")],
       ]),
     },
     { kind: "text", label: "REASON", text: str(rec, "reason") },
@@ -585,8 +799,61 @@ function attestingSections(rec: TraceRecord, contents: ContentMap): Section[] {
       "EFFECTS",
       rec.effects === undefined ? undefined : contentValue(rec.effects, contents),
     ),
-    ...optionalCode("EVIDENCE", rec.evidence_refs),
     ...optionalCode("POLICY", rec.policy_snapshot),
+  ];
+}
+
+function escalatingSections(rec: TraceRecord, contents: ContentMap): Section[] {
+  const options = Array.isArray(rec.options) ? rec.options.map(strOf) : [];
+  return [
+    {
+      kind: "rows",
+      label: "ESCALATION",
+      rows: filterRows([
+        ["kind", str(rec, "kind")],
+        ["default", str(rec, "default")],
+      ]),
+    },
+    { kind: "text", label: "ASKED", text: contentText(rec.asked, contents) },
+    ...optionalRows(
+      "OPTIONS",
+      options.map((option, i): [string, string] => [String(i + 1), option]),
+    ),
+    { kind: "status", label: "OUTCOME", status: outcomeStatus(rec) },
+  ];
+}
+
+function delegatingSections(rec: TraceRecord, contents: ContentMap): Section[] {
+  return [
+    {
+      kind: "rows",
+      label: "DELEGATION",
+      rows: filterRows([
+        ["kind", str(rec, "kind")],
+        ["delegate", str(rec, "delegate_agent_id")],
+        ["child session", str(rec, "child_session_id")],
+        ["awaited", str(rec, "awaited")],
+      ]),
+    },
+    { kind: "text", label: "GOAL", text: contentText(rec.goal, contents) },
+    ...optionalText("RESULT", contentText(rec.result, contents)),
+    { kind: "status", label: "OUTCOME", status: outcomeStatus(rec) },
+  ];
+}
+
+function memorizingSections(rec: TraceRecord, contents: ContentMap): Section[] {
+  return [
+    {
+      kind: "rows",
+      label: "MEMORY",
+      rows: filterRows([
+        ["scope", str(rec, "scope")],
+        ["op", str(rec, "op")],
+        ["approved by", str(rec, "approved_by")],
+      ]),
+    },
+    { kind: "text", label: "TARGET", text: contentText(rec.target, contents) },
+    { kind: "status", label: "OUTCOME", status: outcomeStatus(rec) },
   ];
 }
 
@@ -596,15 +863,17 @@ function modelRows(rec: TraceRecord): [string, string][] {
     return [];
   }
   return filterRows([
-    ["provider", mi.provider],
-    ["model", mi.model_name],
-    ["version", mi.model_version ?? ""],
-    ["tokens in", mi.tokens_in === null || mi.tokens_in === undefined ? "" : String(mi.tokens_in)],
-    [
-      "tokens out",
-      mi.tokens_out === null || mi.tokens_out === undefined ? "" : String(mi.tokens_out),
-    ],
-    ["cost usd", mi.cost_usd === null || mi.cost_usd === undefined ? "" : String(mi.cost_usd)],
+    ["provider", strOf(mi.provider)],
+    ["model", strOf(mi.model_name)],
+    ["version", strOf(mi.model_version)],
+    ["kind", strOf(mi.invocation_kind)],
+    ["replay of", isContentRef(mi.replay_of) ? mi.replay_of.sha256 : strOf(mi.replay_of)],
+    ["tokens in", strOf(mi.tokens_in)],
+    ["tokens out", strOf(mi.tokens_out)],
+    ["cache read", strOf(mi.cache_read_tokens)],
+    ["cache creation", strOf(mi.cache_creation_tokens)],
+    ["cost usd", strOf(mi.cost_usd)],
+    ["request id", strOf(mi.request_id)],
   ]);
 }
 
@@ -635,8 +904,12 @@ const BASE_KEYS = new Set([
   "record_phase",
   "outcome",
   "duration_ms",
+  "error_type",
   "sources",
   "verdict",
+  "written_by",
+  "on_behalf_of_agent_id",
+  "classification",
 ]);
 
 export function payloadOnly(rec: TraceRecord): Record<string, unknown> {
@@ -649,7 +922,7 @@ export function payloadOnly(rec: TraceRecord): Record<string, unknown> {
   return out;
 }
 
-/** All dependency record ids (parent first, then upstream), de-duplicated. */
+/** All dependency record ids (a pre-0.5 parent first, then upstream), de-duplicated. */
 export function depIds(rec: TraceRecord): string[] {
   const ids = [
     ...(rec.parent_record_id ? [rec.parent_record_id] : []),

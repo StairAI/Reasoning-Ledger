@@ -66,6 +66,9 @@ class LedgerClientConfig:
     http_transport: HttpTransport | None = None
     # Retry configuration.
     retry: RetryConfig | None = None
+    # Encrypt every content position before upload (reasoning_ledger.encryption).
+    # The ledger then holds ciphertext it cannot open; the master key stays here.
+    encryption: Any | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -159,18 +162,36 @@ class AgentRegistration(TypedDict):
 # ---------------------------------------------------------------------------
 
 
-class ContentRef(TypedDict):
+class ContentEncryptionInfo(TypedDict):
+    """How to open encrypted content, and what the plaintext was (schema 0.5 `enc`)."""
+
+    # The content cipher: "A256GCM".
+    alg: str
+    # The data key that encrypts it, registered under PUT /v1/content-keys/{key_id}.
+    key_id: str
+    plaintext_sha256: str
+    plaintext_bytes: int
+    plaintext_media_type: str
+
+
+class _ContentRefRequired(TypedDict):
+    # Lowercase hex SHA-256 of the bytes the ledger holds.
+    sha256: str
+    # Size of the bytes the ledger holds.
+    bytes: int
+    media_type: str
+
+
+class ContentRef(_ContentRefRequired, total=False):
     """Reference to raw content in the content library.
 
     Raw text never goes into a record: content positions (e.g.
     ToolCalling.input_payload, Thinking.prompt) hold a ContentRef instead.
+    sha256, bytes and media_type are required; `enc` is present when the
+    bytes the ledger holds are ciphertext.
     """
 
-    # Lowercase hex SHA-256 of the raw bytes.
-    sha256: str
-    # Size of the raw bytes.
-    bytes: int
-    media_type: str
+    enc: ContentEncryptionInfo
 
 
 # ---------------------------------------------------------------------------
@@ -203,8 +224,8 @@ SubmitInput = dict[str, Any]
 
 # Input for submit_attesting(): an Attesting record without `behavior` and
 # `executor`, which the SDK sets ("Attesting", "human"). Requires operator_id,
-# disposition, gate_kind and written_by, plus session_id unless submitted
-# through a Session. record_phase defaults to "concurrent".
+# disposition, gate_kind, written_by and outcome, plus session_id unless
+# submitted through a Session. record_phase defaults to "concurrent".
 AttestingInput = dict[str, Any]
 
 # GetTrace options field names (kept for documentation clarity).

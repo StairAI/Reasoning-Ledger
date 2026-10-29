@@ -35,6 +35,9 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
   const cycle = {
     acting: newRecordId(),
     attesting: "",
+    delegating: newRecordId(),
+    escalating: newRecordId(),
+    memorizing: newRecordId(),
     observing: newRecordId(),
     thinking: newRecordId(),
     toolcalling: newRecordId(),
@@ -99,7 +102,7 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
       output_payload: { value: 42 },
       record_id: cycle.toolcalling,
       record_phase: "post_execution",
-      tool_meta: { category: "external_api", tool_id: "probe-tool" },
+      tool_meta: { category: "external_api", name: "probe-tool" },
       upstream_record_id: [cycle.observing],
     });
 
@@ -115,38 +118,87 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
       upstream_record_id: [cycle.toolcalling],
     });
 
+    // A sub-agent reviews the plan in its own session; goal and result are content.
     await session.submit({
-      action_summary: "no-op: integration test",
-      action_type: "noop",
-      behavior: "Acting",
-      dry_run: true,
-      executor: "det",
-      execution_status: "simulated",
-      parameters: { target: "none" },
-      record_id: cycle.acting,
-      record_phase: "pre_execution",
-      target_system: "integration-tests",
+      awaited: true,
+      behavior: "Delegating",
+      child_session_id: `${sessionId}-review`,
+      delegate_agent_id: "integration-reviewer",
+      executor: "ai",
+      goal: "Review the plan to hold",
+      kind: "spawn",
+      outcome: "success",
+      record_id: cycle.delegating,
+      record_phase: "post_execution",
+      result: { approved: true },
       upstream_record_id: [cycle.thinking],
     });
 
-    // A person approves the action, through the Attesting entry point.
+    // The agent asks a person before acting.
+    await session.submit({
+      asked: "Run the no-op?",
+      behavior: "Escalating",
+      default: "run",
+      executor: "ai",
+      kind: "permission",
+      options: ["run", "skip"],
+      outcome: "success",
+      record_id: cycle.escalating,
+      record_phase: "post_execution",
+      upstream_record_id: [cycle.delegating],
+    });
+
+    // The person approves, through the Attesting entry point; the answer points at the question.
     const attesting = await session.submitAttesting({
       decision: { approved_action: "noop" },
       disposition: "approve",
-      gate_kind: "integration-review",
+      gate_kind: "permission",
       operator_id: "integration-operator",
-      upstream_record_id: [cycle.acting],
+      outcome: "success",
+      upstream_record_id: [cycle.escalating],
       written_by: operator,
     });
     expect(attesting.is_duplicate).toBe(false);
     cycle.attesting = attesting.record_id;
 
+    // What the cycle learned, kept for later cycles, as the person approved.
+    await session.submit({
+      approved_by: cycle.attesting,
+      behavior: "Memorizing",
+      executor: "ai",
+      op: "add",
+      outcome: "success",
+      record_id: cycle.memorizing,
+      record_phase: "post_execution",
+      scope: "project",
+      target: "The no-op probe is safe to run.",
+      upstream_record_id: [cycle.attesting],
+    });
+
+    // The cycle closes with its commitment.
+    await session.submit({
+      action_summary: "no-op: integration test",
+      action_type: "probe.noop",
+      behavior: "Acting",
+      executor: "det",
+      execution_status: "simulated",
+      outcome: "success",
+      parameters: { target: "none" },
+      record_id: cycle.acting,
+      record_phase: "pre_execution",
+      target_system: "integration-tests",
+      upstream_record_id: [cycle.attesting, cycle.memorizing],
+    });
+
     submittedRecordIds.push(
       cycle.observing,
       cycle.toolcalling,
       cycle.thinking,
-      cycle.acting,
+      cycle.delegating,
+      cycle.escalating,
       cycle.attesting,
+      cycle.memorizing,
+      cycle.acting,
     );
   });
 
@@ -165,6 +217,23 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
     const [first] = thinking["inputs"] as { input_payload: ContentRef; input_record_id: string }[];
     expect(first?.input_record_id).toBe(cycle.toolcalling);
     expect(text(await client.getContent(first!.input_payload))).toBe("baseline is 42");
+
+    const delegating = await client.getRecord(cycle.delegating);
+    expect(text(await client.getContent(delegating["goal"] as ContentRef))).toBe(
+      "Review the plan to hold",
+    );
+    expect(JSON.parse(text(await client.getContent(delegating["result"] as ContentRef)))).toEqual({
+      approved: true,
+    });
+
+    const escalating = await client.getRecord(cycle.escalating);
+    expect(text(await client.getContent(escalating["asked"] as ContentRef))).toBe("Run the no-op?");
+
+    const memorizing = await client.getRecord(cycle.memorizing);
+    expect(text(await client.getContent(memorizing["target"] as ContentRef))).toBe(
+      "The no-op probe is safe to run.",
+    );
+    expect(memorizing["approved_by"]).toBe(cycle.attesting);
   });
 
   test("the Attesting record is human, concurrent, and keeps written_by and the decision", async () => {
@@ -172,10 +241,11 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
     expect(record.behavior).toBe("Attesting");
     expect(record.executor).toBe("human");
     expect(record.record_phase).toBe("concurrent");
+    expect(record.outcome).toBe("success");
     expect(record["disposition"]).toBe("approve");
     expect(record["decision"]).toEqual({ approved_action: "noop" });
     expect(record["written_by"]).toEqual(operator);
-    expect(record.upstream_record_id).toEqual([cycle.acting]);
+    expect(record.upstream_record_id).toEqual([cycle.escalating]);
   });
 
   test("an Attesting reject without a reason fails locally with ValidationError", async () => {
@@ -197,8 +267,9 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
     await expect(
       recordingClient.newSession(sessionId).submitAttesting({
         disposition: "reject",
-        gate_kind: "integration-review",
+        gate_kind: "permission",
         operator_id: "integration-operator",
+        outcome: "success",
         written_by: operator,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -263,15 +334,15 @@ describeIfStaging("TypeScript SDK 1.0 against the API server", () => {
         submittedRecordIds.push(r.record_id);
       }
     }
-    expect(submittedRecordIds).toHaveLength(9);
+    expect(submittedRecordIds).toHaveLength(12);
   });
 
-  test("getRecord() returns the 0.4 fields and the server-assigned sequence", async () => {
+  test("getRecord() returns the 0.5 fields and the server-assigned sequence", async () => {
     const record = await client.getRecord(cycle.toolcalling);
     expect(record.record_id).toBe(cycle.toolcalling);
     expect(record.agent_id).toBe(agentId);
     expect(record.session_id).toBe(sessionId);
-    expect(record.schema_version).toBe("0.4");
+    expect(record.schema_version).toBe("0.5");
     expect(record.executor).toBe("det");
     expect(record.record_phase).toBe("post_execution");
     expect(record.outcome).toBe("success");

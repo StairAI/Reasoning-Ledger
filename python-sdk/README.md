@@ -10,6 +10,19 @@ pip install reasoning-ledger
 
 Requires **Python 3.12+**. Dependencies: `pydantic>=2`, `httpx>=0.27`.
 
+### Upgrading to schema 0.5
+
+Records use schema 0.5; the server accepts no older schema on write.
+
+- `Planning` keeps its 0.4 fields (`goal`, `steps`, `contingencies`) and gains `revision_of`, the earlier plan it revises. `Thinking.prompt` and `Thinking.inputs` are optional.
+- New behaviors: `Escalating` (the agent hands a decision to a person), `Delegating` (it hands a goal to another agent) and `Memorizing` (it writes memory, rules, skills or settings that outlive the cycle).
+- `outcome` is required on `Acting`, `Attesting`, `Escalating`, `Delegating` and `Memorizing`, as on `ToolCalling`, and may be `"cancelled"`. `submit_attesting` does not fill it in.
+- `Acting`: `dry_run` is gone, `parameters` is optional, and `action_type` is a namespaced `<domain>.<verb>`, e.g. `answer.final` or `git.commit`.
+- `Attesting`: `evidence_refs` is gone (use `sources`). `disposition` may be `"cancel"`, which needs `outcome: "cancelled"`, or `"no_response"`, which needs `outcome: "timeout"`. `channel` and `seen_completeness` are new.
+- `ToolCalling.tool_meta` needs a `name`; `description` is optional; `effect` is new.
+- Gone: `parent_record_id`, `model_invocation.model_version`, `Observing.external_trigger_id`. `verdict.decided_by` takes one of `"human"`, `"model"`, `"rule"`, `"policy"`, `"classifier"`, `"config"`, `"consensus"`.
+- New on every record: `error_type`, `written_by`, `on_behalf_of_agent_id`, `classification`. New in `model_invocation`: `invocation_kind`, `replay_of`, `cache_read_tokens`, `cache_creation_tokens`, `request_id`; `provider` and `model_name` may be `None` on a replay or a simulation.
+
 ### Upgrading from 0.3
 
 - `endpoint` is required — in `LedgerClientConfig`, `RegisterAgentOpts` and `ResolveAgentOpts`. The `environment` option and the `ENDPOINTS` constant are gone (their built-in hosts never resolved).
@@ -93,7 +106,7 @@ tool = session.submit({
     "executor": "det",
     "record_phase": "post_execution",
     "upstream_record_id": [obs["record_id"]],
-    "tool_meta": {"tool_id": "polymarket_api", "category": "external_api"},
+    "tool_meta": {"name": "polymarket_api", "tool_type": "http"},
     "description": "Fetch current Spain win odds",
     "input_payload": {"market": "esp_mar"},
     "output_payload": {"spain_win": 0.73},
@@ -111,35 +124,48 @@ session.submit({
     "output_payload": "Hold: confidence 0.81",
 })
 
-# Acting — the commitment
+# Acting — the commitment that closes the cycle
 session.submit({
     "behavior": "Acting",
     "executor": "det",
-    "record_phase": "pre_execution",
-    "action_type": "trade",
+    "record_phase": "post_execution",
+    "action_type": "position.hold",      # namespaced <domain>.<verb>
     "target_system": "broker-api",
     "action_summary": "Hold current Spain win position",
-    "parameters": {"symbol": "ESP_WIN", "action": "hold"},
-    "dry_run": False,
-    "execution_status": "pending",
+    "parameters": {"symbol": "ESP_WIN"},
+    "execution_status": "confirmed",
+    "outcome": "success",
 })
 ```
 
-### 4. Record a person's decision (Attesting)
+### 4. Ask a person and record the decision (Escalating, Attesting)
 
-`submit_attesting` records a person's disposition of a pending action. It sets `behavior` to `"Attesting"`, `executor` to `"human"` and, unless you pass one, `record_phase` to `"concurrent"`.
+When the agent hands a decision to a person, it writes an `Escalating` record once the wait is over; the person's disposition is an `Attesting` record that lists it in `upstream_record_id`. `submit_attesting` sets `behavior` to `"Attesting"`, `executor` to `"human"` and, unless you pass one, `record_phase` to `"concurrent"`.
 
 ```python
+ask = session.submit({
+    "behavior": "Escalating",
+    "executor": "ai",
+    "record_phase": "post_execution",
+    "kind": "permission",                     # "question" | "permission" | "plan" | "handoff"
+    "asked": "Hold the Spain win position?",  # content; may be a raw value
+    "options": ["hold", "close"],
+    "outcome": "success",                     # answered; "timeout" if nobody did
+    "duration_ms": 42_000,                    # how long it waited
+})
+
 session.submit_attesting({
+    "upstream_record_id": [ask["record_id"]],
     "operator_id": "reviewer-7",
-    "disposition": "approve",            # "approve" | "reject" | "edit"
-    "gate_kind": "trade-approval",
+    "disposition": "approve",            # "approve" | "reject" | "edit" | "cancel" | "no_response"
+    "outcome": "success",                # "timeout" with no_response, "cancelled" with cancel
+    "gate_kind": "permission",
     "decision": {"action": "hold"},      # any JSON value
     "written_by": {"component": "review-ui", "credential": "svc-reviewer"},
 })
 ```
 
-A `"reject"` needs a `reason`. Optional fields: `decision`, `reason`, `patch`, `evidence_refs`, `seen_digest`, `policy_snapshot`, `effects` (content; may be a raw value).
+A `"reject"` needs a `reason`, a `"no_response"` needs `outcome: "timeout"` and a `"cancel"` needs `outcome: "cancelled"`; the SDK checks these before sending. Optional fields: `decision`, `reason`, `patch`, `seen_digest`, `seen_completeness`, `channel`, `policy_snapshot`, `effects` (content; may be a raw value).
 
 ### 5. Submit a batch
 
@@ -162,8 +188,12 @@ Raw text never goes into a record. Content positions hold a `ContentRef` — `{"
 - `ToolCalling.input_payload`, `ToolCalling.output_payload`
 - `Thinking.prompt`, `Thinking.output_payload`, `Thinking.inputs[].input_payload`
 - `Reflecting.output_payload`, `Reflecting.inputs[].input_payload`
-- `model_invocation.internal_reasoning`
 - `Attesting.effects`
+- `Escalating.asked`
+- `Delegating.goal`, `Delegating.result`
+- `Memorizing.target`
+- `model_invocation.internal_reasoning`
+- `model_invocation.replay_of`, unless it names a record: a string in UUID form is a record id and is left as given
 
 **Raw values.** In `submit`, `submit_batch` and the `Session` submit methods, a content position may hold a raw value instead. The SDK uploads it, puts the returned `ContentRef` in its place, then validates and submits:
 
@@ -185,21 +215,50 @@ data: bytes = client.get_content(ref)                          # or client.get_c
 
 Uploads are idempotent by hash: content already stored answers with its existing reference. The server enforces the content size limit (HTTP 413 → `ValidationError`). Reading content that does not exist or was deleted raises `NotFoundError`.
 
+### Encryption
+
+Content can be encrypted on this machine before it is uploaded, so the ledger holds ciphertext it cannot open. Give the client a `ContentEncryption` built from a master key that stays in a file only you can read:
+
+```python
+from reasoning_ledger import ContentEncryption, generate_master_key, load_master_key, save_master_key
+
+path = "~/.stair/master.key"          # made once; back it up: without it the content cannot be read
+try:
+    master_key = load_master_key(path)
+except FileNotFoundError:
+    master_key = generate_master_key()
+    save_master_key(path, master_key)  # 0600
+
+client = LedgerClient(LedgerClientConfig(
+    agent_id=agent_id, api_key=api_key, endpoint=endpoint,
+    encryption=ContentEncryption(master_key=master_key, agent_id=agent_id),
+))
+```
+
+Every content position is then uploaded as AES-256-GCM ciphertext under a data key, one per session; the data key is wrapped with the master key and registered at `PUT /v1/content-keys/{key_id}` before any record names it. The reference carries `enc`: the cipher, the key id, and the plaintext's digest, size and media type. The structure of the record (behavior, timing, outcome, tool names) stays readable; the text does not.
+
+- `client.open_content(ref)` reads a reference back and decrypts it with the client's encryption (`ValidationError` without one; `ValueError` when another master key wrapped the key).
+- `client.put_content_key(key_id, body)`, `client.get_content_key(key_id)`, `client.list_content_keys(session_id=..., after=..., limit=...)` are the key endpoints; `ContentEncryption.wrapped(data_key)` makes a `body`. Rotating the master key is reading every key, unwrapping, re-wrapping and registering it again under the same id.
+- `master_key_fragment(master_key)` is the key as the trace viewer's sign-in link carries it (`#k=...`): the browser decrypts with it and never sends it.
+
 ---
 
 ## Behavior types
 
-All behaviors extend the base record fields. The `"behavior"` key is the discriminant. Every record requires `executor` and `record_phase`; `outcome`, `duration_ms`, `sources` and `verdict` are optional.
+All behaviors extend the base record fields. The `"behavior"` key is the discriminant. Every record requires `executor` and `record_phase`. Optional on every record: `outcome` (required where the table says so), `duration_ms`, `error_type`, `sources`, `verdict`, `written_by`, `on_behalf_of_agent_id`, `classification`, `model_invocation`, `upstream_record_id`, `notes`, `tags`.
 
 | Behavior | Required fields (beyond base) |
 |---|---|
 | `"Observing"` | `trigger_source`, `trigger_type`, `trigger_description`, `trigger_payload_summary` |
-| `"Planning"` | `goal`, `steps` |
-| `"Thinking"` | `prompt`, `inputs`, `output_payload` |
-| `"Acting"` | `action_type`, `target_system`, `action_summary`, `parameters`, `dry_run`, `execution_status` (plus `execution_id` when `target_system` is `"public-chain"` and `execution_status` is `"confirmed"`) |
+| `"ToolCalling"` | `tool_meta` (with `name`), `input_payload`, `output_payload`, `outcome` |
+| `"Planning"` | `goal`, `steps` (optional `contingencies`, `revision_of`) |
+| `"Thinking"` | `output_payload` |
+| `"Acting"` | `action_type` (`<domain>.<verb>`), `target_system`, `action_summary`, `execution_status`, `outcome` (plus `execution_id` when `target_system` is `"public-chain"` and `execution_status` is `"confirmed"`) |
 | `"Reflecting"` | `inputs`, `output_payload` |
-| `"ToolCalling"` | `tool_meta`, `description`, `input_payload`, `output_payload`, `outcome` |
-| `"Attesting"` | `operator_id`, `disposition`, `gate_kind`, `written_by`; `executor` must be `"human"` (plus `reason` when `disposition` is `"reject"`) |
+| `"Attesting"` | `operator_id`, `disposition`, `gate_kind`, `written_by`, `outcome`; `executor` must be `"human"` (plus `reason` when `disposition` is `"reject"`; `outcome` must be `"timeout"` when it is `"no_response"` and `"cancelled"` when it is `"cancel"`) |
+| `"Escalating"` | `kind`, `asked`, `outcome` |
+| `"Delegating"` | `kind`, `goal`, `outcome` |
+| `"Memorizing"` | `scope`, `target`, `op`, `outcome` |
 | `"Other"` | `label`, `data` |
 
 ### Auto-filled fields
@@ -209,7 +268,7 @@ The SDK fills these if you omit them:
 | Field | SDK default |
 |---|---|
 | `record_id` | Fresh UUID v4 |
-| `schema_version` | `"0.4"` (bundled constant) |
+| `schema_version` | `"0.5"` (bundled constant) |
 | `client_ts_utc` | Current epoch milliseconds |
 | `agent_id` | From `LedgerClientConfig.agent_id` |
 
@@ -271,6 +330,7 @@ config = LedgerClientConfig(
 
     # Default model invocation stamped on every record unless overridden per-record
     default_model_invocation={
+        "invocation_kind": "live",
         "provider": "anthropic",
         "model_name": "claude-opus-4-7",
         "tokens_in": 0,
@@ -336,7 +396,7 @@ Submit one record. Raw values at content positions are uploaded first.
 
 #### `client.submit_attesting(record)` → `RecordAck`
 
-Submit an Attesting record; `behavior`, `executor` and the default `record_phase` are set for you.
+Submit an Attesting record; `behavior`, `executor` and the default `record_phase` are set for you. Pass `outcome` yourself.
 
 #### `client.submit_batch(records)` → `BatchAck`
 
@@ -397,7 +457,7 @@ now_epoch_ms()               # → current epoch milliseconds (int)
 is_valid_record_id("...")    # → bool — is the string a valid UUID v4?
 ```
 
-Use `new_record_id()` when building dependency edges where a child needs to reference an as-yet-unsubmitted record via `upstream_record_id` or `parent_record_id`.
+Use `new_record_id()` when a record must reference one not yet submitted, via `upstream_record_id`, `approved_by` or `revision_of`.
 
 ---
 

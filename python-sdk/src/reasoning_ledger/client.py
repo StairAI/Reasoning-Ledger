@@ -14,6 +14,7 @@ from .content import (
     is_sha256_hex,
     sha256_hex,
 )
+from .encryption import ENCRYPTED_MEDIA_TYPE, ContentEncryption
 from .errors import ValidationError
 from .http import DEFAULT_RETRY, HttpxTransport, build_url, map_http_error, with_retry
 from .types import (
@@ -93,18 +94,34 @@ class _Upload:
     sha256: str
 
 
-def _plan_uploads(record: dict[str, Any]) -> list[_Upload]:
+def _plan_uploads(
+    record: dict[str, Any], encryption: ContentEncryption | None = None
+) -> list[_Upload]:
     """Put in every content position holding a raw value the ContentRef that the
     upload will produce (computed locally, so the record can be validated before
-    any request), and return the uploads that make those references real."""
+    any request), and return the uploads that make those references real.
+
+    With `encryption`, the bytes are encrypted under the record's session key
+    first: the reference then names the ciphertext and carries `enc`."""
     uploads: list[_Upload] = []
     for container, key, path in content_slots(record):
         value = container[key]
         if is_content_ref(value):
             continue
         data, media_type = encode_content(value, path)
-        digest = sha256_hex(data)
-        container[key] = ContentRef(sha256=digest, bytes=len(data), media_type=media_type)
+        if encryption is not None:
+            session_id = record.get("session_id")
+            data, enc = encryption.encrypt(
+                session_id if isinstance(session_id, str) else None, data, media_type
+            )
+            media_type = ENCRYPTED_MEDIA_TYPE
+            digest = sha256_hex(data)
+            container[key] = ContentRef(
+                sha256=digest, bytes=len(data), media_type=media_type, enc=enc
+            )
+        else:
+            digest = sha256_hex(data)
+            container[key] = ContentRef(sha256=digest, bytes=len(data), media_type=media_type)
         uploads.append(_Upload(container, key, data, media_type, digest))
     return uploads
 
@@ -244,7 +261,7 @@ class LedgerClient:
             self._config.agent_id,
             self._config.default_model_invocation,
         )
-        uploads = _plan_uploads(record)
+        uploads = _plan_uploads(record, self._config.encryption)
         validate_record(record)  # raises ValidationError on failure
         self._upload(uploads)
 
@@ -259,10 +276,12 @@ class LedgerClient:
         return RecordAck(**result)  # type: ignore[misc]
 
     def submit_attesting(self, input_record: AttestingInput) -> RecordAck:
-        """Submit an Attesting record: a person's disposition of a pending action.
+        """Submit an Attesting record: a person's disposition of a pending item,
+        such as the Escalating record listed in its upstream_record_id.
 
         Sets behavior "Attesting", executor "human" and, unless given,
-        record_phase "concurrent". `effects` may be a raw value (uploaded).
+        record_phase "concurrent"; the caller supplies outcome. `effects` may be
+        a raw value (uploaded).
         """
         return self.submit(_attesting_record(input_record))
 
@@ -279,7 +298,7 @@ class LedgerClient:
         planned: list[list[_Upload]] = []
         for index, rec in enumerate(completed):
             try:
-                planned.append(_plan_uploads(rec))
+                planned.append(_plan_uploads(rec, self._config.encryption))
             except ValidationError as exc:
                 raise ValidationError(f"records[{index}]: {exc}", exc.details) from exc
 
@@ -444,13 +463,89 @@ class LedgerClient:
 
     def _upload(self, uploads: list[_Upload]) -> None:
         """Upload planned content, each distinct piece once, and put the
-        references the server returns in place."""
+        references the server returns in place. Encrypted content keeps the
+        `enc` computed locally; the data keys it names are registered first."""
+        if uploads:
+            self._register_data_keys()
         refs: dict[tuple[str, str], ContentRef] = {}
         for upload in uploads:
             key = (upload.sha256, upload.media_type)
             if key not in refs:
                 refs[key] = self._put_content(upload.data, upload.media_type, upload.sha256)
-            upload.container[upload.key] = refs[key].copy()
+            planned = upload.container[upload.key]
+            stored = refs[key].copy()
+            if isinstance(planned, dict) and "enc" in planned:
+                stored["enc"] = planned["enc"]
+            upload.container[upload.key] = stored
+
+    def _register_data_keys(self) -> None:
+        """Register every data key not yet known to the ledger (PUT /v1/content-keys/{key_id})."""
+        encryption = self._config.encryption
+        if encryption is None:
+            return
+        for data_key in encryption.unregistered():
+            self.put_content_key(data_key.key_id, encryption.wrapped(data_key))
+            data_key.registered = True
+
+    # -------------------------------------------------------------------------
+    # Content keys (content encryption)
+    # -------------------------------------------------------------------------
+
+    def put_content_key(self, key_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Register a wrapped data key, or replace its wrapped copy (re-wrap after a
+        master key rotation). `body` is what ContentEncryption.wrapped() gives."""
+        return _call_api(  # type: ignore[return-value]
+            self._transport,
+            self._retry,
+            api_key=self._config.api_key,
+            method="PUT",
+            url=f"{self._base_url}/v1/content-keys/{key_id}",
+            body=body,
+        )
+
+    def get_content_key(self, key_id: str) -> dict[str, Any]:
+        """A wrapped data key of this owner, as registered."""
+        return _call_api(  # type: ignore[return-value]
+            self._transport,
+            self._retry,
+            api_key=self._config.api_key,
+            method="GET",
+            url=f"{self._base_url}/v1/content-keys/{key_id}",
+        )
+
+    def list_content_keys(
+        self,
+        *,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+        after: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """A page of this owner's wrapped data keys in key id order:
+        {"keys": [...], "next_after": str | None}."""
+        url = build_url(
+            f"{self._base_url}/v1/content-keys",
+            {"after": after, "agent_id": agent_id, "limit": limit, "session_id": session_id},
+        )
+        return _call_api(  # type: ignore[return-value]
+            self._transport, self._retry, api_key=self._config.api_key, method="GET", url=url
+        )
+
+    def open_content(self, ref: ContentRef) -> bytes:
+        """The plaintext behind a content reference: the stored bytes, decrypted
+        with this client's encryption when the reference carries `enc`."""
+        data = self.get_content(ref)
+        enc = ref.get("enc") if isinstance(ref, dict) else None
+        if not enc:
+            return data
+        encryption = self._config.encryption
+        if encryption is None:
+            raise ValidationError(
+                "the content is encrypted and this client has no encryption configured",
+                {"field": "enc", "reason": "no master key"},
+            )
+        wrapped = self.get_content_key(str(enc["key_id"]))
+        return encryption.decrypt(dict(enc), data, wrapped)
 
     # -------------------------------------------------------------------------
     # Internal helpers exposed for Session

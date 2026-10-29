@@ -6,6 +6,8 @@ import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { logApiError } from "#/lib/api-log";
 import { version } from "../../package.json";
 
+import { adminRouter } from "./admin";
+import { contentKeysRouter } from "./content-keys";
 import { ownersRouter } from "./owners";
 import { agentsRouter } from "./agents";
 import { recordsRouter } from "./records";
@@ -28,7 +30,9 @@ import { viewerRouter } from "./viewer";
  * UI renders them in labelled, collapsible sections.
  */
 export const router = {
+  admin: adminRouter,
   agents: agentsRouter,
+  contentKeys: contentKeysRouter,
   owners: ownersRouter,
   records: recordsRouter,
   sessions: sessionsRouter,

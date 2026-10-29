@@ -18,5 +18,19 @@ export function recordRuleProblems(record: Record<string, unknown>): string[] {
   if (record.behavior === "Attesting" && record.disposition === "reject" && !record.reason) {
     problems.push("reason is required when disposition is 'reject'");
   }
+  if (
+    record.behavior === "Attesting" &&
+    record.disposition === "no_response" &&
+    record.outcome !== "timeout"
+  ) {
+    problems.push("outcome must be 'timeout' when disposition is 'no_response'");
+  }
+  if (
+    record.behavior === "Attesting" &&
+    record.disposition === "cancel" &&
+    record.outcome !== "cancelled"
+  ) {
+    problems.push("outcome must be 'cancelled' when disposition is 'cancel'");
+  }
   return problems;
 }

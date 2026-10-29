@@ -56,16 +56,34 @@ class Cycle:
     acks: dict[str, RecordAck]
     tool_input: dict[str, Any]
     prompt: str
+    # Raw values written at the content positions of the new behaviors:
+    # (step, field) -> the value submitted.
+    content: dict[tuple[str, str], Any]
 
 
 @pytest.fixture(scope="module")
 def cycle(client: LedgerClient) -> Cycle:
     """Write one full decision cycle in its own session; the tests read it back."""
     session = client.new_session(fresh_session_id("cycle"))
-    steps = ("observing", "toolcalling", "thinking", "acting", "attesting")
+    steps = (
+        "observing",
+        "toolcalling",
+        "delegating",
+        "thinking",
+        "escalating",
+        "attesting",
+        "memorizing",
+        "acting",
+    )
     ids = {step: new_record_id() for step in steps}
     tool_input = {"query": "baseline", "n": 1}
     prompt = f"Given the baseline, do we act? (run {ids['thinking']})"
+    content: dict[tuple[str, str], Any] = {
+        ("delegating", "goal"): f"Check the baseline against last week's (run {ids['delegating']})",
+        ("delegating", "result"): {"consistent": True},
+        ("escalating", "asked"): f"Apply the no-op? (run {ids['escalating']})",
+        ("memorizing", "target"): f"The no-op is approved above 40 (run {ids['memorizing']})",
+    }
     acks: dict[str, RecordAck] = {}
 
     acks["observing"] = session.submit(
@@ -87,8 +105,9 @@ def cycle(client: LedgerClient) -> Cycle:
             "upstream_record_id": [ids["observing"]],
             "executor": "det",
             "record_phase": "post_execution",
-            "tool_meta": {"name": "baseline-probe"},
+            "tool_meta": {"name": "baseline-probe", "tool_type": "function"},
             "description": "fetch baseline",
+            "effect": "read",
             # Objects: uploaded as application/json content.
             "input_payload": tool_input,
             "output_payload": {"value": 42},
@@ -96,11 +115,27 @@ def cycle(client: LedgerClient) -> Cycle:
             "duration_ms": 12,
         }
     )
+    acks["delegating"] = session.submit(
+        {
+            "behavior": "Delegating",
+            "record_id": ids["delegating"],
+            "upstream_record_id": [ids["toolcalling"]],
+            "executor": "ai",
+            "record_phase": "post_execution",
+            "kind": "spawn",
+            "delegate_agent_id": "baseline-checker",
+            "child_session_id": f"{session.id}-child",
+            "awaited": True,
+            "goal": content[("delegating", "goal")],
+            "result": content[("delegating", "result")],
+            "outcome": "success",
+        }
+    )
     acks["thinking"] = session.submit(
         {
             "behavior": "Thinking",
             "record_id": ids["thinking"],
-            "upstream_record_id": [ids["toolcalling"]],
+            "upstream_record_id": [ids["toolcalling"], ids["delegating"]],
             "executor": "ai",
             "record_phase": "post_execution",
             # Raw strings: uploaded as text content.
@@ -109,33 +144,71 @@ def cycle(client: LedgerClient) -> Cycle:
             "output_payload": "Act: the value is above the threshold.",
         }
     )
-    acks["acting"] = session.submit(
+    acks["escalating"] = session.submit(
         {
-            "behavior": "Acting",
-            "record_id": ids["acting"],
+            "behavior": "Escalating",
+            "record_id": ids["escalating"],
             "upstream_record_id": [ids["thinking"]],
-            "executor": "det",
-            "record_phase": "pre_execution",
-            "action_type": "noop",
-            "target_system": "integration-tests",
-            "action_summary": "no-op awaiting approval",
-            "parameters": {"target": "none"},
-            "dry_run": True,
-            "execution_status": "pending",
+            "executor": "ai",
+            "record_phase": "post_execution",
+            "kind": "permission",
+            "asked": content[("escalating", "asked")],
+            "options": ["approve", "reject"],
+            "default": "approve",
+            "outcome": "success",
+            "duration_ms": 1500,
         }
     )
     acks["attesting"] = session.submit_attesting(
         {
             "record_id": ids["attesting"],
-            "upstream_record_id": [ids["acting"]],
+            "upstream_record_id": [ids["escalating"]],
             "operator_id": "it-operator",
             "disposition": "approve",
             "decision": {"approved": True, "action": "noop"},
             "gate_kind": "integration-test",
+            "channel": "interactive",
+            "outcome": "success",
             "written_by": WRITTEN_BY,
         }
     )
-    return Cycle(session_id=session.id, ids=ids, acks=acks, tool_input=tool_input, prompt=prompt)
+    acks["memorizing"] = session.submit(
+        {
+            "behavior": "Memorizing",
+            "record_id": ids["memorizing"],
+            "upstream_record_id": [ids["attesting"]],
+            "executor": "ai",
+            "record_phase": "post_execution",
+            "scope": "project",
+            "target": content[("memorizing", "target")],
+            "op": "add",
+            "approved_by": ids["attesting"],
+            "outcome": "success",
+        }
+    )
+    acks["acting"] = session.submit(
+        {
+            "behavior": "Acting",
+            "record_id": ids["acting"],
+            "upstream_record_id": [ids["attesting"]],
+            "executor": "det",
+            "record_phase": "post_execution",
+            "action_type": "noop.apply",
+            "target_system": "integration-tests",
+            "action_summary": "no-op applied after approval",
+            "parameters": {"target": "none"},
+            "execution_status": "simulated",
+            "outcome": "success",
+        }
+    )
+    return Cycle(
+        session_id=session.id,
+        ids=ids,
+        acks=acks,
+        tool_input=tool_input,
+        prompt=prompt,
+        content=content,
+    )
 
 
 class TestAgent:
@@ -180,6 +253,43 @@ class TestDecisionCycle:
         assert thinking_input["input_record_id"] == cycle.ids["toolcalling"]
         assert client.get_content(thinking_input["input_payload"]) == b"value=42"
 
+    @pytest.mark.parametrize(
+        ("step", "field"),
+        [
+            ("delegating", "goal"),
+            ("delegating", "result"),
+            ("escalating", "asked"),
+            ("memorizing", "target"),
+        ],
+    )
+    def test_new_behaviors_store_their_content(
+        self, client: LedgerClient, cycle: Cycle, step: str, field: str
+    ) -> None:
+        record = client.get_record(cycle.ids[step])
+        ref = record[field]
+        value = cycle.content[(step, field)]
+        if isinstance(value, str):
+            assert ref["media_type"] == TEXT
+            assert client.get_content(ref).decode("utf-8") == value
+        else:
+            assert ref["media_type"] == "application/json"
+            assert json.loads(client.get_content(ref)) == value
+
+    def test_new_behaviors_keep_their_fields(self, client: LedgerClient, cycle: Cycle) -> None:
+        de = client.get_record(cycle.ids["delegating"])
+        assert (de["behavior"], de["kind"], de["awaited"]) == ("Delegating", "spawn", True)
+        assert de["child_session_id"] == f"{cycle.session_id}-child"
+        assert de["outcome"] == "success"
+
+        es = client.get_record(cycle.ids["escalating"])
+        assert (es["behavior"], es["kind"]) == ("Escalating", "permission")
+        assert es["options"] == ["approve", "reject"]
+        assert es["outcome"] == "success"
+
+        me = client.get_record(cycle.ids["memorizing"])
+        assert (me["behavior"], me["scope"], me["op"]) == ("Memorizing", "project", "add")
+        assert me["approved_by"] == cycle.ids["attesting"]
+
     def test_attesting_entry_point(self, client: LedgerClient, cycle: Cycle) -> None:
         at = client.get_record(cycle.ids["attesting"])
         assert at["behavior"] == "Attesting"
@@ -189,8 +299,15 @@ class TestDecisionCycle:
         assert at["disposition"] == "approve"
         assert at["decision"] == {"approved": True, "action": "noop"}
         assert at["gate_kind"] == "integration-test"
+        assert at["outcome"] == "success"
         assert at["written_by"] == WRITTEN_BY
-        assert at["upstream_record_id"] == [cycle.ids["acting"]]
+        assert at["upstream_record_id"] == [cycle.ids["escalating"]]
+
+    def test_acting_closes_the_cycle(self, client: LedgerClient, cycle: Cycle) -> None:
+        ac = client.get_record(cycle.ids["acting"])
+        assert (ac["action_type"], ac["execution_status"]) == ("noop.apply", "simulated")
+        assert ac["outcome"] == "success"
+        assert ac["upstream_record_id"] == [cycle.ids["attesting"]]
 
     def test_reject_without_reason_fails_locally(
         self, staging_env: StagingEnv, agent_id: str
@@ -210,6 +327,7 @@ class TestDecisionCycle:
                     "operator_id": "it-operator",
                     "disposition": "reject",
                     "gate_kind": "integration-test",
+                    "outcome": "success",
                     "written_by": WRITTEN_BY,
                 }
             )
@@ -263,7 +381,7 @@ class TestIdempotencyAndBatch:
 
 
 class TestReads:
-    def test_get_record_carries_0_4_fields_and_sequence(
+    def test_get_record_carries_0_5_fields_and_sequence(
         self, client: LedgerClient, agent_id: str, cycle: Cycle
     ) -> None:
         tc = client.get_record(cycle.ids["toolcalling"])
@@ -271,11 +389,13 @@ class TestReads:
         assert tc["agent_id"] == agent_id
         assert tc["session_id"] == cycle.session_id
         assert tc["behavior"] == "ToolCalling"
-        assert tc["schema_version"] == "0.4"
+        assert tc["schema_version"] == "0.5"
         assert tc["executor"] == "det"
         assert tc["record_phase"] == "post_execution"
         assert tc["outcome"] == "success"
         assert tc["duration_ms"] == 12
+        assert tc["tool_meta"] == {"name": "baseline-probe", "tool_type": "function"}
+        assert tc["effect"] == "read"
         assert isinstance(tc["sequence"], int)
         assert tc["upstream_record_id"] == [cycle.ids["observing"]]
 
@@ -291,7 +411,7 @@ class TestReads:
     def test_get_trace_is_newest_first_and_paginates(
         self, client: LedgerClient, cycle: Cycle
     ) -> None:
-        assert cycle.ids  # the cycle alone gives this agent five records
+        assert cycle.ids  # the cycle alone gives this agent eight records
 
         first = client.get_trace(GetTraceOpts(limit=2))
         first_seq = [r["sequence"] for r in first["records"]]
