@@ -64,8 +64,11 @@ def is_sha256_hex(value: object) -> bool:
 
 def is_content_ref(value: Any) -> bool:
     """True iff value is a dict whose keys are exactly sha256 (64 lowercase hex),
-    bytes (non-negative integer) and media_type (string)."""
-    if not isinstance(value, dict) or value.keys() != _CONTENT_REF_KEYS:
+    bytes (non-negative integer) and media_type (string), plus `enc` (a dict)
+    when the bytes are ciphertext."""
+    if not isinstance(value, dict) or value.keys() - {"enc"} != _CONTENT_REF_KEYS:
+        return False
+    if "enc" in value and not isinstance(value["enc"], dict):
         return False
     size = value["bytes"]
     return (

@@ -49,6 +49,7 @@ class FakeLedgerServer:
     def __init__(self) -> None:
         self.calls: list[HttpRequest] = []
         self.content: dict[str, tuple[bytes, str]] = {}
+        self.content_keys: dict[str, dict[str, Any]] = {}
         self.records: list[dict[str, Any]] = []
         self.put_response: HttpResponse | None = None
         self.post_response: HttpResponse | None = None
@@ -60,6 +61,8 @@ class FakeLedgerServer:
         path = urlsplit(req["url"]).path
         if path.startswith("/v1/content/"):
             return self._content(req, path.removeprefix("/v1/content/"))
+        if path.startswith("/v1/content-keys/"):
+            return self._content_key(req, path.removeprefix("/v1/content-keys/"))
         if req["method"] == "POST" and path in ("/v1/records", "/v1/records/batch"):
             if self.post_response is not None:
                 return self.post_response
@@ -93,6 +96,15 @@ class FakeLedgerServer:
             headers={"content-type": media_type},
             status=200,
         )
+
+    def _content_key(self, req: HttpRequest, key_id: str) -> HttpResponse:
+        if req["method"] == "PUT":
+            body = json.loads(req["body"] or "{}")
+            created = key_id not in self.content_keys
+            self.content_keys[key_id] = {**body, "key_id": key_id}
+            return ok({**self.content_keys[key_id], "created": created})
+        stored = self.content_keys.get(key_id)
+        return ok(stored) if stored is not None else err(404, "Content key not found")
 
     # -- Inspection ------------------------------------------------------------
 
