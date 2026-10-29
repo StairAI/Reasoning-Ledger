@@ -27,13 +27,6 @@ export type StringFilter<$PrismaModel = never> = {
   not?: Prisma.NestedStringFilter<$PrismaModel> | string;
 };
 
-export type EnumWalletModeFilter<$PrismaModel = never> = {
-  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
-  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  not?: Prisma.NestedEnumWalletModeFilter<$PrismaModel> | $Enums.WalletMode;
-};
-
 export type StringNullableFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel> | null;
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel> | null;
@@ -47,6 +40,13 @@ export type StringNullableFilter<$PrismaModel = never> = {
   endsWith?: string | Prisma.StringFieldRefInput<$PrismaModel>;
   mode?: Prisma.QueryMode;
   not?: Prisma.NestedStringNullableFilter<$PrismaModel> | string | null;
+};
+
+export type EnumWalletModeFilter<$PrismaModel = never> = {
+  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
+  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  not?: Prisma.NestedEnumWalletModeFilter<$PrismaModel> | $Enums.WalletMode;
 };
 
 export type DateTimeFilter<$PrismaModel = never> = {
@@ -83,16 +83,6 @@ export type StringWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedStringFilter<$PrismaModel>;
 };
 
-export type EnumWalletModeWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
-  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  not?: Prisma.NestedEnumWalletModeWithAggregatesFilter<$PrismaModel> | $Enums.WalletMode;
-  _count?: Prisma.NestedIntFilter<$PrismaModel>;
-  _min?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
-  _max?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
-};
-
 export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel> | null;
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel> | null;
@@ -109,6 +99,16 @@ export type StringNullableWithAggregatesFilter<$PrismaModel = never> = {
   _count?: Prisma.NestedIntNullableFilter<$PrismaModel>;
   _min?: Prisma.NestedStringNullableFilter<$PrismaModel>;
   _max?: Prisma.NestedStringNullableFilter<$PrismaModel>;
+};
+
+export type EnumWalletModeWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
+  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  not?: Prisma.NestedEnumWalletModeWithAggregatesFilter<$PrismaModel> | $Enums.WalletMode;
+  _count?: Prisma.NestedIntFilter<$PrismaModel>;
+  _min?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
+  _max?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
 };
 
 export type DateTimeWithAggregatesFilter<$PrismaModel = never> = {
@@ -457,13 +457,6 @@ export type NestedStringFilter<$PrismaModel = never> = {
   not?: Prisma.NestedStringFilter<$PrismaModel> | string;
 };
 
-export type NestedEnumWalletModeFilter<$PrismaModel = never> = {
-  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
-  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  not?: Prisma.NestedEnumWalletModeFilter<$PrismaModel> | $Enums.WalletMode;
-};
-
 export type NestedStringNullableFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel> | null;
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel> | null;
@@ -476,6 +469,13 @@ export type NestedStringNullableFilter<$PrismaModel = never> = {
   startsWith?: string | Prisma.StringFieldRefInput<$PrismaModel>;
   endsWith?: string | Prisma.StringFieldRefInput<$PrismaModel>;
   not?: Prisma.NestedStringNullableFilter<$PrismaModel> | string | null;
+};
+
+export type NestedEnumWalletModeFilter<$PrismaModel = never> = {
+  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
+  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  not?: Prisma.NestedEnumWalletModeFilter<$PrismaModel> | $Enums.WalletMode;
 };
 
 export type NestedDateTimeFilter<$PrismaModel = never> = {
@@ -517,16 +517,6 @@ export type NestedIntFilter<$PrismaModel = never> = {
   not?: Prisma.NestedIntFilter<$PrismaModel> | number;
 };
 
-export type NestedEnumWalletModeWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
-  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
-  not?: Prisma.NestedEnumWalletModeWithAggregatesFilter<$PrismaModel> | $Enums.WalletMode;
-  _count?: Prisma.NestedIntFilter<$PrismaModel>;
-  _min?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
-  _max?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
-};
-
 export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel> | null;
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel> | null;
@@ -553,6 +543,16 @@ export type NestedIntNullableFilter<$PrismaModel = never> = {
   gt?: number | Prisma.IntFieldRefInput<$PrismaModel>;
   gte?: number | Prisma.IntFieldRefInput<$PrismaModel>;
   not?: Prisma.NestedIntNullableFilter<$PrismaModel> | number | null;
+};
+
+export type NestedEnumWalletModeWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.WalletMode | Prisma.EnumWalletModeFieldRefInput<$PrismaModel>;
+  in?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  notIn?: $Enums.WalletMode[] | Prisma.ListEnumWalletModeFieldRefInput<$PrismaModel>;
+  not?: Prisma.NestedEnumWalletModeWithAggregatesFilter<$PrismaModel> | $Enums.WalletMode;
+  _count?: Prisma.NestedIntFilter<$PrismaModel>;
+  _min?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
+  _max?: Prisma.NestedEnumWalletModeFilter<$PrismaModel>;
 };
 
 export type NestedDateTimeWithAggregatesFilter<$PrismaModel = never> = {

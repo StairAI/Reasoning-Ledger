@@ -7,7 +7,8 @@ import * as z from "zod";
 export const RegisterOwnerInput = z.object({
   contact_email: z.string().email().optional(),
   display_name: z.string().optional(),
-  email: z.string().email(),
+  /** Optional: without one, the registration is anonymous and a new owner is made each time; with one, idempotent. */
+  email: z.string().email().optional(),
   /** An invite code, required when the ledger registers by invitation (RL_REGISTRATION=invite). */
   invite_code: z.string().min(1).max(64).optional(),
   /** Required when wallet_mode is "byow"; ignored in custodial mode. */
@@ -20,6 +21,8 @@ export type RegisterOwnerInput = z.infer<typeof RegisterOwnerInput>;
 export const UpdateOwnerInput = z.object({
   contact_email: z.string().email().optional(),
   display_name: z.string().optional(),
+  /** Claim: give an anonymous owner its e-mail (one that no other owner has). */
+  email: z.string().email().optional(),
   website: z.string().url().optional(),
 });
 export type UpdateOwnerInput = z.infer<typeof UpdateOwnerInput>;
@@ -34,6 +37,7 @@ export const RegisterOwnerOutput = z.object({
   contact_email: z.string().optional(),
   created_at: z.number(),
   display_name: z.string().optional(),
+  email: z.string().optional(),
   owner_id: z.string().uuid(),
   owner_wallet_address: z.string(),
   wallet_mode: z.enum(["custodial", "byow"]),
@@ -45,6 +49,7 @@ export const OwnerMetaOutput = z.object({
   contact_email: z.string().optional(),
   created_at: z.number(),
   display_name: z.string().optional(),
+  email: z.string().optional(),
   owner_id: z.string().uuid(),
   owner_wallet_address: z.string(),
   updated_at: z.number(),

@@ -2,6 +2,14 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## 2.0.2 — 2026-10-29
+
+The server only; the SDKs stay at 2.0.0.
+
+### Changed
+
+- **Owners register without an e-mail.** `POST /v1/owners` no longer requires `email`: without one, the registration is anonymous (the keys are the identity; a new owner each time, admitted by the invite code as before), and the owner can claim an e-mail later with `PATCH /v1/owners/me` (`email`; 409 when another owner holds it). With an e-mail, registration stays idempotent. Owner responses now carry `email` when there is one; the viewer names an anonymous owner by its id.
+
 ## 2.0.1 — 2026-10-29
 
 The server image only; the SDKs stay at 2.0.0.
