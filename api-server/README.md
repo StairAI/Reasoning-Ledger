@@ -32,10 +32,10 @@ pnpm install
 | `RL_RUNTIME_ROLE`        | No       | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating                       |
 | `CONTENT_DIR`            | No       | Where uploaded content is stored (default `data/content` in the working directory: `/app/data/content` in the image) |
 | `CONTENT_MAX_BYTES`      | No       | Largest accepted upload, in bytes (default 64 MiB)                                                                   |
-| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default) or `open`                                                                 |
+| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default), `invite` (self-service with an invite code) or `open`                    |
 | `RL_ADMIN_TOKEN`         | No       | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator          |
 | `RL_REGISTRATION_TOKEN`  | No       | Registers owners and reads nothing. Give this one to the application that signs people up                            |
-| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open`, registration attempts allowed per client address per hour (default 5)                   |
+| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open` or `invite`, registration attempts allowed per client address per hour (default 5)       |
 | `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                                      |
 | `VIZ_TICKET_TTL_SECONDS` | No       | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                              |
 | `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                 |
@@ -244,7 +244,7 @@ The read endpoints also accept the administrator's token in `X-Admin-Token`, whi
 
 | Method         | Path                        | Description                                                                    |
 | -------------- | --------------------------- | ------------------------------------------------------------------------------ |
-| `POST`         | `/v1/owners`                | Register an owner (see `RL_REGISTRATION`; not SDK surface)                     |
+| `POST`         | `/v1/owners`                | Register an owner (see `RL_REGISTRATION`; `invite_code` when by invitation)    |
 | `GET`          | `/v1/owners/me`             | The calling owner                                                              |
 | `PATCH`        | `/v1/owners/me`             | Update owner metadata                                                          |
 | `POST`         | `/v1/owners/me/rotate-key`  | Rotate the owner's API key                                                     |
@@ -259,11 +259,30 @@ The read endpoints also accept the administrator's token in `X-Admin-Token`, whi
 | `GET`          | `/v1/traces`                | The calling owner's sessions, most recent first                                |
 | `PUT`          | `/v1/content/{sha256}`      | Upload raw content; the body's SHA-256 must equal the path (SDK: `putContent`) |
 | `GET`, `HEAD`  | `/v1/content/{sha256}`      | Read uploaded content (SDK: `getContent`); `410` once deleted                  |
+| `PUT`          | `/v1/content-keys/{key_id}` | Register a wrapped data key for encrypted content (SDK: `put_content_key`)     |
+| `GET`          | `/v1/content-keys[/{id}]`   | One wrapped key, or a page of the owner's keys (SDK: `get_content_key`, `list_content_keys`) |
 | `POST`         | `/v1/viewer/tickets`        | A one-time link that signs a browser into the trace viewer as the owner        |
+| `POST`, `GET`  | `/v1/admin/invites`         | Make or list invite codes (administrator token only)                           |
+| `POST`         | `/v1/admin/invites/{code}/revoke` | Revoke an invite code (administrator token only)                          |
 
 Every read is limited to the calling owner's data: another owner's agent, record or session answers `404`.
 
 Records are written only as schema `0.5`. The server checks each record against the schema and the [cross-field rules](../schema/SCHEMA.md#cross-field-rules), and checks that the content it references was uploaded by the same owner.
+
+### Encrypted content
+
+A writer can encrypt content on its own machine before uploading it ([schema: `enc`](../schema/SCHEMA.md#encrypted-content--enc)): the ledger then holds ciphertext, a wrapped data key per session that it cannot unwrap, and the structure of the session in the clear. A record whose encrypted content names a key that was not registered is rejected, so nothing is stored that nobody could ever read. The Python SDK encrypts (`LedgerClientConfig.encryption`); the viewer decrypts in the browser with the master key carried in the sign-in link's fragment, which the browser never sends to the server. The administrator's token reads the ciphertext and the wrapped keys, and nothing more.
+
+### Registering by invitation
+
+With `RL_REGISTRATION=invite`, a self-service registration must carry an `invite_code`. The operator makes codes with the administrator token:
+
+```bash
+curl -s -X POST "$LEDGER/v1/admin/invites" -H "x-admin-token: $RL_ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{"count": 5, "note": "first batch", "max_uses": 1, "expires_in_days": 30}'
+```
+
+A code is spent in the transaction that creates the owner and recorded on it (`owners.invite_code`); `GET /v1/admin/invites` shows how often each was used, and `POST /v1/admin/invites/{code}/revoke` stops one. The operator's own tokens register without a code. Switching to `RL_REGISTRATION=open` later stops asking for codes and keeps the attribution; a code given in open mode is still checked and recorded.
 
 ## Health check
 
@@ -271,7 +290,7 @@ Records are written only as schema `0.5`. The server checks each record against 
 
 ## Trace viewer
 
-The pages at `/` list the signed-in visitor's sessions and render each session as a graph. Sign in at `/login` with an owner's API key, which shows that owner's data and nothing else, or with `RL_ADMIN_TOKEN`, which lists every owner's sessions and opens any trace — the header then reads "Administrator · all owners". Signed in as an owner, the header names that owner: its display name, or its e-mail when it has none. An application can also sign a person in for one owner with a one-time link ([below](#signing-a-person-into-the-viewer-from-your-application)). The viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and deletes expired sessions whenever someone signs in; the `/v1` API does not use the cookie.
+The pages at `/` list the signed-in visitor's sessions and render each session as a graph. Sign in at `/login` with an owner's API key, which shows that owner's data and nothing else, or with `RL_ADMIN_TOKEN`, which lists every owner's sessions and opens any trace — the header then reads "Administrator · all owners". Encrypted content is shown as placeholders until the browser has the owner's master key, which a sign-in link carries in its fragment (`#k=`, kept in the tab's sessionStorage and never sent to the server); signed in any other way, including as the administrator, the content stays encrypted. Signed in as an owner, the header names that owner: its display name, or its e-mail when it has none. An application can also sign a person in for one owner with a one-time link ([below](#signing-a-person-into-the-viewer-from-your-application)). The viewer keeps a server-side session in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and deletes expired sessions whenever someone signs in; the `/v1` API does not use the cookie.
 
 Content that records reference is read from the content store of the owner those records belong to, and shown inline when it is text or JSON of up to 256 KiB; other content is described by its size and media type, and deleted content is marked as deleted. Sign-in and sign-out accept form posts only from the site's own pages (Astro's global origin check is off because it also blocks API clients; see `astro.config.mjs`).
 

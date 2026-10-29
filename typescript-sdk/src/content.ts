@@ -35,17 +35,19 @@ export function sha256Hex(data: Uint8Array): string {
 /**
  * True iff `value` is a ContentRef: an object whose keys are exactly `sha256`
  * (64 lowercase hex), `bytes` (a non-negative integer) and `media_type` (a
- * string). Anything else at a content position is raw content.
+ * string), plus `enc` (an object) when the bytes are ciphertext. Anything
+ * else at a content position is raw content.
  */
 export function isContentRef(value: unknown): value is ContentRef {
   if (!isObject(value)) {
     return false;
   }
-  const keys = Object.keys(value);
-  const { bytes, media_type: mediaType, sha256 } = value;
+  const keys = Object.keys(value).filter((key) => key !== "enc");
+  const { bytes, enc, media_type: mediaType, sha256 } = value;
   return (
     keys.length === CONTENT_REF_KEYS.size &&
     keys.every((key) => CONTENT_REF_KEYS.has(key)) &&
+    (enc === undefined || isObject(enc)) &&
     isSha256Hex(sha256) &&
     typeof bytes === "number" &&
     Number.isInteger(bytes) &&

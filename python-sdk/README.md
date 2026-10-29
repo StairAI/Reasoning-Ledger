@@ -215,6 +215,32 @@ data: bytes = client.get_content(ref)                          # or client.get_c
 
 Uploads are idempotent by hash: content already stored answers with its existing reference. The server enforces the content size limit (HTTP 413 → `ValidationError`). Reading content that does not exist or was deleted raises `NotFoundError`.
 
+### Encryption
+
+Content can be encrypted on this machine before it is uploaded, so the ledger holds ciphertext it cannot open. Give the client a `ContentEncryption` built from a master key that stays in a file only you can read:
+
+```python
+from reasoning_ledger import ContentEncryption, generate_master_key, load_master_key, save_master_key
+
+path = "~/.stair/master.key"          # made once; back it up: without it the content cannot be read
+try:
+    master_key = load_master_key(path)
+except FileNotFoundError:
+    master_key = generate_master_key()
+    save_master_key(path, master_key)  # 0600
+
+client = LedgerClient(LedgerClientConfig(
+    agent_id=agent_id, api_key=api_key, endpoint=endpoint,
+    encryption=ContentEncryption(master_key=master_key, agent_id=agent_id),
+))
+```
+
+Every content position is then uploaded as AES-256-GCM ciphertext under a data key, one per session; the data key is wrapped with the master key and registered at `PUT /v1/content-keys/{key_id}` before any record names it. The reference carries `enc`: the cipher, the key id, and the plaintext's digest, size and media type. The structure of the record (behavior, timing, outcome, tool names) stays readable; the text does not.
+
+- `client.open_content(ref)` reads a reference back and decrypts it with the client's encryption (`ValidationError` without one; `ValueError` when another master key wrapped the key).
+- `client.put_content_key(key_id, body)`, `client.get_content_key(key_id)`, `client.list_content_keys(session_id=..., after=..., limit=...)` are the key endpoints; `ContentEncryption.wrapped(data_key)` makes a `body`. Rotating the master key is reading every key, unwrapping, re-wrapping and registering it again under the same id.
+- `master_key_fragment(master_key)` is the key as the trace viewer's sign-in link carries it (`#k=...`): the browser decrypts with it and never sends it.
+
 ---
 
 ## Behavior types

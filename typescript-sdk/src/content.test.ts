@@ -52,6 +52,9 @@ describe(isContentRef, () => {
   test("accepts an object whose keys are exactly sha256, bytes and media_type", () => {
     expect(isContentRef(REF)).toBeTruthy();
     expect(isContentRef({ bytes: 0, media_type: "x", sha256: "0".repeat(64) })).toBeTruthy();
+    // Encrypted content: the same reference, plus how to open it.
+    expect(isContentRef({ ...REF, enc: { alg: "A256GCM", key_id: "k" } })).toBeTruthy();
+    expect(isContentRef({ ...REF, enc: "A256GCM" })).toBeFalsy();
   });
 
   test.each([

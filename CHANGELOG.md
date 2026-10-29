@@ -2,6 +2,21 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0-rc.1 and later write `0.5`.
 
+## 2.0.0-rc.2 — 2026-10-29
+
+A pre-release of the server, the TypeScript SDK and the Python SDK, deployed to staging. Content encryption and registration by invitation.
+
+### Added
+
+- **Encrypted content.** A `ContentRef` may carry `enc`: the bytes the ledger holds are AES-256-GCM ciphertext made on the writer's machine with a data key, one per session, named by `enc.key_id`; `enc` also carries the plaintext's digest, size and media type ([schema](./schema/SCHEMA.md#encrypted-content--enc)). The wrapped data key, under the owner's master key, is registered at `PUT /v1/content-keys/{key_id}` and read back at `GET /v1/content-keys` and `GET /v1/content-keys/{key_id}`; a record whose encrypted content names an unregistered key is rejected. The master key never reaches the ledger.
+- **The viewer decrypts in the browser.** Encrypted content renders as a placeholder; the page carries the ciphertext and the wrapped keys, and the browser decrypts with the master key from the sign-in link's fragment (`#k=`), which the ticket page keeps in the tab's sessionStorage and never sends. Without the key, a note says how to open the viewer with one.
+- **Python SDK: `ContentEncryption`.** `LedgerClientConfig.encryption` encrypts every content position before upload and registers each session's wrapped key first; `open_content()` reads a reference back and decrypts it; `put_content_key`, `get_content_key`, `list_content_keys` and the master key helpers (`generate_master_key`, `save_master_key`, `load_master_key`, `master_key_fragment`) are new. The SDK now depends on `cryptography`. The TypeScript SDK accepts references with `enc` and does not encrypt yet.
+- **Invite codes.** `RL_REGISTRATION=invite` asks a self-service registration for an `invite_code` (`POST /v1/owners`), spent in the transaction that creates the owner and recorded on it; the administrator makes, lists and revokes codes at `/v1/admin/invites`. `open` keeps working as before, and still records a code when one is given.
+
+### Changed
+
+- `ContentRef.sha256` and `bytes` describe the bytes the ledger holds, which for encrypted content are the ciphertext; the reference is closed to these three keys plus `enc`.
+
 ## 2.0.0-rc.1 — 2026-10-28
 
 A pre-release of the server, the TypeScript SDK and the Python SDK, deployed to staging. Schema 0.5, in the server and both SDKs. The field-level reference is [`schema/SCHEMA.md`](./schema/SCHEMA.md); the `0.4` schema is kept under [`schema/history/0.4/`](./schema/history/0.4/).

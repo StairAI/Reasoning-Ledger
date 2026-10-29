@@ -31,11 +31,26 @@ Raw text never goes into a record. Prompts, model outputs, tool inputs and outpu
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `sha256` | `Sha256Hex` | ✅ | SHA-256 of the raw bytes, lowercase hex. Also the content's address: `PUT` / `GET /v1/content/{sha256}`. |
-| `bytes` | integer (≥0) | ✅ | Size of the raw bytes. |
-| `media_type` | string (≥1) | ✅ | e.g. `"text/plain; charset=utf-8"`, `"application/json"`. |
+| `sha256` | `Sha256Hex` | ✅ | SHA-256 of the bytes the ledger holds, lowercase hex. Also the content's address: `PUT` / `GET /v1/content/{sha256}`. |
+| `bytes` | integer (≥0) | ✅ | Size of the bytes the ledger holds. |
+| `media_type` | string (≥1) | ✅ | e.g. `"text/plain; charset=utf-8"`, `"application/json"`; `"application/octet-stream"` for ciphertext. |
+| `enc` | object | | Present when the bytes the ledger holds are ciphertext: how to open them, and what the plaintext was (below). |
 
-The object is closed: exactly these three keys. When a record is submitted, the server checks that every referenced object was uploaded by the same owner, has not been deleted, and has the declared size; otherwise the record is rejected. The SDKs upload raw values for you: in a content position you may pass a string, bytes or any other JSON value instead of a `ContentRef` (see the SDK READMEs).
+The object is closed: these three keys, plus `enc` when the content is encrypted. When a record is submitted, the server checks that every referenced object was uploaded by the same owner, has not been deleted, and has the declared size, and that every `enc.key_id` names a content key the owner registered; otherwise the record is rejected. The SDKs upload raw values for you: in a content position you may pass a string, bytes or any other JSON value instead of a `ContentRef` (see the SDK READMEs).
+
+### Encrypted content — `enc`
+
+Content can be encrypted on the writer's machine before it is uploaded, so that the ledger holds ciphertext it cannot open. The writer encrypts with a data key, one per session, and wraps that key with the owner's master key; the wrapped copy is registered at `PUT /v1/content-keys/{key_id}` before any record names it, and the master key never reaches the ledger. The trace viewer gets the master key through the sign-in link's fragment and decrypts in the browser.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `alg` | `"A256GCM"` | ✅ | The content cipher: AES-256-GCM. The object is nonce (12 bytes) + ciphertext + tag (16 bytes), with `key_id` as associated data. |
+| `key_id` | string (1–128) | ✅ | The data key that encrypts this object, as registered with the ledger. |
+| `plaintext_sha256` | `Sha256Hex` | ✅ | SHA-256 of the plaintext: a commitment to what the content was. Equal plaintexts have equal digests, so a short, guessable text can be recognised by whoever holds the ledger. |
+| `plaintext_bytes` | integer (≥0) | ✅ | Size of the plaintext. |
+| `plaintext_media_type` | string (≥1) | ✅ | Media type of the plaintext, e.g. `"text/plain; charset=utf-8"`. |
+
+The wrapped data key is the same shape under the master key (nonce + ciphertext + tag, `key_id` as associated data), base64; a registered key also names its master key by `master_key_id`, the first 16 hex characters of SHA-256(master key), so a reader can tell which master key opens it. Everything in the record outside content positions stays readable: the structure of a session is what the ledger is for.
 
 Content positions: `ToolCalling.input_payload` and `.output_payload`; `Thinking.prompt`, `.output_payload` and `.inputs[].input_payload`; `Reflecting.output_payload` and `.inputs[].input_payload`; `Escalating.asked`; `Delegating.goal` and `.result`; `Memorizing.target`; `Attesting.effects`; `ModelInvocation.internal_reasoning`; `ModelInvocation.replay_of` when it is a `ContentRef` rather than a record id.
 
