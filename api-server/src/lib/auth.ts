@@ -79,3 +79,14 @@ export const reader = base.use(async ({ context, next }) => {
   }
   return next({ context: { admin: false, ownerId: owner.ownerId } as ReadContext });
 });
+
+/**
+ * Administrator-only procedure builder: `X-Admin-Token` must be RL_ADMIN_TOKEN.
+ * For what only the operator does, such as making invite codes.
+ */
+export const administrator = base.use(({ context, next }) => {
+  if (!isAdminRequest(context.headers)) {
+    throw new ORPCError("UNAUTHORIZED", { message: "Administrator token required" });
+  }
+  return next({ context: { admin: true as const } });
+});

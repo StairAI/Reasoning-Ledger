@@ -4,7 +4,8 @@ import { prisma } from "#/lib/prisma";
 import { generateApiKey, hashApiKey } from "#/lib/crypto";
 import { generateWalletAddress } from "#/lib/wallet";
 import { authed, base } from "#/lib/auth";
-import { assertRegistrationAllowed } from "#/lib/registration";
+import { consumeInvite } from "#/lib/invites";
+import { admitRegistration } from "#/lib/registration";
 import { RegisterOwnerInput, UpdateOwnerInput } from "#/schemas/owners";
 
 // ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ export const registerOwner = base
   .route({
     description:
       "Register a new owner, or resolve the existing one when the e-mail is already on file (idempotent). " +
-      "Private deployments allow this only with the administrator token (`X-Admin-Token`); a hosted instance may open it to self-service with a per-address rate limit. " +
+      "Private deployments allow this only with the administrator token (`X-Admin-Token`); a hosted instance may open it to self-service with a per-address rate limit, or by invitation, when `invite_code` is required (`RL_REGISTRATION=invite`). A code is checked whenever it is given, spent when the owner is created, and recorded on the owner. " +
       "The raw `api_key` is returned **only on the first call** — it is never stored and cannot be retrieved again. " +
       "Wallet mode (`custodial` | `byow`) is locked at registration and applies to every agent created under this owner.",
     method: "POST",
@@ -69,7 +70,7 @@ export const registerOwner = base
     }),
   )
   .handler(async ({ input, context }) => {
-    assertRegistrationAllowed(context.headers);
+    const admission = await admitRegistration(context.headers, input.invite_code);
 
     // Idempotency: if owner with this email already exists, return metadata.
     const existing = await prisma.owner.findUnique({
@@ -94,16 +95,24 @@ export const registerOwner = base
         ? input.owner_wallet_address
         : generateWalletAddress();
 
-    const owner = await prisma.owner.create({
-      data: {
-        api_key_hash: hashApiKey(rawKey),
-        contact_email: input.contact_email,
-        display_name: input.display_name,
-        email: input.email,
-        owner_wallet_address: walletAddress,
-        wallet_mode: input.wallet_mode,
-        website: input.website,
-      },
+    // The invite's use is spent in the same transaction as the owner, so a
+    // code with one use left admits exactly one of two racing registrations.
+    const owner = await prisma.$transaction(async (tx) => {
+      if (admission.invite) {
+        await consumeInvite(tx, admission.invite);
+      }
+      return tx.owner.create({
+        data: {
+          api_key_hash: hashApiKey(rawKey),
+          contact_email: input.contact_email,
+          display_name: input.display_name,
+          email: input.email,
+          invite_code: admission.invite,
+          owner_wallet_address: walletAddress,
+          wallet_mode: input.wallet_mode,
+          website: input.website,
+        },
+      });
     });
 
     return {

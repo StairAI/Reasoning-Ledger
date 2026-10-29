@@ -14,6 +14,8 @@ const expired = Astro.url.searchParams.get("expired")
 ---
 
 <Layout title="Reasoning Ledger · Sign in">
+  {/* A fresh sign-in starts without a content master key; a sign-in link brings its own. */}
+  <script is:inline>try{sessionStorage.removeItem("rl_mk")}catch{/* no storage: nothing to clear */}</script>
   <div class="flex min-h-screen items-center justify-center dot-grid px-6">
     <form method="post" action="/session" class="flex w-full max-w-[360px] flex-col gap-4">
       <input type="hidden" name="next" value={next} />

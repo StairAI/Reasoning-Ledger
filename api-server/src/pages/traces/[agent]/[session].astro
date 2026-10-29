@@ -7,7 +7,8 @@ import ViewController from "#/components/ViewController.astro";
 import NodeCard from "#/components/NodeCard.astro";
 import InspectorPanel from "#/components/InspectorPanel.astro";
 import ViewerBadge from "#/components/ViewerBadge.astro";
-import { contentForViewer } from "#/lib/content-view";
+import { contentForViewer, encryptionForViewer, jsonForScript } from "#/lib/content-view";
+import type { PageEncryption } from "#/lib/content-view";
 import { reconstructRecord } from "#/lib/record";
 import { ownedSession, ownedSessionSummaries, sessionStats } from "#/lib/repository";
 import type { SessionSummary } from "#/lib/repository";
@@ -31,6 +32,8 @@ let trace: {
 } | null = null;
 let sessions: SessionSummary[] = [];
 let contents: ContentMap = {};
+// Encrypted objects and their wrapped keys, for the browser to decrypt (scripts/decrypt.ts).
+let encryption: PageEncryption = { keys: {}, objects: {} };
 let loadError: string | null = null;
 
 try {
@@ -45,6 +48,7 @@ try {
     };
     // Content belongs to the agent's owner, which is the viewer unless they are the administrator.
     contents = await contentForViewer(session.agent.owner_id, trace.records);
+    encryption = await encryptionForViewer(session.agent.owner_id, contents);
   } else {
     loadError = "Trace (session) not found";
   }
@@ -54,6 +58,7 @@ try {
 }
 
 const records = (trace?.records ?? []) as unknown as TraceRecord[];
+const hasEncrypted = Object.keys(encryption.objects).length > 0;
 ---
 
 <Layout title={trace ? `Trace · ${trace.agent_name}` : "Trace not found"}>
@@ -108,6 +113,19 @@ const records = (trace?.records ?? []) as unknown as TraceRecord[];
           <Legend />
         </div>
 
+        {/* encrypted content: ciphertext and wrapped keys for the browser; a note until it has the key */}
+        {hasEncrypted && (
+          <script is:inline type="application/json" id="rl-enc" set:html={jsonForScript(encryption)}></script>
+        )}
+        {hasEncrypted && (
+          <div id="rl-enc-banner" hidden class="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
+            <p class="pointer-events-auto max-w-[560px] rounded-md border border-line bg-surface/90 px-4 py-2 text-center text-[12px] text-ink/70 backdrop-blur-sm">
+              Encrypted content is shown as placeholders in this tab. Open the viewer through
+              <code class="text-ink">stair rl viewer</code> to decrypt it here; the key never reaches the server.
+            </p>
+          </div>
+        )}
+
         {/* zoom controls */}
         <div class="absolute bottom-6 right-6">
           <ViewController />
@@ -126,7 +144,10 @@ const records = (trace?.records ?? []) as unknown as TraceRecord[];
 
 <script>
   import { initGraph } from "#/scripts/graph";
+  import { decryptPage } from "#/scripts/decrypt";
   initGraph();
+  // Cards keep their size (the body is clamped), so decrypting after layout moves nothing.
+  void decryptPage();
 
   // Session picker → navigate to the chosen trace (value is "agentId::sessionId").
   const picker = document.querySelector<HTMLSelectElement>("[data-session-picker]");

@@ -28,6 +28,41 @@ class UuidV4(RootModel[UUID]):
     root: UUID
 
 
+class Alg(StrEnum):
+    A256GCM = "A256GCM"
+
+
+class Enc(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    alg: Annotated[Alg, Field(description="The content cipher. A256GCM: AES-256-GCM.")]
+    key_id: Annotated[
+        str,
+        Field(
+            description="The data key that encrypts this object, as registered with the ledger (one key per session, wrapped with the owner's master key).",
+            max_length=128,
+            min_length=1,
+        ),
+    ]
+    plaintext_sha256: Annotated[
+        str,
+        Field(
+            description="SHA-256 of the plaintext, lowercase hex.",
+            pattern="^[0-9a-f]{64}$",
+        ),
+    ]
+    plaintext_bytes: Annotated[int, Field(description="Size of the plaintext.", ge=0)]
+    plaintext_media_type: Annotated[
+        str,
+        Field(
+            description='Media type of the plaintext, e.g. "text/plain; charset=utf-8".',
+            examples=["text/plain; charset=utf-8", "application/json"],
+            min_length=1,
+        ),
+    ]
+
+
 class ContentRef(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -35,7 +70,7 @@ class ContentRef(BaseModel):
     sha256: Annotated[
         str,
         Field(
-            description="SHA-256 of the raw bytes, lowercase hex.",
+            description="SHA-256 of the bytes the ledger holds, lowercase hex.",
             pattern="^[0-9a-f]{64}$",
         ),
     ]
@@ -44,6 +79,12 @@ class ContentRef(BaseModel):
         str,
         Field(examples=["text/plain; charset=utf-8", "application/json"], min_length=1),
     ]
+    enc: Annotated[
+        Enc | None,
+        Field(
+            description="Present when the referenced bytes are ciphertext: the content was encrypted on the writer's machine before upload (AES-256-GCM; the object is nonce (12 bytes) + ciphertext + tag (16 bytes), with the key id as associated data). The data key is named by key_id; its wrapped copy is registered under PUT /v1/content-keys/{key_id}. The plaintext digest is a commitment: it shows what the content was without revealing it, and equal plaintexts have equal digests."
+        ),
+    ] = None
 
 
 class Executor(StrEnum):

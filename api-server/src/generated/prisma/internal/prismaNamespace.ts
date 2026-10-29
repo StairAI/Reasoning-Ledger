@@ -382,6 +382,8 @@ export const ModelName = {
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
   ViewerTicket: "ViewerTicket",
+  ContentKey: "ContentKey",
+  Invite: "Invite",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -408,7 +410,9 @@ export type TypeMap<
       | "contentObject"
       | "contentDeletion"
       | "vizSession"
-      | "viewerTicket";
+      | "viewerTicket"
+      | "contentKey"
+      | "invite";
     txIsolationLevel: TransactionIsolationLevel;
   };
   model: {
@@ -936,6 +940,154 @@ export type TypeMap<
         };
       };
     };
+    ContentKey: {
+      payload: Prisma.$ContentKeyPayload<ExtArgs>;
+      fields: Prisma.ContentKeyFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.ContentKeyFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.ContentKeyFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>;
+        };
+        findFirst: {
+          args: Prisma.ContentKeyFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.ContentKeyFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>;
+        };
+        findMany: {
+          args: Prisma.ContentKeyFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>[];
+        };
+        create: {
+          args: Prisma.ContentKeyCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>;
+        };
+        createMany: {
+          args: Prisma.ContentKeyCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.ContentKeyCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>[];
+        };
+        delete: {
+          args: Prisma.ContentKeyDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>;
+        };
+        update: {
+          args: Prisma.ContentKeyUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>;
+        };
+        deleteMany: {
+          args: Prisma.ContentKeyDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.ContentKeyUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.ContentKeyUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>[];
+        };
+        upsert: {
+          args: Prisma.ContentKeyUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentKeyPayload>;
+        };
+        aggregate: {
+          args: Prisma.ContentKeyAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentKey>;
+        };
+        groupBy: {
+          args: Prisma.ContentKeyGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ContentKeyGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.ContentKeyCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ContentKeyCountAggregateOutputType> | number;
+        };
+      };
+    };
+    Invite: {
+      payload: Prisma.$InvitePayload<ExtArgs>;
+      fields: Prisma.InviteFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.InviteFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.InviteFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>;
+        };
+        findFirst: {
+          args: Prisma.InviteFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.InviteFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>;
+        };
+        findMany: {
+          args: Prisma.InviteFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>[];
+        };
+        create: {
+          args: Prisma.InviteCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>;
+        };
+        createMany: {
+          args: Prisma.InviteCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.InviteCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>[];
+        };
+        delete: {
+          args: Prisma.InviteDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>;
+        };
+        update: {
+          args: Prisma.InviteUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>;
+        };
+        deleteMany: {
+          args: Prisma.InviteDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.InviteUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.InviteUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>[];
+        };
+        upsert: {
+          args: Prisma.InviteUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InvitePayload>;
+        };
+        aggregate: {
+          args: Prisma.InviteAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateInvite>;
+        };
+        groupBy: {
+          args: Prisma.InviteGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.InviteGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.InviteCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.InviteCountAggregateOutputType> | number;
+        };
+      };
+    };
   };
 } & {
   other: {
@@ -984,6 +1136,7 @@ export const OwnerScalarFieldEnum = {
   display_name: "display_name",
   website: "website",
   contact_email: "contact_email",
+  invite_code: "invite_code",
   created_at: "created_at",
   updated_at: "updated_at",
 } as const;
@@ -1074,6 +1227,34 @@ export const ViewerTicketScalarFieldEnum = {
 
 export type ViewerTicketScalarFieldEnum =
   (typeof ViewerTicketScalarFieldEnum)[keyof typeof ViewerTicketScalarFieldEnum];
+
+export const ContentKeyScalarFieldEnum = {
+  owner_id: "owner_id",
+  key_id: "key_id",
+  agent_id: "agent_id",
+  session_id: "session_id",
+  wrap_alg: "wrap_alg",
+  master_key_id: "master_key_id",
+  wrapped_key: "wrapped_key",
+  created_at: "created_at",
+  updated_at: "updated_at",
+} as const;
+
+export type ContentKeyScalarFieldEnum =
+  (typeof ContentKeyScalarFieldEnum)[keyof typeof ContentKeyScalarFieldEnum];
+
+export const InviteScalarFieldEnum = {
+  code: "code",
+  note: "note",
+  max_uses: "max_uses",
+  uses: "uses",
+  expires_at: "expires_at",
+  revoked_at: "revoked_at",
+  created_at: "created_at",
+} as const;
+
+export type InviteScalarFieldEnum =
+  (typeof InviteScalarFieldEnum)[keyof typeof InviteScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",
@@ -1381,6 +1562,8 @@ export type GlobalOmitConfig = {
   contentDeletion?: Prisma.ContentDeletionOmit;
   vizSession?: Prisma.VizSessionOmit;
   viewerTicket?: Prisma.ViewerTicketOmit;
+  contentKey?: Prisma.ContentKeyOmit;
+  invite?: Prisma.InviteOmit;
 };
 
 /* Types for Logging */

@@ -27,10 +27,36 @@ export const Sha256Hex = z.string().regex(new RegExp("^[0-9a-f]{64}$"));
 export type Sha256Hex = z.infer<typeof Sha256Hex>;
 
 export const ContentRef = z
-  .object({ sha256: Sha256Hex, bytes: z.number().int().gte(0), media_type: z.string().min(1) })
+  .object({
+    sha256: Sha256Hex,
+    bytes: z.number().int().gte(0),
+    media_type: z.string().min(1),
+    enc: z
+      .object({
+        alg: z.literal("A256GCM").describe("The content cipher. A256GCM: AES-256-GCM."),
+        key_id: z
+          .string()
+          .min(1)
+          .max(128)
+          .describe(
+            "The data key that encrypts this object, as registered with the ledger (one key per session, wrapped with the owner's master key).",
+          ),
+        plaintext_sha256: Sha256Hex,
+        plaintext_bytes: z.number().int().gte(0).describe("Size of the plaintext."),
+        plaintext_media_type: z
+          .string()
+          .min(1)
+          .describe('Media type of the plaintext, e.g. "text/plain; charset=utf-8".'),
+      })
+      .strict()
+      .describe(
+        "Present when the referenced bytes are ciphertext: the content was encrypted on the writer's machine before upload (AES-256-GCM; the object is nonce (12 bytes) + ciphertext + tag (16 bytes), with the key id as associated data). The data key is named by key_id; its wrapped copy is registered under PUT /v1/content-keys/{key_id}. The plaintext digest is a commitment: it shows what the content was without revealing it, and equal plaintexts have equal digests.",
+      )
+      .optional(),
+  })
   .strict()
   .describe(
-    "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them.",
+    "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them. sha256, bytes and media_type describe the bytes the ledger holds; when those bytes are ciphertext, enc says how to decrypt them and what the plaintext was.",
   );
 export type ContentRef = z.infer<typeof ContentRef>;
 

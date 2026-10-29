@@ -4,14 +4,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { objectPath, writeObject } from "#/lib/content-store";
-import { contentForViewer } from "#/lib/content-view";
+import { contentForViewer, encryptionForViewer, jsonForScript } from "#/lib/content-view";
 import { prisma } from "#/lib/prisma";
 import {
   BEHAVIOR_META,
   LEGEND_ORDER,
   cardView,
   contentText,
+  contentValue,
   depIds,
+  encryptedPlaceholder,
   overviewSections,
   payloadOnly,
 } from "#/lib/trace";
@@ -517,5 +519,76 @@ describe("Trace viewer rendering", () => {
       { kind: "code", label: "CONTINGENCIES", value: ["roll back"] },
     ]);
     expect(depIds(planning)).toStrictEqual([parent, upstream]);
+  });
+});
+
+describe("Trace viewer encrypted content", () => {
+  let owner: TestOwner;
+  let contentDir: string;
+
+  beforeAll(async () => {
+    contentDir = mkdtempSync(path.join(tmpdir(), "rl-viewer-enc-"));
+    process.env.CONTENT_DIR = contentDir;
+    owner = await makeTestOwner();
+  });
+
+  afterAll(async () => {
+    await prisma.contentKey.deleteMany({ where: { owner_id: owner.ownerId } });
+    await prisma.contentObject.deleteMany({ where: { owner_id: owner.ownerId } });
+    await owner.cleanup();
+    rmSync(contentDir, { force: true, recursive: true });
+  });
+
+  it("hands the browser the ciphertext and the wrapped key, and shows a placeholder until it decrypts", async () => {
+    // The server never sees the key: these bytes only have to be stored and handed back.
+    const stored = await store(owner, "not really ciphertext", "application/octet-stream");
+    const keyId = crypto.randomUUID();
+    await prisma.contentKey.create({
+      data: {
+        key_id: keyId,
+        master_key_id: "0123456789abcdef",
+        owner_id: owner.ownerId,
+        wrap_alg: "A256GCM",
+        wrapped_key: Buffer.alloc(60, 1).toString("base64"),
+      },
+    });
+    const ref: ContentRef = {
+      ...stored,
+      enc: {
+        alg: "A256GCM",
+        key_id: keyId,
+        plaintext_bytes: 4,
+        plaintext_media_type: "application/json",
+        plaintext_sha256: "a".repeat(64),
+      },
+    };
+    const orphan: ContentRef = { ...ref, enc: { ...ref.enc, key_id: "never-registered" } };
+    const records = [
+      record({ behavior: "Observing", trigger_payload: ref }),
+      record({ behavior: "Acting", output_payload: orphan }),
+    ];
+    const contents = await contentForViewer(owner.ownerId, records);
+    expect(contents[stored.sha256]).toMatchObject({
+      alg: "A256GCM",
+      bytes: 4,
+      ciphertext: Buffer.from("not really ciphertext").toString("base64"),
+      key_id: keyId,
+      media_type: "application/json",
+      state: "encrypted",
+    });
+    expect(contentText(ref, contents)).toBe(encryptedPlaceholder(stored.sha256));
+    expect(contentValue(ref, contents)).toBe(`[encrypted:${stored.sha256}]`);
+    expect(cardView(records[0], contents).description).toBe(encryptedPlaceholder(stored.sha256));
+
+    const encryption = await encryptionForViewer(owner.ownerId, contents);
+    expect(Object.keys(encryption.objects)).toStrictEqual([stored.sha256]);
+    expect(encryption.keys[keyId]).toMatchObject({
+      master_key_id: "0123456789abcdef",
+      wrap_alg: "A256GCM",
+    });
+    expect(encryption.keys["never-registered"]).toBeUndefined();
+    expect(jsonForScript({ a: "</script><b>&" })).toBe(
+      '{"a":"\\u003c/script\\u003e\\u003cb\\u003e\\u0026"}',
+    );
   });
 });

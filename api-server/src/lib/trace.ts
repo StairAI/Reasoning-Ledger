@@ -37,13 +37,44 @@ export interface ContentRef {
   sha256: string;
   bytes: number;
   media_type: string;
+  /** Present when the bytes the ledger holds are ciphertext (schema 0.5 `enc`). */
+  enc?: {
+    alg: string;
+    key_id: string;
+    plaintext_sha256: string;
+    plaintext_bytes: number;
+    plaintext_media_type: string;
+  };
 }
 
-/** What the viewer can show for one piece of referenced content. */
+/**
+ * What the viewer can show for one piece of referenced content. Encrypted
+ * content is carried as ciphertext: the server cannot open it, the browser
+ * does (scripts/decrypt.ts), and until then the page shows a placeholder.
+ */
 export type ContentView =
   | { state: "text"; text: string }
   | { state: "json"; value: unknown }
+  | {
+      state: "encrypted";
+      alg: string;
+      key_id: string;
+      ciphertext: string;
+      media_type: string;
+      bytes: number;
+    }
   | { state: "binary" | "too_large" | "deleted" | "missing" | "unreadable" };
+
+/**
+ * Where encrypted content goes in the rendered page until the browser
+ * decrypts it: a token naming the object, which scripts/decrypt.ts replaces
+ * with the plaintext wherever it appears in the page's text.
+ */
+export const ENCRYPTED_TOKEN = /\[encrypted:([0-9a-f]{64})\]/g;
+
+export function encryptedPlaceholder(sha256: string): string {
+  return `[encrypted:${sha256}]`;
+}
 
 /** Resolved content, keyed by SHA-256. */
 export type ContentMap = Record<string, ContentView>;
@@ -285,6 +316,9 @@ export function contentText(value: unknown, contents: ContentMap): string {
   if (view?.state === "text") {
     return view.text;
   }
+  if (view?.state === "encrypted") {
+    return encryptedPlaceholder(value.sha256);
+  }
   return view?.state === "json" ? prettyJSON(view.value) : unavailable(value, view);
 }
 
@@ -296,6 +330,9 @@ export function contentValue(value: unknown, contents: ContentMap): unknown {
   const view = contents[value.sha256];
   if (view?.state === "json") {
     return view.value;
+  }
+  if (view?.state === "encrypted") {
+    return encryptedPlaceholder(value.sha256);
   }
   return view?.state === "text" ? view.text : unavailable(value, view);
 }

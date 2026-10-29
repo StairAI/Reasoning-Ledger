@@ -314,6 +314,9 @@ describe("Viewer tickets: the sign-in page", () => {
     expect(html).toContain('<meta http-equiv="refresh" content="0; url=/traces/a/b">');
     expect(html).toContain('<a id="next" href="/traces/a/b">');
     expect(html).toContain("location.replace(");
+    // The content master key rides in the link's fragment, which the browser
+    // never sends: the page keeps it for the tab before moving on.
+    expect(html).toContain('sessionStorage.setItem("rl_mk",k.slice(3))');
     // The policy allows the page's one script, by hash, and nothing else.
     const script = /<script>([^<]*)<\/script>/.exec(html)?.[1] ?? "";
     const hash = createHash("sha256").update(script).digest("base64");

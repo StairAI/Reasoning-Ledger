@@ -38,7 +38,7 @@
     },
     "ContentRef": {
       "type": "object",
-      "description": "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them.",
+      "description": "Reference to raw content held in the content library. Raw text never goes into a record: upload the bytes first, then reference them. sha256, bytes and media_type describe the bytes the ledger holds; when those bytes are ciphertext, enc says how to decrypt them and what the plaintext was.",
       "required": [
         "sha256",
         "bytes",
@@ -47,7 +47,7 @@
       "properties": {
         "sha256": {
           "$ref": "#/$defs/Sha256Hex",
-          "description": "SHA-256 of the raw bytes, lowercase hex."
+          "description": "SHA-256 of the bytes the ledger holds, lowercase hex."
         },
         "bytes": {
           "type": "integer",
@@ -60,6 +60,51 @@
             "text/plain; charset=utf-8",
             "application/json"
           ]
+        },
+        "enc": {
+          "type": "object",
+          "description": "Present when the referenced bytes are ciphertext: the content was encrypted on the writer's machine before upload (AES-256-GCM; the object is nonce (12 bytes) + ciphertext + tag (16 bytes), with the key id as associated data). The data key is named by key_id; its wrapped copy is registered under PUT /v1/content-keys/{key_id}. The plaintext digest is a commitment: it shows what the content was without revealing it, and equal plaintexts have equal digests.",
+          "required": [
+            "alg",
+            "key_id",
+            "plaintext_sha256",
+            "plaintext_bytes",
+            "plaintext_media_type"
+          ],
+          "properties": {
+            "alg": {
+              "type": "string",
+              "enum": [
+                "A256GCM"
+              ],
+              "description": "The content cipher. A256GCM: AES-256-GCM."
+            },
+            "key_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "The data key that encrypts this object, as registered with the ledger (one key per session, wrapped with the owner's master key)."
+            },
+            "plaintext_sha256": {
+              "$ref": "#/$defs/Sha256Hex",
+              "description": "SHA-256 of the plaintext, lowercase hex."
+            },
+            "plaintext_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Size of the plaintext."
+            },
+            "plaintext_media_type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Media type of the plaintext, e.g. \"text/plain; charset=utf-8\".",
+              "examples": [
+                "text/plain; charset=utf-8",
+                "application/json"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
