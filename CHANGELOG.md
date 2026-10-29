@@ -1,6 +1,10 @@
 # Changelog
 
-The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0-rc.1 and later write `0.5`.
+The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
+
+## 2.0.0 — 2026-10-29
+
+The release of 2.0.0-rc.1 and 2.0.0-rc.2 below, unchanged: schema 0.5 in the server and both SDKs, content encrypted on the writer's machine, registration by invitation. Writes of schema `0.4` are refused from this version on; records written earlier stay readable. The hosted ledger runs this version with `RL_REGISTRATION=invite`.
 
 ## 2.0.0-rc.2 — 2026-10-29
 

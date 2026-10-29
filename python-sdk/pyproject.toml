@@ -1,6 +1,6 @@
 [project]
 name = "reasoning-ledger"
-version = "2.0.0rc2"
+version = "2.0.0"
 license = "MIT"
 license-files = ["LICENSE"]
 description = "Python SDK for the Reasoning Ledger, an append-only audit trail for AI agent reasoning."
