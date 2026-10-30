@@ -9,6 +9,7 @@ import { version } from "../../package.json";
 import { adminRouter } from "./admin";
 import { contentKeysRouter } from "./content-keys";
 import { ownersRouter } from "./owners";
+import { accessRouter } from "./access";
 import { agentsRouter } from "./agents";
 import { recordsRouter } from "./records";
 import { sessionsRouter } from "./sessions";
@@ -21,6 +22,7 @@ import { viewerRouter } from "./viewer";
  *
  * Route groups map to the three API planes defined in the design doc §9:
  *   - owners:   Control plane — owner lifecycle (website/admin tooling only)
+ *   - access:   Control plane — the access gate's handles and grants (administrator only)
  *   - agents:   Control plane — agent lifecycle (SDK-facing)
  *   - records:  Data plane   — record submission and retrieval
  *   - sessions: Data plane   — session record retrieval
@@ -32,6 +34,7 @@ import { viewerRouter } from "./viewer";
  * UI renders them in labelled, collapsible sections.
  */
 export const router = {
+  access: accessRouter,
   admin: adminRouter,
   agents: agentsRouter,
   contentKeys: contentKeysRouter,

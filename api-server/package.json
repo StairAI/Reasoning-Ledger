@@ -11,6 +11,7 @@
     "test": "vitest run",
     "check": "ultracite check",
     "typecheck": "astro sync && tsc --noEmit",
+    "access-key": "node scripts/access-key.mts",
     "db:deploy": "node scripts/db-deploy.mts",
     "delete-content": "node scripts/delete-content.mts",
     "export-records": "node scripts/export-records.mts",

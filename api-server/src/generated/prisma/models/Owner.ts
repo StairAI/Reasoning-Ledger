@@ -33,6 +33,7 @@ export type OwnerMinAggregateOutputType = {
   website: string | null;
   contact_email: string | null;
   invite_code: string | null;
+  handle: string | null;
   created_at: Date | null;
   updated_at: Date | null;
 };
@@ -47,6 +48,7 @@ export type OwnerMaxAggregateOutputType = {
   website: string | null;
   contact_email: string | null;
   invite_code: string | null;
+  handle: string | null;
   created_at: Date | null;
   updated_at: Date | null;
 };
@@ -61,6 +63,7 @@ export type OwnerCountAggregateOutputType = {
   website: number;
   contact_email: number;
   invite_code: number;
+  handle: number;
   created_at: number;
   updated_at: number;
   _all: number;
@@ -76,6 +79,7 @@ export type OwnerMinAggregateInputType = {
   website?: true;
   contact_email?: true;
   invite_code?: true;
+  handle?: true;
   created_at?: true;
   updated_at?: true;
 };
@@ -90,6 +94,7 @@ export type OwnerMaxAggregateInputType = {
   website?: true;
   contact_email?: true;
   invite_code?: true;
+  handle?: true;
   created_at?: true;
   updated_at?: true;
 };
@@ -104,6 +109,7 @@ export type OwnerCountAggregateInputType = {
   website?: true;
   contact_email?: true;
   invite_code?: true;
+  handle?: true;
   created_at?: true;
   updated_at?: true;
   _all?: true;
@@ -192,6 +198,7 @@ export type OwnerGroupByOutputType = {
   website: string | null;
   contact_email: string | null;
   invite_code: string | null;
+  handle: string | null;
   created_at: Date;
   updated_at: Date;
   _count: OwnerCountAggregateOutputType | null;
@@ -224,6 +231,7 @@ export type OwnerWhereInput = {
   website?: Prisma.StringNullableFilter<"Owner"> | string | null;
   contact_email?: Prisma.StringNullableFilter<"Owner"> | string | null;
   invite_code?: Prisma.StringNullableFilter<"Owner"> | string | null;
+  handle?: Prisma.StringNullableFilter<"Owner"> | string | null;
   created_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
   updated_at?: Prisma.DateTimeFilter<"Owner"> | Date | string;
   agents?: Prisma.AgentListRelationFilter;
@@ -232,6 +240,7 @@ export type OwnerWhereInput = {
   viz_sessions?: Prisma.VizSessionListRelationFilter;
   viewer_tickets?: Prisma.ViewerTicketListRelationFilter;
   view_grants?: Prisma.ViewGrantListRelationFilter;
+  access_grants?: Prisma.AccessGrantListRelationFilter;
 };
 
 export type OwnerOrderByWithRelationInput = {
@@ -244,6 +253,7 @@ export type OwnerOrderByWithRelationInput = {
   website?: Prisma.SortOrderInput | Prisma.SortOrder;
   contact_email?: Prisma.SortOrderInput | Prisma.SortOrder;
   invite_code?: Prisma.SortOrderInput | Prisma.SortOrder;
+  handle?: Prisma.SortOrderInput | Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
   agents?: Prisma.AgentOrderByRelationAggregateInput;
@@ -252,6 +262,7 @@ export type OwnerOrderByWithRelationInput = {
   viz_sessions?: Prisma.VizSessionOrderByRelationAggregateInput;
   viewer_tickets?: Prisma.ViewerTicketOrderByRelationAggregateInput;
   view_grants?: Prisma.ViewGrantOrderByRelationAggregateInput;
+  access_grants?: Prisma.AccessGrantOrderByRelationAggregateInput;
 };
 
 export type OwnerWhereUniqueInput = Prisma.AtLeast<
@@ -259,6 +270,7 @@ export type OwnerWhereUniqueInput = Prisma.AtLeast<
     id?: string;
     email?: string;
     api_key_hash?: string;
+    handle?: string;
     AND?: Prisma.OwnerWhereInput | Prisma.OwnerWhereInput[];
     OR?: Prisma.OwnerWhereInput[];
     NOT?: Prisma.OwnerWhereInput | Prisma.OwnerWhereInput[];
@@ -276,8 +288,9 @@ export type OwnerWhereUniqueInput = Prisma.AtLeast<
     viz_sessions?: Prisma.VizSessionListRelationFilter;
     viewer_tickets?: Prisma.ViewerTicketListRelationFilter;
     view_grants?: Prisma.ViewGrantListRelationFilter;
+    access_grants?: Prisma.AccessGrantListRelationFilter;
   },
-  "id" | "email" | "api_key_hash"
+  "id" | "email" | "api_key_hash" | "handle"
 >;
 
 export type OwnerOrderByWithAggregationInput = {
@@ -290,6 +303,7 @@ export type OwnerOrderByWithAggregationInput = {
   website?: Prisma.SortOrderInput | Prisma.SortOrder;
   contact_email?: Prisma.SortOrderInput | Prisma.SortOrder;
   invite_code?: Prisma.SortOrderInput | Prisma.SortOrder;
+  handle?: Prisma.SortOrderInput | Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
   _count?: Prisma.OwnerCountOrderByAggregateInput;
@@ -310,6 +324,7 @@ export type OwnerScalarWhereWithAggregatesInput = {
   website?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   contact_email?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   invite_code?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
+  handle?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   created_at?: Prisma.DateTimeWithAggregatesFilter<"Owner"> | Date | string;
   updated_at?: Prisma.DateTimeWithAggregatesFilter<"Owner"> | Date | string;
 };
@@ -324,6 +339,7 @@ export type OwnerCreateInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
@@ -332,6 +348,7 @@ export type OwnerCreateInput = {
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateInput = {
@@ -344,6 +361,7 @@ export type OwnerUncheckedCreateInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
@@ -352,6 +370,7 @@ export type OwnerUncheckedCreateInput = {
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUpdateInput = {
@@ -364,6 +383,7 @@ export type OwnerUpdateInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
@@ -372,6 +392,7 @@ export type OwnerUpdateInput = {
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateInput = {
@@ -384,6 +405,7 @@ export type OwnerUncheckedUpdateInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -392,6 +414,7 @@ export type OwnerUncheckedUpdateInput = {
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateManyInput = {
@@ -404,6 +427,7 @@ export type OwnerCreateManyInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
 };
@@ -418,6 +442,7 @@ export type OwnerUpdateManyMutationInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -432,6 +457,7 @@ export type OwnerUncheckedUpdateManyInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
 };
@@ -446,6 +472,7 @@ export type OwnerCountOrderByAggregateInput = {
   website?: Prisma.SortOrder;
   contact_email?: Prisma.SortOrder;
   invite_code?: Prisma.SortOrder;
+  handle?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
 };
@@ -460,6 +487,7 @@ export type OwnerMaxOrderByAggregateInput = {
   website?: Prisma.SortOrder;
   contact_email?: Prisma.SortOrder;
   invite_code?: Prisma.SortOrder;
+  handle?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
 };
@@ -474,6 +502,7 @@ export type OwnerMinOrderByAggregateInput = {
   website?: Prisma.SortOrder;
   contact_email?: Prisma.SortOrder;
   invite_code?: Prisma.SortOrder;
+  handle?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   updated_at?: Prisma.SortOrder;
 };
@@ -662,6 +691,32 @@ export type OwnerUpdateOneRequiredWithoutContent_keysNestedInput = {
   >;
 };
 
+export type OwnerCreateNestedOneWithoutAccess_grantsInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutAccess_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutAccess_grantsInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutAccess_grantsInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+};
+
+export type OwnerUpdateOneRequiredWithoutAccess_grantsNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutAccess_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutAccess_grantsInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutAccess_grantsInput;
+  upsert?: Prisma.OwnerUpsertWithoutAccess_grantsInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.OwnerUpdateToOneWithWhereWithoutAccess_grantsInput,
+      Prisma.OwnerUpdateWithoutAccess_grantsInput
+    >,
+    Prisma.OwnerUncheckedUpdateWithoutAccess_grantsInput
+  >;
+};
+
 export type OwnerCreateWithoutAgentsInput = {
   id?: string;
   email?: string | null;
@@ -672,6 +727,7 @@ export type OwnerCreateWithoutAgentsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
@@ -679,6 +735,7 @@ export type OwnerCreateWithoutAgentsInput = {
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutAgentsInput = {
@@ -691,6 +748,7 @@ export type OwnerUncheckedCreateWithoutAgentsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
@@ -698,6 +756,7 @@ export type OwnerUncheckedCreateWithoutAgentsInput = {
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutAgentsInput = {
@@ -738,6 +797,7 @@ export type OwnerUpdateWithoutAgentsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
@@ -745,6 +805,7 @@ export type OwnerUpdateWithoutAgentsInput = {
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutAgentsInput = {
@@ -757,6 +818,7 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -764,6 +826,7 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutContentInput = {
@@ -776,6 +839,7 @@ export type OwnerCreateWithoutContentInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
@@ -783,6 +847,7 @@ export type OwnerCreateWithoutContentInput = {
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutContentInput = {
@@ -795,6 +860,7 @@ export type OwnerUncheckedCreateWithoutContentInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
@@ -802,6 +868,7 @@ export type OwnerUncheckedCreateWithoutContentInput = {
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutContentInput = {
@@ -842,6 +909,7 @@ export type OwnerUpdateWithoutContentInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
@@ -849,6 +917,7 @@ export type OwnerUpdateWithoutContentInput = {
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutContentInput = {
@@ -861,6 +930,7 @@ export type OwnerUncheckedUpdateWithoutContentInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -868,6 +938,7 @@ export type OwnerUncheckedUpdateWithoutContentInput = {
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutViz_sessionsInput = {
@@ -880,6 +951,7 @@ export type OwnerCreateWithoutViz_sessionsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
@@ -887,6 +959,7 @@ export type OwnerCreateWithoutViz_sessionsInput = {
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
@@ -899,6 +972,7 @@ export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
@@ -906,6 +980,7 @@ export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutViz_sessionsInput = {
@@ -946,6 +1021,7 @@ export type OwnerUpdateWithoutViz_sessionsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
@@ -953,6 +1029,7 @@ export type OwnerUpdateWithoutViz_sessionsInput = {
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
@@ -965,6 +1042,7 @@ export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -972,6 +1050,7 @@ export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutViewer_ticketsInput = {
@@ -984,6 +1063,7 @@ export type OwnerCreateWithoutViewer_ticketsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
@@ -991,6 +1071,7 @@ export type OwnerCreateWithoutViewer_ticketsInput = {
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutViewer_ticketsInput = {
@@ -1003,6 +1084,7 @@ export type OwnerUncheckedCreateWithoutViewer_ticketsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
@@ -1010,6 +1092,7 @@ export type OwnerUncheckedCreateWithoutViewer_ticketsInput = {
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutViewer_ticketsInput = {
@@ -1050,6 +1133,7 @@ export type OwnerUpdateWithoutViewer_ticketsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
@@ -1057,6 +1141,7 @@ export type OwnerUpdateWithoutViewer_ticketsInput = {
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
@@ -1069,6 +1154,7 @@ export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -1076,6 +1162,7 @@ export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutView_grantsInput = {
@@ -1088,6 +1175,7 @@ export type OwnerCreateWithoutView_grantsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
@@ -1095,6 +1183,7 @@ export type OwnerCreateWithoutView_grantsInput = {
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutView_grantsInput = {
@@ -1107,6 +1196,7 @@ export type OwnerUncheckedCreateWithoutView_grantsInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
@@ -1114,6 +1204,7 @@ export type OwnerUncheckedCreateWithoutView_grantsInput = {
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutView_grantsInput = {
@@ -1154,6 +1245,7 @@ export type OwnerUpdateWithoutView_grantsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
@@ -1161,6 +1253,7 @@ export type OwnerUpdateWithoutView_grantsInput = {
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutView_grantsInput = {
@@ -1173,6 +1266,7 @@ export type OwnerUncheckedUpdateWithoutView_grantsInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -1180,6 +1274,7 @@ export type OwnerUncheckedUpdateWithoutView_grantsInput = {
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutContent_keysInput = {
@@ -1192,6 +1287,7 @@ export type OwnerCreateWithoutContent_keysInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
@@ -1199,6 +1295,7 @@ export type OwnerCreateWithoutContent_keysInput = {
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutContent_keysInput = {
@@ -1211,6 +1308,7 @@ export type OwnerUncheckedCreateWithoutContent_keysInput = {
   website?: string | null;
   contact_email?: string | null;
   invite_code?: string | null;
+  handle?: string | null;
   created_at?: Date | string;
   updated_at?: Date | string;
   agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
@@ -1218,6 +1316,7 @@ export type OwnerUncheckedCreateWithoutContent_keysInput = {
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
   view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+  access_grants?: Prisma.AccessGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutContent_keysInput = {
@@ -1258,6 +1357,7 @@ export type OwnerUpdateWithoutContent_keysInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
@@ -1265,6 +1365,7 @@ export type OwnerUpdateWithoutContent_keysInput = {
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutContent_keysInput = {
@@ -1277,10 +1378,124 @@ export type OwnerUncheckedUpdateWithoutContent_keysInput = {
   website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
   content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
+  viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+  access_grants?: Prisma.AccessGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerCreateWithoutAccess_grantsInput = {
+  id?: string;
+  email?: string | null;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  invite_code?: string | null;
+  handle?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
+  content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
+  viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerUncheckedCreateWithoutAccess_grantsInput = {
+  id?: string;
+  email?: string | null;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  invite_code?: string | null;
+  handle?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
+  content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
+  viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerCreateOrConnectWithoutAccess_grantsInput = {
+  where: Prisma.OwnerWhereUniqueInput;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutAccess_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutAccess_grantsInput
+  >;
+};
+
+export type OwnerUpsertWithoutAccess_grantsInput = {
+  update: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutAccess_grantsInput,
+    Prisma.OwnerUncheckedUpdateWithoutAccess_grantsInput
+  >;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutAccess_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutAccess_grantsInput
+  >;
+  where?: Prisma.OwnerWhereInput;
+};
+
+export type OwnerUpdateToOneWithWhereWithoutAccess_grantsInput = {
+  where?: Prisma.OwnerWhereInput;
+  data: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutAccess_grantsInput,
+    Prisma.OwnerUncheckedUpdateWithoutAccess_grantsInput
+  >;
+};
+
+export type OwnerUpdateWithoutAccess_grantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
+  content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
+  viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerUncheckedUpdateWithoutAccess_grantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
+  content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
   view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
@@ -1297,6 +1512,7 @@ export type OwnerCountOutputType = {
   viz_sessions: number;
   viewer_tickets: number;
   view_grants: number;
+  access_grants: number;
 };
 
 export type OwnerCountOutputTypeSelect<
@@ -1308,6 +1524,7 @@ export type OwnerCountOutputTypeSelect<
   viz_sessions?: boolean | OwnerCountOutputTypeCountViz_sessionsArgs;
   viewer_tickets?: boolean | OwnerCountOutputTypeCountViewer_ticketsArgs;
   view_grants?: boolean | OwnerCountOutputTypeCountView_grantsArgs;
+  access_grants?: boolean | OwnerCountOutputTypeCountAccess_grantsArgs;
 };
 
 /**
@@ -1376,6 +1593,15 @@ export type OwnerCountOutputTypeCountView_grantsArgs<
   where?: Prisma.ViewGrantWhereInput;
 };
 
+/**
+ * OwnerCountOutputType without action
+ */
+export type OwnerCountOutputTypeCountAccess_grantsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.AccessGrantWhereInput;
+};
+
 export type OwnerSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = runtime.Types.Extensions.GetSelect<
@@ -1389,6 +1615,7 @@ export type OwnerSelect<
     website?: boolean;
     contact_email?: boolean;
     invite_code?: boolean;
+    handle?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
     agents?: boolean | Prisma.Owner$agentsArgs<ExtArgs>;
@@ -1397,6 +1624,7 @@ export type OwnerSelect<
     viz_sessions?: boolean | Prisma.Owner$viz_sessionsArgs<ExtArgs>;
     viewer_tickets?: boolean | Prisma.Owner$viewer_ticketsArgs<ExtArgs>;
     view_grants?: boolean | Prisma.Owner$view_grantsArgs<ExtArgs>;
+    access_grants?: boolean | Prisma.Owner$access_grantsArgs<ExtArgs>;
     _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
   },
   ExtArgs["result"]["owner"]
@@ -1415,6 +1643,7 @@ export type OwnerSelectCreateManyAndReturn<
     website?: boolean;
     contact_email?: boolean;
     invite_code?: boolean;
+    handle?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
   },
@@ -1434,6 +1663,7 @@ export type OwnerSelectUpdateManyAndReturn<
     website?: boolean;
     contact_email?: boolean;
     invite_code?: boolean;
+    handle?: boolean;
     created_at?: boolean;
     updated_at?: boolean;
   },
@@ -1450,6 +1680,7 @@ export type OwnerSelectScalar = {
   website?: boolean;
   contact_email?: boolean;
   invite_code?: boolean;
+  handle?: boolean;
   created_at?: boolean;
   updated_at?: boolean;
 };
@@ -1466,6 +1697,7 @@ export type OwnerOmit<
   | "website"
   | "contact_email"
   | "invite_code"
+  | "handle"
   | "created_at"
   | "updated_at",
   ExtArgs["result"]["owner"]
@@ -1479,6 +1711,7 @@ export type OwnerInclude<
   viz_sessions?: boolean | Prisma.Owner$viz_sessionsArgs<ExtArgs>;
   viewer_tickets?: boolean | Prisma.Owner$viewer_ticketsArgs<ExtArgs>;
   view_grants?: boolean | Prisma.Owner$view_grantsArgs<ExtArgs>;
+  access_grants?: boolean | Prisma.Owner$access_grantsArgs<ExtArgs>;
   _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
 };
 export type OwnerIncludeCreateManyAndReturn<
@@ -1499,6 +1732,7 @@ export type $OwnerPayload<
     viz_sessions: Prisma.$VizSessionPayload<ExtArgs>[];
     viewer_tickets: Prisma.$ViewerTicketPayload<ExtArgs>[];
     view_grants: Prisma.$ViewGrantPayload<ExtArgs>[];
+    access_grants: Prisma.$AccessGrantPayload<ExtArgs>[];
   };
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -1523,6 +1757,11 @@ export type $OwnerPayload<
        * The invite code this owner registered with, when registration asked for one (lib/invites.ts).
        */
       invite_code: string | null;
+      /**
+       * The owner's handle (2.1.0): a short public name that every resource behind the access gate uses as this
+       * owner's namespace, as in share.stair-ai.com/<handle>/. Set by the administrator (lib/access.ts).
+       */
+      handle: string | null;
       created_at: Date;
       updated_at: Date;
     },
@@ -2101,6 +2340,17 @@ export interface Prisma__OwnerClient<
       >
     | Null
   >;
+  access_grants<T extends Prisma.Owner$access_grantsArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Owner$access_grantsArgs<ExtArgs>>,
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$AccessGrantPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >;
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2141,6 +2391,7 @@ export interface OwnerFieldRefs {
   readonly website: Prisma.FieldRef<"Owner", "String">;
   readonly contact_email: Prisma.FieldRef<"Owner", "String">;
   readonly invite_code: Prisma.FieldRef<"Owner", "String">;
+  readonly handle: Prisma.FieldRef<"Owner", "String">;
   readonly created_at: Prisma.FieldRef<"Owner", "DateTime">;
   readonly updated_at: Prisma.FieldRef<"Owner", "DateTime">;
 }
@@ -2720,6 +2971,34 @@ export type Owner$view_grantsArgs<
   take?: number;
   skip?: number;
   distinct?: Prisma.ViewGrantScalarFieldEnum | Prisma.ViewGrantScalarFieldEnum[];
+};
+
+/**
+ * Owner.access_grants
+ */
+export type Owner$access_grantsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the AccessGrant
+   */
+  select?: Prisma.AccessGrantSelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the AccessGrant
+   */
+  omit?: Prisma.AccessGrantOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AccessGrantInclude<ExtArgs> | null;
+  where?: Prisma.AccessGrantWhereInput;
+  orderBy?:
+    | Prisma.AccessGrantOrderByWithRelationInput
+    | Prisma.AccessGrantOrderByWithRelationInput[];
+  cursor?: Prisma.AccessGrantWhereUniqueInput;
+  take?: number;
+  skip?: number;
+  distinct?: Prisma.AccessGrantScalarFieldEnum | Prisma.AccessGrantScalarFieldEnum[];
 };
 
 /**

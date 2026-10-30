@@ -25,20 +25,24 @@ pnpm install
 
 ### Environment
 
-| Variable                 | Required | Description                                                                                                          |
-| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | Yes      | `postgres://` connection string the server uses (the runtime account)                                                |
-| `MIGRATION_DATABASE_URL` | No       | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                                     |
-| `RL_RUNTIME_ROLE`        | No       | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating                       |
-| `CONTENT_DIR`            | No       | Where uploaded content is stored (default `data/content` in the working directory: `/app/data/content` in the image) |
-| `CONTENT_MAX_BYTES`      | No       | Largest accepted upload, in bytes (default 64 MiB)                                                                   |
-| `RL_REGISTRATION`        | No       | Who may register owners: `admin` (default), `invite` (self-service with an invite code) or `open`                    |
-| `RL_ADMIN_TOKEN`         | No       | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator          |
-| `RL_REGISTRATION_TOKEN`  | No       | Registers owners and reads nothing. Give this one to the application that signs people up                            |
-| `RL_REGISTRATION_RATE`   | No       | With `RL_REGISTRATION=open` or `invite`, registration attempts allowed per client address per hour (default 5)       |
-| `VIZ_SESSION_TTL_HOURS`  | No       | Lifetime of a trace viewer sign-in (default 12)                                                                      |
-| `VIZ_TICKET_TTL_SECONDS` | No       | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                              |
-| `HOST`, `PORT`           | No       | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                 |
+| Variable                         | Required      | Description                                                                                                                   |
+| -------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                   | Yes           | `postgres://` connection string the server uses (the runtime account)                                                         |
+| `MIGRATION_DATABASE_URL`         | No            | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                                              |
+| `RL_RUNTIME_ROLE`                | No            | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating                                |
+| `CONTENT_DIR`                    | No            | Where uploaded content is stored (default `data/content` in the working directory: `/app/data/content` in the image)          |
+| `CONTENT_MAX_BYTES`              | No            | Largest accepted upload, in bytes (default 64 MiB)                                                                            |
+| `RL_REGISTRATION`                | No            | Who may register owners: `admin` (default), `invite` (self-service with an invite code) or `open`                             |
+| `RL_ADMIN_TOKEN`                 | No            | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator                   |
+| `RL_REGISTRATION_TOKEN`          | No            | Registers owners and reads nothing. Give this one to the application that signs people up                                     |
+| `RL_REGISTRATION_RATE`           | No            | With `RL_REGISTRATION=open` or `invite`, registration attempts allowed per client address per hour (default 5)                |
+| `RL_ACCESS_SIGNING_KEY`          | No            | Turns the access gate on: its Ed25519 signing key, base64 PKCS#8 (`pnpm access-key` makes one). Off: its endpoints answer 404 |
+| `RL_ACCESS_SIGNING_KEY_PREVIOUS` | No            | The signing key before the last rotation; its public half stays published until the tokens it signed expire                   |
+| `RL_ACCESS_ISSUER`               | With the gate | The gate's own URL, the issuer of every access token (the hosted gate: `https://access.stair-ai.com`)                         |
+| `RL_ACCESS_TOKEN_TTL`            | No            | Lifetime of an access token, in seconds (default 3600, from 60 to 86400)                                                      |
+| `VIZ_SESSION_TTL_HOURS`          | No            | Lifetime of a trace viewer sign-in (default 12)                                                                               |
+| `VIZ_TICKET_TTL_SECONDS`         | No            | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                                       |
+| `HOST`, `PORT`                   | No            | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                          |
 
 Uploaded content lives on the server's filesystem, so `CONTENT_DIR` needs storage that survives a restart or redeploy (a mounted volume in a container), and belongs in the same backup schedule as the database: a record keeps the hash of content whose bytes are gone, but the bytes cannot be recovered from it.
 
@@ -203,11 +207,14 @@ pnpm typecheck   # TypeScript, after astro sync
 
 ## Operator commands
 
-Both run on the server's host, with the same environment as the server: they read the process environment, and `api-server/.env` when there is one (as does `db:deploy`). In a container, run them with `docker exec`; where the server container holds only the runtime account, pass the migration account to the command (`docker exec -e MIGRATION_DATABASE_URL=… <container> pnpm --dir api-server delete-content …`).
+They run on the server's host, with the same environment as the server: they read the process environment, and `api-server/.env` when there is one (as does `db:deploy`). In a container, run them with `docker exec`; where the server container holds only the runtime account, pass the migration account to the command (`docker exec -e MIGRATION_DATABASE_URL=… <container> pnpm --dir api-server delete-content …`).
 
 ```sh
 # Delete stored content. Records keep their reference; reading the content then answers 410.
 pnpm --dir api-server delete-content --owner <owner_id> --sha256 <hex> --reason "<why>" --operator "<who>"
+
+# Make a signing key for the access gate: the key on stdout (for RL_ACCESS_SIGNING_KEY), its key id on stderr.
+pnpm --dir api-server access-key > access-signing-key
 
 # Export records for write-once storage, then verify an export against the database.
 pnpm --dir api-server export-records --out <dir> [--batch 10000] [--settle-seconds 60]
@@ -264,6 +271,13 @@ The read endpoints also accept the administrator's token in `X-Admin-Token`, whi
 | `POST`         | `/v1/viewer/tickets`              | A one-time link that signs a browser into the trace viewer as the owner                                |
 | `POST`, `GET`  | `/v1/admin/invites`               | Make or list invite codes (administrator token only)                                                   |
 | `POST`         | `/v1/admin/invites/{code}/revoke` | Revoke an invite code (administrator token only)                                                       |
+| `POST`         | `/access/token`                   | The access gate: exchange the API key, form-encoded, for a token to another resource (see below)       |
+| `GET`          | `/access/me`                      | The calling owner's handle and grants, as the access gate sees them                                    |
+| `GET`          | `/.well-known/jwks.json`          | The gate's public signing keys; `/.well-known/oauth-authorization-server` is its metadata              |
+| `PUT`          | `/v1/admin/owners/{id}/handle`    | Give an owner its handle (administrator token only)                                                    |
+| `GET`          | `/v1/admin/owners/lookup`         | Find an owner by `owner_id`, `email` or `handle` (administrator token only)                            |
+| `POST`, `GET`  | `/v1/admin/grants`                | Grant an owner access to a resource, or list grants (administrator token only)                         |
+| `POST`         | `/v1/admin/grants/{id}/revoke`    | Revoke a grant (administrator token only)                                                              |
 
 Every read is limited to the calling owner's data: another owner's agent, record or session answers `404`.
 
@@ -283,6 +297,34 @@ curl -s -X POST "$LEDGER/v1/admin/invites" -H "x-admin-token: $RL_ADMIN_TOKEN" \
 ```
 
 A code is spent in the transaction that creates the owner and recorded on it (`owners.invite_code`); `GET /v1/admin/invites` shows how often each was used, and `POST /v1/admin/invites/{code}/revoke` stops one. The operator's own tokens register without a code. Switching to `RL_REGISTRATION=open` later stops asking for codes and keeps the attribution; a code given in open mode is still checked and recorded.
+
+### The access gate
+
+The owner's API key is the account's master credential. Other services an owner uses with the same account, such as the hosted page-sharing service at `share.stair-ai.com`, never receive it: the gate in this server exchanges the key for a short-lived access token bound to one such resource, and the resource checks the token with the gate's public keys, without calling back. The gate is off until `RL_ACCESS_SIGNING_KEY` and `RL_ACCESS_ISSUER` are set; the ledger itself does not use it yet and keeps taking the API key.
+
+Who may get a token for what is the operator's decision, recorded as grants; a resource reads only the scopes inside the token. An owner's handle, also set by the operator, is the namespace every resource gives that owner:
+
+```bash
+# Give an owner a handle, then let it publish pages.
+curl -s -X PUT "$LEDGER/v1/admin/owners/$OWNER_ID/handle" -H "x-admin-token: $RL_ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{"handle": "colin"}'
+curl -s -X POST "$LEDGER/v1/admin/grants" -H "x-admin-token: $RL_ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{"owner_id": "'$OWNER_ID'", "resource": "https://share.stair-ai.com", "scopes": ["share:write"]}'
+```
+
+The owner, or its agent, then asks for a token (RFC 8693 token exchange, with the resource named as in RFC 8707):
+
+```bash
+curl -s -X POST "$GATE/access/token" \
+  --data-urlencode grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  --data-urlencode subject_token_type=urn:stair:params:oauth:token-type:api-key \
+  --data-urlencode "subject_token=$API_KEY" \
+  --data-urlencode resource=https://share.stair-ai.com
+```
+
+The answer is `{access_token, token_type: "Bearer", expires_in, scope, issued_token_type}`; errors follow RFC 6749 (`invalid_request` for a bad key, `invalid_target` for a resource without a grant, `invalid_scope`). The token is a JWT signed with EdDSA (`typ: at+jwt`) carrying `iss` (the gate), `aud` (the resource), `sub` (the owner id), `scope`, `handle` when the owner has one, `client_id`, `iat`, `exp` and `jti`. A resource accepts it when the signature verifies against a key in `/.well-known/jwks.json` (cache it; refetch on an unknown `kid`), `iss` and `aud` are its own configured values, `exp` has not passed and `scope` holds what the request needs.
+
+Revoking a grant stops new tokens at once; tokens already issued stay valid until they expire. To rotate the signing key, move the current value to `RL_ACCESS_SIGNING_KEY_PREVIOUS`, set a new `RL_ACCESS_SIGNING_KEY` from `pnpm access-key`, and remove the previous one after a token lifetime has passed.
 
 ## Health check
 
