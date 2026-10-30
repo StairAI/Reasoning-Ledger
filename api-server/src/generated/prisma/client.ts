@@ -80,6 +80,11 @@ export type VizSession = Prisma.VizSessionModel;
  */
 export type ViewerTicket = Prisma.ViewerTicketModel;
 /**
+ * Model ViewGrant
+ *
+ */
+export type ViewGrant = Prisma.ViewGrantModel;
+/**
  * Model ContentKey
  *
  */

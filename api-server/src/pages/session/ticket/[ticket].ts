@@ -19,7 +19,7 @@
  */
 
 import type { APIRoute } from "astro";
-import { createHash } from "node:crypto";
+import { CONTENT_SECURITY_POLICY, PRIVATE_HEADERS, navigationPage } from "#/lib/navigation-page";
 import { consumeTicket } from "#/lib/viewer-tickets";
 import {
   VIZ_COOKIE,
@@ -31,72 +31,8 @@ import {
 
 export const prerender = false;
 
-/**
- * The ticket is in this page's address: keep the response out of every cache,
- * and the address out of the Referer header of whatever the browser loads next.
- */
-const PRIVATE_HEADERS = {
-  "cache-control": "no-store",
-  "referrer-policy": "no-referrer",
-  "x-content-type-options": "nosniff",
-};
-
 /** Where an unusable ticket sends the browser. */
 const SIGN_IN_AGAIN = `/login?next=${encodeURIComponent("/")}&expired=1`;
-
-/**
- * The page's only script. It reads the destination from the link rather than
- * holding it, so it never changes and the Content-Security-Policy below can
- * allow exactly this script and nothing else.
- *
- * First it keeps the content master key, when the link carries one in its
- * fragment (`#k=`, which the browser never sends to the server), in the tab's
- * sessionStorage: the viewer pages decrypt content with it (scripts/decrypt.ts).
- */
-const NAVIGATE =
-  'try{var k=location.hash;if(k.slice(0,3)==="#k="){sessionStorage.setItem("rl_mk",k.slice(3));}}catch(e){}' +
-  'location.replace(document.getElementById("next").getAttribute("href"));';
-
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'none'",
-  `script-src 'sha256-${createHash("sha256").update(NAVIGATE).digest("base64")}'`,
-  "base-uri 'none'",
-  "form-action 'none'",
-  "frame-ancestors 'none'",
-].join("; ");
-
-/** Escape for an HTML attribute value or text. */
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
-/**
- * Navigate to `next`, a path on this site (safeNext). location.replace keeps
- * the ticket's address out of the back button; the meta refresh covers a
- * browser without scripts, and the link one that does neither.
- */
-function navigationPage(next: string): string {
-  const href = escapeHtml(next);
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="referrer" content="no-referrer">
-<meta http-equiv="refresh" content="0; url=${href}">
-<title>Reasoning Ledger</title>
-</head>
-<body>
-<p><a id="next" href="${href}">Continue to Reasoning Ledger</a></p>
-<script>${NAVIGATE}</script>
-</body>
-</html>
-`;
-}
 
 export const GET: APIRoute = async ({ params, cookies }) => {
   const ticket = await consumeTicket(params.ticket);

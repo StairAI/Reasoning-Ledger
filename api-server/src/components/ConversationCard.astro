@@ -1,0 +1,183 @@
+---
+// One conversation of the trace list: its turns (each a trace), its sub-agents'
+// turns, and the conversations it started or that forked from it, nested below.
+import Icon from "#/components/Icon.astro";
+import TypeBadge from "#/components/TypeBadge.astro";
+import type { Conversation } from "#/lib/conversations";
+import { sessionKey } from "#/lib/conversations";
+import type { SessionSummary } from "#/lib/repository";
+import { formatNumber } from "#/lib/trace";
+
+interface Props {
+  admin: boolean;
+  conversation: Conversation;
+}
+
+const { admin, conversation: c } = Astro.props;
+const SHOWN = 6;
+
+const RELATION: Record<string, string> = {
+  fork: "fork of",
+  handoff: "handed over by",
+  spawn: "started by",
+};
+
+function formatDate(ms: number): string {
+  const d = new Date(ms);
+  return `${d.toISOString().slice(0, 10)} ${String(d.getUTCHours()).padStart(2, "0")}:${String(
+    d.getUTCMinutes(),
+  ).padStart(2, "0")}Z`;
+}
+
+function short(id: string): string {
+  return id.length > 12 ? id.slice(0, 8) : id;
+}
+
+function label(s: SessionSummary): string {
+  const { turn } = sessionKey(s.session_id);
+  return turn === null ? s.session_id : `t${String(turn).padStart(3, "0")}`;
+}
+
+const href = (s: SessionSummary) =>
+  `/traces/${encodeURIComponent(s.agent_id)}/${encodeURIComponent(s.session_id)}`;
+const recent = c.turns.slice(-SHOWN);
+const earlier = c.turns.slice(0, -SHOWN);
+const single = c.turns.length === 1 && c.lanes.length === 0 && sessionKey(c.turns[0]?.session_id ?? "").turn === null;
+---
+
+<li class="flex flex-col gap-3" data-conversation={c.conversation}>
+  <div class="flex flex-col gap-4 rounded-lg border border-line bg-surface/70 p-4">
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex min-w-0 flex-col gap-1.5">
+        <span class="truncate font-sans text-[15px] font-medium text-ink">{c.agent_name}</span>
+        <span class="inline-flex items-center gap-1.5 truncate text-[12px] text-ink/50">
+          <Icon name="folder" size={12} />
+          {c.conversation}
+        </span>
+        {
+          c.parent && (
+            <span class="inline-flex items-center gap-1.5 text-[12px] text-ink/60" data-relation={c.parent.relation}>
+              <Icon name="git-fork" size={12} />
+              {RELATION[c.parent.relation]} {short(c.parent.conversation)}
+            </span>
+          )
+        }
+        {
+          admin && (
+            <span class="inline-flex items-center gap-1.5 truncate text-[12px] text-ink/40">
+              <Icon name="hash" size={12} />
+              owner {c.owner_id}
+            </span>
+          )
+        }
+      </div>
+      <span class="shrink-0 text-[12px] text-ink/40">{formatDate(c.last_ts)}</span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1.5">
+      {c.behaviors.map((b) => <TypeBadge behavior={b} />)}
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+      {
+        !single && (
+          <span class="inline-flex items-center gap-1.5 text-[12px]">
+            <span class="text-ink">{formatNumber(c.turns.length)}</span>
+            <span class="text-ink/45">{c.turns.length === 1 ? "TURN" : "TURNS"}</span>
+          </span>
+        )
+      }
+      <span class="inline-flex items-center gap-1.5 text-[12px]">
+        <Icon name="database" size={13} class="text-ink/45" />
+        <span class="text-[#4db24d]">{formatNumber(c.record_count)}</span>
+        <span class="text-ink/45">RECORDS</span>
+      </span>
+      <span class="inline-flex items-center gap-1.5 text-[12px]">
+        <Icon name="hash" size={13} class="text-ink/45" />
+        <span class="text-[#3c9add]">{formatNumber(c.tokens)}</span>
+        <span class="text-ink/45">TOKENS</span>
+      </span>
+      <span class="inline-flex items-center gap-1.5 text-[12px]">
+        <Icon name="cpu" size={13} class="text-ink/45" />
+        <span class="text-[#e06c7f]">{formatNumber(c.llm_calls)}</span>
+        <span class="text-ink/45">LLM CALLS</span>
+      </span>
+      {
+        c.messages_in > 0 && (
+          <span class="inline-flex items-center gap-1.5 text-[12px]">
+            <span class="text-ink">{formatNumber(c.messages_in)}</span>
+            <span class="text-ink/45">{c.messages_in === 1 ? "MESSAGE IN" : "MESSAGES IN"}</span>
+          </span>
+        )
+      }
+    </div>
+
+    <ul class="flex flex-col gap-1">
+      {
+        earlier.length > 0 && (
+          <li>
+            <details class="text-[12px] text-ink/50">
+              <summary class="cursor-pointer select-none hover:text-ink">
+                {earlier.length} earlier {earlier.length === 1 ? "turn" : "turns"}
+              </summary>
+              <ul class="mt-1 flex flex-col gap-1">
+                {earlier.map((s) => (
+                  <li>
+                    <a href={href(s)} class="flex items-center justify-between gap-3 rounded px-2 py-1 hover:bg-surface">
+                      <span class="font-mono text-ink/70">{label(s)}</span>
+                      <span class="text-ink/40">
+                        {formatNumber(s.record_count)} records · {formatDate(s.last_ts)}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        )
+      }
+      {
+        recent.map((s) => (
+          <li>
+            <a
+              href={href(s)}
+              class="group flex items-center justify-between gap-3 rounded px-2 py-1 text-[12px] hover:bg-surface"
+            >
+              <span class="font-mono text-ink/70 group-hover:text-ink">{label(s)}</span>
+              <span class="text-ink/40">
+                {formatNumber(s.record_count)} records · {formatDate(s.last_ts)}
+              </span>
+            </a>
+          </li>
+        ))
+      }
+      {
+        c.lanes.map((lane) => (
+          <li class="mt-1">
+            <span class="px-2 text-[12px] text-ink/50">sub-agent {short(lane.lane)}</span>
+            <ul class="ml-3 flex flex-col gap-1 border-l border-line pl-2">
+              {lane.sessions.map((s) => (
+                <li>
+                  <a href={href(s)} class="flex items-center justify-between gap-3 rounded px-2 py-1 text-[12px] hover:bg-surface">
+                    <span class="font-mono text-ink/70">{label(s)}</span>
+                    <span class="text-ink/40">{formatNumber(s.record_count)} records</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  {
+    c.children.length > 0 && (
+      <ul class="ml-5 flex flex-col gap-3 border-l border-line-strong pl-4">
+        {c.children.map((child) => (
+          <Astro.self admin={admin} conversation={child} />
+        ))}
+      </ul>
+    )
+  }
+</li>

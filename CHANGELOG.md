@@ -2,6 +2,22 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## 2.1.0 — 2026-10-30
+
+The server only.
+
+### Added
+
+- **View grants: a view is one authorized decryption.** `POST /v1/view-grants` takes some of an owner's data keys, which the owner's machine has unwrapped with the master key and wrapped again under a fresh grant key, and answers a link, `/session/grant/{token}`, to open with `#k=` and the grant key. The link signs a browser in for that grant only: the trace list and the trace pages show the grant's sessions and nothing else, and hand the browser the grant's copies of the keys, which it opens with the grant key as it would with a master key (`scripts/decrypt.ts` is unchanged). The master key never leaves the owner's machine, and the server, holding only keys wrapped under a key it never sees, still cannot read the content. A grant lasts an hour unless asked otherwise (at most a day) and can be reopened until it ends; `GET /v1/view-grants` lists an owner's grants without their keys, and `DELETE /v1/view-grants/{grant_id}` ends one now. When a grant ends, by expiry or revocation, its keys are dropped and the browsers it opened are signed out, so a grant key left in a browser's history opens nothing. The server checks that every key is the owner's and that none is wrapped under the master key that wrapped the owner's copy. Viewer sessions gain an optional `grant_id`; migration `20261030120000_view_grants`. The Claude Code plugin uses this from 0.12.0 for `stair rl viewer`.
+
+## 2.0.3 — 2026-10-30
+
+The server only.
+
+### Changed
+
+- **The trace list shows conversations.** A chat harness records one session per turn (`<conversation>:t<n>`, a sub-agent's turns `<conversation>:sub:<agent>:t<n>`); the viewer's list now groups those turns into one card per conversation (the latest turns shown, earlier ones folded, sub-agents' turns apart) instead of one card per turn. A conversation that another one started, handed work over to or forked is nested under it: a `Delegating` and the `Observing` that opened the other side share a `link:<digest>` tag, and a fork's first `Observing` carries `fork_of:<conversation>`. Messages a conversation received from another are counted on its card. Sessions named any other way are listed as before, one card each. Nothing changes in the API or the schema; the links are tags the Claude Code plugin writes from 0.11.0.
+
 ## 2.0.2 — 2026-10-29
 
 The server only; the SDKs stay at 2.0.0.

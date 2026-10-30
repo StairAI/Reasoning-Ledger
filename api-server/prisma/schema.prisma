@@ -83,6 +83,7 @@ model Owner {
   content_keys   ContentKey[]
   viz_sessions   VizSession[]
   viewer_tickets ViewerTicket[]
+  view_grants    ViewGrant[]
 
   @@map("owners")
 }
@@ -217,8 +218,12 @@ model VizSession {
   owner      Owner?   @relation(fields: [owner_id], references: [id], onDelete: Cascade)
   created_at DateTime @default(now())
   expires_at DateTime
+  /// Set for a session opened with a view grant (lib/view-grants.ts): it reads only the grant's sessions, until the grant ends.
+  grant_id   String?
+  grant      ViewGrant? @relation(fields: [grant_id], references: [id], onDelete: Cascade)
 
   @@index([owner_id])
+  @@index([grant_id])
   @@map("viz_sessions")
 }
 
@@ -243,6 +248,39 @@ model ViewerTicket {
 
   @@index([owner_id])
   @@map("viewer_tickets")
+}
+
+// ---------------------------------------------------------------------------
+// ViewGrant — a time-limited authorization to read some of an owner's sessions
+// in the trace viewer (a view is one authorized decryption). The owner's
+// machine re-wraps the data keys of those sessions with a fresh grant key that
+// only the link's fragment carries; this table keeps the re-wrapped keys until
+// the grant ends, then drops them, so a grant key left in a browser's history
+// opens nothing. Only the SHA-256 of the link token is stored.
+// ---------------------------------------------------------------------------
+
+model ViewGrant {
+  /// Public id, for listing and revoking.
+  id           String       @id @default(uuid())
+  /// SHA-256 hex of the link token. The token itself is never stored.
+  token_hash   String       @unique
+  owner_id     String
+  owner        Owner        @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  /// What the grant is for: "view".
+  purpose      String
+  /// The sessions the grant opens: those of the data keys it carries.
+  session_ids  String[]
+  /// key_id -> { master_key_id, wrap_alg, wrapped_key }, wrapped under the grant key; emptied when the grant ends.
+  keys         Json
+  created_at   DateTime     @default(now())
+  expires_at   DateTime
+  revoked_at   DateTime?
+  /// When the keys were dropped: on expiry or revocation.
+  ended_at     DateTime?
+  viz_sessions VizSession[]
+
+  @@index([owner_id])
+  @@map("view_grants")
 }
 
 // ---------------------------------------------------------------------------

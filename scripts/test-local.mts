@@ -23,7 +23,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
@@ -383,6 +383,70 @@ async function viewerSmoke(baseUrl: string, apiKey: string, adminToken: string):
       offSite?.status === 200 && (await offSite.text()).includes('<a id="next" href="/">'),
       `sign-in link with next=${next}: expected a page that moves on to /, got ${offSite?.status}`,
     );
+  }
+
+  // A view grant, as the plugin makes one: a data key of one of the owner's sessions, wrapped again under a fresh
+  // grant key. Its link signs a browser in for that session only, from another site and with no session, and stops
+  // working, browser and link alike, once the grant is revoked. The token stays out of the server log too.
+  const sessionHrefs = links.map((link) => link.replaceAll("&amp;", "&"));
+  const grantedHref = sessionHrefs[0];
+  if (grantedHref) {
+    const json = { "content-type": "application/json", "x-api-key": apiKey };
+    const keyIdOf = () => createHash("sha256").update(randomBytes(32)).digest("hex").slice(0, 16);
+    const keyId = randomUUID();
+    const registered = await request(`/v1/content-keys/${keyId}`, {
+      body: JSON.stringify({
+        master_key_id: keyIdOf(),
+        session_id: decodeURIComponent(grantedHref.split("/")[3] ?? ""),
+        wrap_alg: "A256GCM",
+        wrapped_key: randomBytes(60).toString("base64"),
+      }),
+      headers: json,
+      method: "PUT",
+    });
+    want(registered.ok, `content key for a view grant: expected 2xx, got ${registered.status}`);
+    const granted = await request("/v1/view-grants", {
+      body: JSON.stringify({
+        keys: [{ key_id: keyId, master_key_id: keyIdOf(), wrap_alg: "A256GCM", wrapped_key: randomBytes(60).toString("base64") }],
+      }),
+      headers: json,
+      method: "POST",
+    });
+    const grant = granted.ok
+      ? ((await granted.json()) as { grant_id: string; grant_url: string; sessions: number })
+      : undefined;
+    const token = /^\/session\/grant\/([A-Za-z0-9_-]{43})$/.exec(grant?.grant_url ?? "")?.[1];
+    want(grant?.sessions === 1 && token !== undefined, `view grant: expected one session and a grant_url, got ${granted.status}`);
+    if (grant && token) {
+      tickets.push(token);
+      const openedGrant = await request(grant.grant_url, { headers: { "sec-fetch-site": "cross-site" } });
+      const grantCookie = (openedGrant.headers.get("set-cookie") ?? "").split(";")[0];
+      want(
+        openedGrant.status === 200 && grantCookie.startsWith("rl_viz=") && openedGrant.headers.get("cache-control") === "no-store",
+        `view grant link: expected 200 with the rl_viz cookie and no-store, got ${openedGrant.status}`,
+      );
+      const grantIndex = await request("/", { headers: { cookie: grantCookie } });
+      const grantHtml = await grantIndex.text();
+      const shown = new Set([...grantHtml.matchAll(/href="(\/traces\/[^"]+)"/g)].map((m) => m[1].replaceAll("&amp;", "&")));
+      want(
+        grantIndex.status === 200 && grantHtml.includes("Authorized view") && shown.size === 1 && shown.has(grantedHref),
+        `/ with a view grant: expected the granted session only, got ${grantIndex.status}: ${[...shown].join(" ")}`,
+      );
+      const outsideHref = sessionHrefs.find((href) => href !== grantedHref);
+      if (outsideHref) {
+        const outside = await request(outsideHref, { headers: { cookie: grantCookie } });
+        want(
+          outside.status === 200 && (await outside.text()).includes("not found"),
+          `${outsideHref} with a view grant that does not name it: expected it not found, got ${outside.status}`,
+        );
+      }
+      const revoked = await request(`/v1/view-grants/${grant.grant_id}`, { headers: { "x-api-key": apiKey }, method: "DELETE" });
+      want(revoked.status === 200, `revoking the view grant: expected 200, got ${revoked.status}`);
+      const afterRevoke = await request("/", { headers: { cookie: grantCookie } });
+      want(afterRevoke.status === 302, `/ after revoking the grant: expected a redirect to /login, got ${afterRevoke.status}`);
+      const reopened = await request(grant.grant_url);
+      want(reopened.status === 410, `the grant's link after revoking: expected 410, got ${reopened.status}`);
+    }
   }
 
   const signOut = await request("/logout", { headers: { cookie }, method: "POST" });
