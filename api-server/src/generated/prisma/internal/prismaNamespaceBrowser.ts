@@ -58,6 +58,7 @@ export const ModelName = {
   ViewGrant: "ViewGrant",
   ContentKey: "ContentKey",
   Invite: "Invite",
+  AccessGrant: "AccessGrant",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -86,6 +87,7 @@ export const OwnerScalarFieldEnum = {
   website: "website",
   contact_email: "contact_email",
   invite_code: "invite_code",
+  handle: "handle",
   created_at: "created_at",
   updated_at: "updated_at",
 } as const;
@@ -221,6 +223,19 @@ export const InviteScalarFieldEnum = {
 
 export type InviteScalarFieldEnum =
   (typeof InviteScalarFieldEnum)[keyof typeof InviteScalarFieldEnum];
+
+export const AccessGrantScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  resource: "resource",
+  scopes: "scopes",
+  note: "note",
+  created_at: "created_at",
+  revoked_at: "revoked_at",
+} as const;
+
+export type AccessGrantScalarFieldEnum =
+  (typeof AccessGrantScalarFieldEnum)[keyof typeof AccessGrantScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",
