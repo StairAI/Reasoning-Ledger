@@ -19,6 +19,7 @@ function ownerToMeta(owner: {
   display_name: string | null;
   website: string | null;
   contact_email: string | null;
+  email: string | null;
   created_at: Date;
   updated_at: Date;
 }) {
@@ -26,6 +27,7 @@ function ownerToMeta(owner: {
     contact_email: owner.contact_email ?? undefined,
     created_at: owner.created_at.getTime(),
     display_name: owner.display_name ?? undefined,
+    email: owner.email ?? undefined,
     owner_id: owner.id,
     owner_wallet_address: owner.owner_wallet_address,
     updated_at: owner.updated_at.getTime(),
@@ -43,7 +45,7 @@ function ownerToMeta(owner: {
 export const registerOwner = base
   .route({
     description:
-      "Register a new owner, or resolve the existing one when the e-mail is already on file (idempotent). " +
+      "Register a new owner. With an `email`, idempotent: the existing owner with that e-mail is resolved instead. Without one, the registration is anonymous: the keys are the identity, a new owner is made each time, and an e-mail can be claimed later with `PATCH /v1/owners/me`. " +
       "Private deployments allow this only with the administrator token (`X-Admin-Token`); a hosted instance may open it to self-service with a per-address rate limit, or by invitation, when `invite_code` is required (`RL_REGISTRATION=invite`). A code is checked whenever it is given, spent when the owner is created, and recorded on the owner. " +
       "The raw `api_key` is returned **only on the first call** — it is never stored and cannot be retrieved again. " +
       "Wallet mode (`custodial` | `byow`) is locked at registration and applies to every agent created under this owner.",
@@ -63,6 +65,7 @@ export const registerOwner = base
       contact_email: z.string().optional(),
       created_at: z.number(),
       display_name: z.string().optional(),
+      email: z.string().optional(),
       owner_id: z.string(),
       owner_wallet_address: z.string().nullable(),
       wallet_mode: z.enum(["custodial", "byow"]),
@@ -72,10 +75,11 @@ export const registerOwner = base
   .handler(async ({ input, context }) => {
     const admission = await admitRegistration(context.headers, input.invite_code);
 
-    // Idempotency: if owner with this email already exists, return metadata.
-    const existing = await prisma.owner.findUnique({
-      where: { email: input.email },
-    });
+    // Idempotency: an owner with this e-mail already exists, so return metadata.
+    // An anonymous registration has nothing to be idempotent on: it is always a new owner.
+    const existing = input.email
+      ? await prisma.owner.findUnique({ where: { email: input.email } })
+      : null;
 
     if (existing) {
       // Do NOT re-expose the api_key — return metadata only.
@@ -106,7 +110,7 @@ export const registerOwner = base
           api_key_hash: hashApiKey(rawKey),
           contact_email: input.contact_email,
           display_name: input.display_name,
-          email: input.email,
+          email: input.email ?? null,
           invite_code: admission.invite,
           owner_wallet_address: walletAddress,
           wallet_mode: input.wallet_mode,
@@ -142,6 +146,7 @@ export const getOwner = authed
       contact_email: z.string().optional(),
       created_at: z.number(),
       display_name: z.string().optional(),
+      email: z.string().optional(),
       owner_id: z.string(),
       owner_wallet_address: z.string().nullable(),
       updated_at: z.number(),
@@ -165,7 +170,7 @@ export const getOwner = authed
 export const updateOwner = authed
   .route({
     description:
-      "Update display metadata (`display_name`, `website`, `contact_email`) for the owner identified by the `X-API-Key` header. " +
+      "Update display metadata (`display_name`, `website`, `contact_email`) for the owner identified by the `X-API-Key` header, or claim an `email` for an anonymous owner (one that no other owner holds; 409 otherwise). " +
       "Only fields present in the request body are updated; omitted fields are left unchanged.",
     method: "PATCH",
     path: "/owners/me",
@@ -178,6 +183,7 @@ export const updateOwner = authed
       contact_email: z.string().optional(),
       created_at: z.number(),
       display_name: z.string().optional(),
+      email: z.string().optional(),
       owner_id: z.string(),
       owner_wallet_address: z.string().nullable(),
       updated_at: z.number(),
@@ -186,8 +192,18 @@ export const updateOwner = authed
     }),
   )
   .handler(async ({ input, context }) => {
+    if (input.email !== undefined) {
+      const holder = await prisma.owner.findUnique({
+        select: { id: true },
+        where: { email: input.email },
+      });
+      if (holder && holder.id !== context.ownerId) {
+        throw new ORPCError("CONFLICT", { message: "That e-mail belongs to another owner" });
+      }
+    }
     const owner = await prisma.owner.update({
       data: {
+        ...(input.email !== undefined && { email: input.email }),
         ...(input.display_name !== undefined && { display_name: input.display_name }),
         ...(input.website !== undefined && { website: input.website }),
         ...(input.contact_email !== undefined && { contact_email: input.contact_email }),

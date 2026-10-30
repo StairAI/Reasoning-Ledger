@@ -184,7 +184,7 @@ export type OwnerGroupByArgs<
 
 export type OwnerGroupByOutputType = {
   id: string;
-  email: string;
+  email: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address: string | null;
@@ -216,7 +216,7 @@ export type OwnerWhereInput = {
   OR?: Prisma.OwnerWhereInput[];
   NOT?: Prisma.OwnerWhereInput | Prisma.OwnerWhereInput[];
   id?: Prisma.StringFilter<"Owner"> | string;
-  email?: Prisma.StringFilter<"Owner"> | string;
+  email?: Prisma.StringNullableFilter<"Owner"> | string | null;
   api_key_hash?: Prisma.StringFilter<"Owner"> | string;
   wallet_mode?: Prisma.EnumWalletModeFilter<"Owner"> | $Enums.WalletMode;
   owner_wallet_address?: Prisma.StringNullableFilter<"Owner"> | string | null;
@@ -235,7 +235,7 @@ export type OwnerWhereInput = {
 
 export type OwnerOrderByWithRelationInput = {
   id?: Prisma.SortOrder;
-  email?: Prisma.SortOrder;
+  email?: Prisma.SortOrderInput | Prisma.SortOrder;
   api_key_hash?: Prisma.SortOrder;
   wallet_mode?: Prisma.SortOrder;
   owner_wallet_address?: Prisma.SortOrderInput | Prisma.SortOrder;
@@ -279,7 +279,7 @@ export type OwnerWhereUniqueInput = Prisma.AtLeast<
 
 export type OwnerOrderByWithAggregationInput = {
   id?: Prisma.SortOrder;
-  email?: Prisma.SortOrder;
+  email?: Prisma.SortOrderInput | Prisma.SortOrder;
   api_key_hash?: Prisma.SortOrder;
   wallet_mode?: Prisma.SortOrder;
   owner_wallet_address?: Prisma.SortOrderInput | Prisma.SortOrder;
@@ -299,7 +299,7 @@ export type OwnerScalarWhereWithAggregatesInput = {
   OR?: Prisma.OwnerScalarWhereWithAggregatesInput[];
   NOT?: Prisma.OwnerScalarWhereWithAggregatesInput | Prisma.OwnerScalarWhereWithAggregatesInput[];
   id?: Prisma.StringWithAggregatesFilter<"Owner"> | string;
-  email?: Prisma.StringWithAggregatesFilter<"Owner"> | string;
+  email?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
   api_key_hash?: Prisma.StringWithAggregatesFilter<"Owner"> | string;
   wallet_mode?: Prisma.EnumWalletModeWithAggregatesFilter<"Owner"> | $Enums.WalletMode;
   owner_wallet_address?: Prisma.StringNullableWithAggregatesFilter<"Owner"> | string | null;
@@ -313,7 +313,7 @@ export type OwnerScalarWhereWithAggregatesInput = {
 
 export type OwnerCreateInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -332,7 +332,7 @@ export type OwnerCreateInput = {
 
 export type OwnerUncheckedCreateInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -351,7 +351,7 @@ export type OwnerUncheckedCreateInput = {
 
 export type OwnerUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -370,7 +370,7 @@ export type OwnerUpdateInput = {
 
 export type OwnerUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -389,7 +389,7 @@ export type OwnerUncheckedUpdateInput = {
 
 export type OwnerCreateManyInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -403,7 +403,7 @@ export type OwnerCreateManyInput = {
 
 export type OwnerUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -417,7 +417,7 @@ export type OwnerUpdateManyMutationInput = {
 
 export type OwnerUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -485,12 +485,12 @@ export type StringFieldUpdateOperationsInput = {
   set?: string;
 };
 
-export type EnumWalletModeFieldUpdateOperationsInput = {
-  set?: $Enums.WalletMode;
-};
-
 export type NullableStringFieldUpdateOperationsInput = {
   set?: string | null;
+};
+
+export type EnumWalletModeFieldUpdateOperationsInput = {
+  set?: $Enums.WalletMode;
 };
 
 export type DateTimeFieldUpdateOperationsInput = {
@@ -631,7 +631,7 @@ export type OwnerUpdateOneRequiredWithoutContent_keysNestedInput = {
 
 export type OwnerCreateWithoutAgentsInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -649,7 +649,7 @@ export type OwnerCreateWithoutAgentsInput = {
 
 export type OwnerUncheckedCreateWithoutAgentsInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -695,7 +695,7 @@ export type OwnerUpdateToOneWithWhereWithoutAgentsInput = {
 
 export type OwnerUpdateWithoutAgentsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -713,7 +713,7 @@ export type OwnerUpdateWithoutAgentsInput = {
 
 export type OwnerUncheckedUpdateWithoutAgentsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -731,7 +731,7 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
 
 export type OwnerCreateWithoutContentInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -749,7 +749,7 @@ export type OwnerCreateWithoutContentInput = {
 
 export type OwnerUncheckedCreateWithoutContentInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -795,7 +795,7 @@ export type OwnerUpdateToOneWithWhereWithoutContentInput = {
 
 export type OwnerUpdateWithoutContentInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -813,7 +813,7 @@ export type OwnerUpdateWithoutContentInput = {
 
 export type OwnerUncheckedUpdateWithoutContentInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -831,7 +831,7 @@ export type OwnerUncheckedUpdateWithoutContentInput = {
 
 export type OwnerCreateWithoutViz_sessionsInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -849,7 +849,7 @@ export type OwnerCreateWithoutViz_sessionsInput = {
 
 export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -895,7 +895,7 @@ export type OwnerUpdateToOneWithWhereWithoutViz_sessionsInput = {
 
 export type OwnerUpdateWithoutViz_sessionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -913,7 +913,7 @@ export type OwnerUpdateWithoutViz_sessionsInput = {
 
 export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -931,7 +931,7 @@ export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
 
 export type OwnerCreateWithoutViewer_ticketsInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -949,7 +949,7 @@ export type OwnerCreateWithoutViewer_ticketsInput = {
 
 export type OwnerUncheckedCreateWithoutViewer_ticketsInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -995,7 +995,7 @@ export type OwnerUpdateToOneWithWhereWithoutViewer_ticketsInput = {
 
 export type OwnerUpdateWithoutViewer_ticketsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -1013,7 +1013,7 @@ export type OwnerUpdateWithoutViewer_ticketsInput = {
 
 export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -1031,7 +1031,7 @@ export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
 
 export type OwnerCreateWithoutContent_keysInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -1049,7 +1049,7 @@ export type OwnerCreateWithoutContent_keysInput = {
 
 export type OwnerUncheckedCreateWithoutContent_keysInput = {
   id?: string;
-  email: string;
+  email?: string | null;
   api_key_hash: string;
   wallet_mode: $Enums.WalletMode;
   owner_wallet_address?: string | null;
@@ -1095,7 +1095,7 @@ export type OwnerUpdateToOneWithWhereWithoutContent_keysInput = {
 
 export type OwnerUpdateWithoutContent_keysInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -1113,7 +1113,7 @@ export type OwnerUpdateWithoutContent_keysInput = {
 
 export type OwnerUncheckedUpdateWithoutContent_keysInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string;
-  email?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
   api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
   wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
   owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
@@ -1332,7 +1332,10 @@ export type $OwnerPayload<
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
       id: string;
-      email: string;
+      /**
+       * Optional since 2.0.2: an owner registers anonymously (its keys are its identity) and may claim an e-mail later.
+       */
+      email: string | null;
       /**
        * SHA-256 hex digest of the raw api_key. Never store the raw key.
        */

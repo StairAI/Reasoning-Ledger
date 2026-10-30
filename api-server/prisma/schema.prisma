@@ -63,7 +63,8 @@ enum Outcome {
 
 model Owner {
   id                   String     @id @default(uuid())
-  email                String     @unique
+  /// Optional since 2.0.2: an owner registers anonymously (its keys are its identity) and may claim an e-mail later.
+  email                String?    @unique
   /// SHA-256 hex digest of the raw api_key. Never store the raw key.
   api_key_hash         String     @unique
   wallet_mode          WalletMode

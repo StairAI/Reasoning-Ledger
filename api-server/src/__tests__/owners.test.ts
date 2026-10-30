@@ -43,6 +43,31 @@ describe("POST /v1/owners — registerOwner", () => {
     expect(second.api_key).toBeUndefined();
   });
 
+  it("registers anonymously without an e-mail: a new owner every time, claimable later", async () => {
+    const first = await call(registerOwner, {}, adminCtx());
+    const second = await call(registerOwner, {}, adminCtx());
+    expect(first.api_key).toMatch(/^sl_/);
+    expect(second.owner_id).not.toBe(first.owner_id);
+    expect(first.email).toBeUndefined();
+    const { prisma } = await import("#/lib/prisma");
+    const rows = await prisma.owner.findMany({
+      where: { id: { in: [first.owner_id, second.owner_id] } },
+    });
+    expect(rows.map((r) => r.email)).toStrictEqual([null, null]);
+
+    const email = `test-claim-${crypto.randomUUID()}@example.com`;
+    emails.push(email);
+    const claimed = await call(updateOwner, { email }, ctx(first.api_key));
+    expect(claimed.email).toBe(email);
+    await expect(call(updateOwner, { email }, ctx(second.api_key))).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    // Registering with a claimed e-mail resolves the owner, as before.
+    const again = await call(registerOwner, { email }, adminCtx());
+    expect(again.owner_id).toBe(first.owner_id);
+    await prisma.owner.deleteMany({ where: { id: second.owner_id } });
+  });
+
   it("creates a byow owner with a supplied wallet address", async () => {
     const email = `test-byow-${crypto.randomUUID()}@example.com`;
     emails.push(email);

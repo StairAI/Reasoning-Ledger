@@ -17,7 +17,8 @@ describe("Visualiser login sessions", () => {
 
   beforeAll(async () => {
     owner = await makeTestOwner();
-    ({ email } = await prisma.owner.findUniqueOrThrow({ where: { id: owner.ownerId } }));
+    const row = await prisma.owner.findUniqueOrThrow({ where: { id: owner.ownerId } });
+    email = row.email ?? "";
   });
 
   afterAll(async () => {
