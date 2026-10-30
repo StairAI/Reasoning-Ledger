@@ -2,6 +2,14 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## Unreleased
+
+The server only.
+
+### Changed
+
+- **The trace list shows conversations.** A chat harness records one session per turn (`<conversation>:t<n>`, a sub-agent's turns `<conversation>:sub:<agent>:t<n>`); the viewer's list now groups those turns into one card per conversation (the latest turns shown, earlier ones folded, sub-agents' turns apart) instead of one card per turn. A conversation that another one started, handed work over to or forked is nested under it: a `Delegating` and the `Observing` that opened the other side share a `link:<digest>` tag, and a fork's first `Observing` carries `fork_of:<conversation>`. Messages a conversation received from another are counted on its card. Sessions named any other way are listed as before, one card each. Nothing changes in the API or the schema; the links are tags the Claude Code plugin writes from 0.11.0.
+
 ## 2.0.2 — 2026-10-29
 
 The server only; the SDKs stay at 2.0.0.

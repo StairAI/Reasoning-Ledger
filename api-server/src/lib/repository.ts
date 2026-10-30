@@ -8,6 +8,7 @@
  * reads across owners (see lib/admin.ts).
  */
 
+import type { LinkRow } from "#/lib/conversations";
 import { prisma } from "#/lib/prisma";
 
 /** An owner's id, or null for the administrator: no owner filter at all. */
@@ -139,6 +140,27 @@ export async function ownedSessionSummaries(
     session_id: r.session_id,
     tokens: Number(r.tokens),
   }));
+}
+
+/**
+ * The scope's records that link conversations: a Delegating or Observing with a
+ * `link:<digest>` or `fork_of:<conversation>` tag (see lib/conversations).
+ */
+export async function ownedLinks(scope: ReadScope): Promise<LinkRow[]> {
+  return await prisma.$queryRaw<LinkRow[]>`
+    SELECT
+      tr.agent_id,
+      tr.behavior::text AS behavior,
+      tr.payload->>'kind' AS kind,
+      tr.session_id,
+      tr.tags
+    FROM trace_records tr
+    JOIN agents a ON a.id = tr.agent_id
+    WHERE (${scope}::text IS NULL OR a.owner_id = ${scope})
+      AND tr.behavior::text IN ('Delegating', 'Observing')
+      AND EXISTS (SELECT 1 FROM unnest(tr.tags) AS t WHERE t LIKE 'link:%' OR t LIKE 'fork_of:%')
+    ORDER BY tr.sequence
+  `;
 }
 
 /** Aggregate stats over a session's records. */
