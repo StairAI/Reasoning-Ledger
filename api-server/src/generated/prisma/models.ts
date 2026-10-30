@@ -14,6 +14,7 @@ export type * from "./models/ContentObject.ts";
 export type * from "./models/ContentDeletion.ts";
 export type * from "./models/VizSession.ts";
 export type * from "./models/ViewerTicket.ts";
+export type * from "./models/ViewGrant.ts";
 export type * from "./models/ContentKey.ts";
 export type * from "./models/Invite.ts";
 export type * from "./commonInputTypes.ts";

@@ -231,6 +231,7 @@ export type OwnerWhereInput = {
   content_keys?: Prisma.ContentKeyListRelationFilter;
   viz_sessions?: Prisma.VizSessionListRelationFilter;
   viewer_tickets?: Prisma.ViewerTicketListRelationFilter;
+  view_grants?: Prisma.ViewGrantListRelationFilter;
 };
 
 export type OwnerOrderByWithRelationInput = {
@@ -250,6 +251,7 @@ export type OwnerOrderByWithRelationInput = {
   content_keys?: Prisma.ContentKeyOrderByRelationAggregateInput;
   viz_sessions?: Prisma.VizSessionOrderByRelationAggregateInput;
   viewer_tickets?: Prisma.ViewerTicketOrderByRelationAggregateInput;
+  view_grants?: Prisma.ViewGrantOrderByRelationAggregateInput;
 };
 
 export type OwnerWhereUniqueInput = Prisma.AtLeast<
@@ -273,6 +275,7 @@ export type OwnerWhereUniqueInput = Prisma.AtLeast<
     content_keys?: Prisma.ContentKeyListRelationFilter;
     viz_sessions?: Prisma.VizSessionListRelationFilter;
     viewer_tickets?: Prisma.ViewerTicketListRelationFilter;
+    view_grants?: Prisma.ViewGrantListRelationFilter;
   },
   "id" | "email" | "api_key_hash"
 >;
@@ -328,6 +331,7 @@ export type OwnerCreateInput = {
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateInput = {
@@ -347,6 +351,7 @@ export type OwnerUncheckedCreateInput = {
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUpdateInput = {
@@ -366,6 +371,7 @@ export type OwnerUpdateInput = {
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateInput = {
@@ -385,6 +391,7 @@ export type OwnerUncheckedUpdateInput = {
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateManyInput = {
@@ -603,6 +610,32 @@ export type OwnerUpdateOneRequiredWithoutViewer_ticketsNestedInput = {
   >;
 };
 
+export type OwnerCreateNestedOneWithoutView_grantsInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutView_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutView_grantsInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutView_grantsInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+};
+
+export type OwnerUpdateOneRequiredWithoutView_grantsNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.OwnerCreateWithoutView_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutView_grantsInput
+  >;
+  connectOrCreate?: Prisma.OwnerCreateOrConnectWithoutView_grantsInput;
+  upsert?: Prisma.OwnerUpsertWithoutView_grantsInput;
+  connect?: Prisma.OwnerWhereUniqueInput;
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.OwnerUpdateToOneWithWhereWithoutView_grantsInput,
+      Prisma.OwnerUpdateWithoutView_grantsInput
+    >,
+    Prisma.OwnerUncheckedUpdateWithoutView_grantsInput
+  >;
+};
+
 export type OwnerCreateNestedOneWithoutContent_keysInput = {
   create?: Prisma.XOR<
     Prisma.OwnerCreateWithoutContent_keysInput,
@@ -645,6 +678,7 @@ export type OwnerCreateWithoutAgentsInput = {
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutAgentsInput = {
@@ -663,6 +697,7 @@ export type OwnerUncheckedCreateWithoutAgentsInput = {
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutAgentsInput = {
@@ -709,6 +744,7 @@ export type OwnerUpdateWithoutAgentsInput = {
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutAgentsInput = {
@@ -727,6 +763,7 @@ export type OwnerUncheckedUpdateWithoutAgentsInput = {
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutContentInput = {
@@ -745,6 +782,7 @@ export type OwnerCreateWithoutContentInput = {
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutContentInput = {
@@ -763,6 +801,7 @@ export type OwnerUncheckedCreateWithoutContentInput = {
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutContentInput = {
@@ -809,6 +848,7 @@ export type OwnerUpdateWithoutContentInput = {
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutContentInput = {
@@ -827,6 +867,7 @@ export type OwnerUncheckedUpdateWithoutContentInput = {
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutViz_sessionsInput = {
@@ -845,6 +886,7 @@ export type OwnerCreateWithoutViz_sessionsInput = {
   content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
@@ -863,6 +905,7 @@ export type OwnerUncheckedCreateWithoutViz_sessionsInput = {
   content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutViz_sessionsInput = {
@@ -909,6 +952,7 @@ export type OwnerUpdateWithoutViz_sessionsInput = {
   content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
@@ -927,6 +971,7 @@ export type OwnerUncheckedUpdateWithoutViz_sessionsInput = {
   content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutViewer_ticketsInput = {
@@ -945,6 +990,7 @@ export type OwnerCreateWithoutViewer_ticketsInput = {
   content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
   content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutViewer_ticketsInput = {
@@ -963,6 +1009,7 @@ export type OwnerUncheckedCreateWithoutViewer_ticketsInput = {
   content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
   content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutViewer_ticketsInput = {
@@ -1009,6 +1056,7 @@ export type OwnerUpdateWithoutViewer_ticketsInput = {
   content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
   content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
@@ -1027,6 +1075,111 @@ export type OwnerUncheckedUpdateWithoutViewer_ticketsInput = {
   content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
   content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerCreateWithoutView_grantsInput = {
+  id?: string;
+  email?: string | null;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  invite_code?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
+  content_keys?: Prisma.ContentKeyCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
+  viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerUncheckedCreateWithoutView_grantsInput = {
+  id?: string;
+  email?: string | null;
+  api_key_hash: string;
+  wallet_mode: $Enums.WalletMode;
+  owner_wallet_address?: string | null;
+  display_name?: string | null;
+  website?: string | null;
+  contact_email?: string | null;
+  invite_code?: string | null;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+  agents?: Prisma.AgentUncheckedCreateNestedManyWithoutOwnerInput;
+  content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
+  content_keys?: Prisma.ContentKeyUncheckedCreateNestedManyWithoutOwnerInput;
+  viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
+  viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+};
+
+export type OwnerCreateOrConnectWithoutView_grantsInput = {
+  where: Prisma.OwnerWhereUniqueInput;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutView_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutView_grantsInput
+  >;
+};
+
+export type OwnerUpsertWithoutView_grantsInput = {
+  update: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutView_grantsInput,
+    Prisma.OwnerUncheckedUpdateWithoutView_grantsInput
+  >;
+  create: Prisma.XOR<
+    Prisma.OwnerCreateWithoutView_grantsInput,
+    Prisma.OwnerUncheckedCreateWithoutView_grantsInput
+  >;
+  where?: Prisma.OwnerWhereInput;
+};
+
+export type OwnerUpdateToOneWithWhereWithoutView_grantsInput = {
+  where?: Prisma.OwnerWhereInput;
+  data: Prisma.XOR<
+    Prisma.OwnerUpdateWithoutView_grantsInput,
+    Prisma.OwnerUncheckedUpdateWithoutView_grantsInput
+  >;
+};
+
+export type OwnerUpdateWithoutView_grantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
+  content_keys?: Prisma.ContentKeyUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
+  viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+};
+
+export type OwnerUncheckedUpdateWithoutView_grantsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string;
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  api_key_hash?: Prisma.StringFieldUpdateOperationsInput | string;
+  wallet_mode?: Prisma.EnumWalletModeFieldUpdateOperationsInput | $Enums.WalletMode;
+  owner_wallet_address?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  display_name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  website?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  contact_email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  invite_code?: Prisma.NullableStringFieldUpdateOperationsInput | string | null;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  updated_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  agents?: Prisma.AgentUncheckedUpdateManyWithoutOwnerNestedInput;
+  content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
+  content_keys?: Prisma.ContentKeyUncheckedUpdateManyWithoutOwnerNestedInput;
+  viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
+  viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerCreateWithoutContent_keysInput = {
@@ -1045,6 +1198,7 @@ export type OwnerCreateWithoutContent_keysInput = {
   content?: Prisma.ContentObjectCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerUncheckedCreateWithoutContent_keysInput = {
@@ -1063,6 +1217,7 @@ export type OwnerUncheckedCreateWithoutContent_keysInput = {
   content?: Prisma.ContentObjectUncheckedCreateNestedManyWithoutOwnerInput;
   viz_sessions?: Prisma.VizSessionUncheckedCreateNestedManyWithoutOwnerInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedCreateNestedManyWithoutOwnerInput;
+  view_grants?: Prisma.ViewGrantUncheckedCreateNestedManyWithoutOwnerInput;
 };
 
 export type OwnerCreateOrConnectWithoutContent_keysInput = {
@@ -1109,6 +1264,7 @@ export type OwnerUpdateWithoutContent_keysInput = {
   content?: Prisma.ContentObjectUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUpdateManyWithoutOwnerNestedInput;
 };
 
 export type OwnerUncheckedUpdateWithoutContent_keysInput = {
@@ -1127,6 +1283,7 @@ export type OwnerUncheckedUpdateWithoutContent_keysInput = {
   content?: Prisma.ContentObjectUncheckedUpdateManyWithoutOwnerNestedInput;
   viz_sessions?: Prisma.VizSessionUncheckedUpdateManyWithoutOwnerNestedInput;
   viewer_tickets?: Prisma.ViewerTicketUncheckedUpdateManyWithoutOwnerNestedInput;
+  view_grants?: Prisma.ViewGrantUncheckedUpdateManyWithoutOwnerNestedInput;
 };
 
 /**
@@ -1139,6 +1296,7 @@ export type OwnerCountOutputType = {
   content_keys: number;
   viz_sessions: number;
   viewer_tickets: number;
+  view_grants: number;
 };
 
 export type OwnerCountOutputTypeSelect<
@@ -1149,6 +1307,7 @@ export type OwnerCountOutputTypeSelect<
   content_keys?: boolean | OwnerCountOutputTypeCountContent_keysArgs;
   viz_sessions?: boolean | OwnerCountOutputTypeCountViz_sessionsArgs;
   viewer_tickets?: boolean | OwnerCountOutputTypeCountViewer_ticketsArgs;
+  view_grants?: boolean | OwnerCountOutputTypeCountView_grantsArgs;
 };
 
 /**
@@ -1208,6 +1367,15 @@ export type OwnerCountOutputTypeCountViewer_ticketsArgs<
   where?: Prisma.ViewerTicketWhereInput;
 };
 
+/**
+ * OwnerCountOutputType without action
+ */
+export type OwnerCountOutputTypeCountView_grantsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  where?: Prisma.ViewGrantWhereInput;
+};
+
 export type OwnerSelect<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = runtime.Types.Extensions.GetSelect<
@@ -1228,6 +1396,7 @@ export type OwnerSelect<
     content_keys?: boolean | Prisma.Owner$content_keysArgs<ExtArgs>;
     viz_sessions?: boolean | Prisma.Owner$viz_sessionsArgs<ExtArgs>;
     viewer_tickets?: boolean | Prisma.Owner$viewer_ticketsArgs<ExtArgs>;
+    view_grants?: boolean | Prisma.Owner$view_grantsArgs<ExtArgs>;
     _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
   },
   ExtArgs["result"]["owner"]
@@ -1309,6 +1478,7 @@ export type OwnerInclude<
   content_keys?: boolean | Prisma.Owner$content_keysArgs<ExtArgs>;
   viz_sessions?: boolean | Prisma.Owner$viz_sessionsArgs<ExtArgs>;
   viewer_tickets?: boolean | Prisma.Owner$viewer_ticketsArgs<ExtArgs>;
+  view_grants?: boolean | Prisma.Owner$view_grantsArgs<ExtArgs>;
   _count?: boolean | Prisma.OwnerCountOutputTypeDefaultArgs<ExtArgs>;
 };
 export type OwnerIncludeCreateManyAndReturn<
@@ -1328,6 +1498,7 @@ export type $OwnerPayload<
     content_keys: Prisma.$ContentKeyPayload<ExtArgs>[];
     viz_sessions: Prisma.$VizSessionPayload<ExtArgs>[];
     viewer_tickets: Prisma.$ViewerTicketPayload<ExtArgs>[];
+    view_grants: Prisma.$ViewGrantPayload<ExtArgs>[];
   };
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -1913,6 +2084,17 @@ export interface Prisma__OwnerClient<
   ): Prisma.PrismaPromise<
     | runtime.Types.Result.GetResult<
         Prisma.$ViewerTicketPayload<ExtArgs>,
+        T,
+        "findMany",
+        GlobalOmitOptions
+      >
+    | Null
+  >;
+  view_grants<T extends Prisma.Owner$view_grantsArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.Owner$view_grantsArgs<ExtArgs>>,
+  ): Prisma.PrismaPromise<
+    | runtime.Types.Result.GetResult<
+        Prisma.$ViewGrantPayload<ExtArgs>,
         T,
         "findMany",
         GlobalOmitOptions
@@ -2512,6 +2694,32 @@ export type Owner$viewer_ticketsArgs<
   take?: number;
   skip?: number;
   distinct?: Prisma.ViewerTicketScalarFieldEnum | Prisma.ViewerTicketScalarFieldEnum[];
+};
+
+/**
+ * Owner.view_grants
+ */
+export type Owner$view_grantsArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the ViewGrant
+   */
+  select?: Prisma.ViewGrantSelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the ViewGrant
+   */
+  omit?: Prisma.ViewGrantOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ViewGrantInclude<ExtArgs> | null;
+  where?: Prisma.ViewGrantWhereInput;
+  orderBy?: Prisma.ViewGrantOrderByWithRelationInput | Prisma.ViewGrantOrderByWithRelationInput[];
+  cursor?: Prisma.ViewGrantWhereUniqueInput;
+  take?: number;
+  skip?: number;
+  distinct?: Prisma.ViewGrantScalarFieldEnum | Prisma.ViewGrantScalarFieldEnum[];
 };
 
 /**

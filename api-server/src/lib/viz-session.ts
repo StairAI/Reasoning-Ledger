@@ -9,6 +9,8 @@
 
 import { randomBytes } from "node:crypto";
 import { prisma } from "#/lib/prisma";
+import { activeGrant } from "#/lib/view-grants";
+import type { GrantKeys } from "#/lib/view-grants";
 
 export const VIZ_COOKIE = "rl_viz";
 
@@ -26,6 +28,12 @@ export interface Viewer {
    * id. Unset for the administrator.
    */
   ownerName?: string;
+  /**
+   * Set for a session opened with a view grant (lib/view-grants.ts): it reads
+   * only these sessions, and the pages give the browser these keys, wrapped
+   * under the grant key the link carried.
+   */
+  grant?: { id: string; sessionIds: Set<string>; keys: GrantKeys; expiresAt: Date };
 }
 
 /**
@@ -36,12 +44,18 @@ export interface Viewer {
  */
 export async function startVizSession(
   ownerId: string | null,
+  grant?: { id: string; expiresAt: Date },
 ): Promise<{ id: string; expiresAt: Date }> {
   const now = Date.now();
   await prisma.vizSession.deleteMany({ where: { expires_at: { lte: new Date(now) } } });
   const id = randomBytes(32).toString("hex");
-  const expiresAt = new Date(now + ttlMs());
-  await prisma.vizSession.create({ data: { expires_at: expiresAt, id, owner_id: ownerId } });
+  // A grant's session ends with the grant.
+  const expiresAt = new Date(
+    Math.min(now + ttlMs(), grant?.expiresAt.getTime() ?? Number.POSITIVE_INFINITY),
+  );
+  await prisma.vizSession.create({
+    data: { expires_at: expiresAt, grant_id: grant?.id ?? null, id, owner_id: ownerId },
+  });
   return { expiresAt, id };
 }
 
@@ -65,7 +79,22 @@ export async function viewerForSession(id?: string): Promise<Viewer | undefined>
     return { admin: true, ownerId: null };
   }
   const ownerName = session.owner?.display_name?.trim() || session.owner?.email || session.owner_id;
-  return { admin: false, ownerId: session.owner_id, ownerName };
+  if (!session.grant_id) {
+    return { admin: false, ownerId: session.owner_id, ownerName };
+  }
+  // A grant's session lasts as long as the grant is in force.
+  const grant = await activeGrant(session.grant_id);
+  if (!grant || grant.ownerId !== session.owner_id) {
+    await prisma.vizSession.deleteMany({ where: { id } });
+    return undefined;
+  }
+  const { expiresAt, keys, sessionIds } = grant;
+  return {
+    admin: false,
+    grant: { expiresAt, id: grant.id, keys, sessionIds },
+    ownerId: session.owner_id,
+    ownerName,
+  };
 }
 
 export async function endVizSession(id?: string): Promise<void> {

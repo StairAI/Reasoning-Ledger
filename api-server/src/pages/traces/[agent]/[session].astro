@@ -11,6 +11,7 @@ import { contentForViewer, encryptionForViewer, jsonForScript } from "#/lib/cont
 import type { PageEncryption } from "#/lib/content-view";
 import { reconstructRecord } from "#/lib/record";
 import { ownedSession, ownedSessionSummaries, sessionStats } from "#/lib/repository";
+import { grantAllows } from "#/lib/view-grants";
 import type { SessionSummary } from "#/lib/repository";
 import type { ContentMap, TraceRecord } from "#/lib/trace";
 
@@ -37,7 +38,8 @@ let encryption: PageEncryption = { keys: {}, objects: {} };
 let loadError: string | null = null;
 
 try {
-  const session = await ownedSession(scope, agentId, sessionId);
+  // A viewer who came with a view grant opens only the grant's sessions.
+  const session = grantAllows(viewer?.grant, sessionId) ? await ownedSession(scope, agentId, sessionId) : null;
   if (session && session.rows.length > 0) {
     trace = {
       agent_id: session.agent.id,
@@ -48,11 +50,11 @@ try {
     };
     // Content belongs to the agent's owner, which is the viewer unless they are the administrator.
     contents = await contentForViewer(session.agent.owner_id, trace.records);
-    encryption = await encryptionForViewer(session.agent.owner_id, contents);
+    encryption = await encryptionForViewer(session.agent.owner_id, contents, viewer?.grant?.keys);
   } else {
     loadError = "Trace (session) not found";
   }
-  sessions = await ownedSessionSummaries(scope, 200);
+  sessions = await ownedSessionSummaries(scope, 200, viewer?.grant ? [...viewer.grant.sessionIds] : undefined);
 } catch (error) {
   loadError = error instanceof Error ? error.message : "Failed to load trace";
 }

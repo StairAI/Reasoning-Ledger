@@ -86,10 +86,11 @@ export interface SessionSummary {
   tokens: number;
 }
 
-/** The scope's sessions with aggregate stats, most recently active first. */
+/** The scope's sessions with aggregate stats, most recently active first; `only`, when given, keeps those sessions. */
 export async function ownedSessionSummaries(
   scope: ReadScope,
   limit: number,
+  only?: string[],
 ): Promise<SessionSummary[]> {
   // Token totals live inside the model_invocation JSONB, so a raw query is the
   // cleanest way to sum them.
@@ -124,6 +125,7 @@ export async function ownedSessionSummaries(
     FROM trace_records tr
     JOIN agents a ON a.id = tr.agent_id
     WHERE (${scope}::text IS NULL OR a.owner_id = ${scope})
+      AND (${only ?? null}::text[] IS NULL OR tr.session_id = ANY(${only ?? null}::text[]))
     GROUP BY tr.agent_id, a.name, a.owner_id, tr.session_id
     ORDER BY max(tr.sequence) DESC
     LIMIT ${limit}
@@ -146,7 +148,7 @@ export async function ownedSessionSummaries(
  * The scope's records that link conversations: a Delegating or Observing with a
  * `link:<digest>` or `fork_of:<conversation>` tag (see lib/conversations).
  */
-export async function ownedLinks(scope: ReadScope): Promise<LinkRow[]> {
+export async function ownedLinks(scope: ReadScope, only?: string[]): Promise<LinkRow[]> {
   return await prisma.$queryRaw<LinkRow[]>`
     SELECT
       tr.agent_id,
@@ -157,6 +159,7 @@ export async function ownedLinks(scope: ReadScope): Promise<LinkRow[]> {
     FROM trace_records tr
     JOIN agents a ON a.id = tr.agent_id
     WHERE (${scope}::text IS NULL OR a.owner_id = ${scope})
+      AND (${only ?? null}::text[] IS NULL OR tr.session_id = ANY(${only ?? null}::text[]))
       AND tr.behavior::text IN ('Delegating', 'Observing')
       AND EXISTS (SELECT 1 FROM unnest(tr.tags) AS t WHERE t LIKE 'link:%' OR t LIKE 'fork_of:%')
     ORDER BY tr.sequence

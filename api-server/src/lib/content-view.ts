@@ -140,10 +140,15 @@ export interface PageEncryption {
   keys: Record<string, { master_key_id: string; wrap_alg: string; wrapped_key: string }>;
 }
 
-/** The encrypted objects of a content map, with the owner's wrapped keys that open them. */
+/**
+ * The encrypted objects of a content map, with the wrapped keys that open them:
+ * the owner's, or for a viewer who came with a view grant, the grant's
+ * (wrapped under the key their link carried) and no others.
+ */
 export async function encryptionForViewer(
   ownerId: string,
   contents: ContentMap,
+  grantKeys?: PageEncryption["keys"],
 ): Promise<PageEncryption> {
   const objects: PageEncryption["objects"] = {};
   for (const [sha256, view] of Object.entries(contents)) {
@@ -153,8 +158,16 @@ export async function encryptionForViewer(
     }
   }
   const keyIds = [...new Set(Object.values(objects).map((object) => object.key_id))];
-  const rows = await contentKeysByIds(ownerId, keyIds);
   const keys: PageEncryption["keys"] = {};
+  if (grantKeys) {
+    for (const keyId of keyIds) {
+      if (grantKeys[keyId]) {
+        keys[keyId] = grantKeys[keyId];
+      }
+    }
+    return { keys, objects };
+  }
+  const rows = await contentKeysByIds(ownerId, keyIds);
   for (const [keyId, row] of rows) {
     keys[keyId] = {
       master_key_id: row.master_key_id,

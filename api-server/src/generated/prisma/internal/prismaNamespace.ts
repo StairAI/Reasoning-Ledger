@@ -382,6 +382,7 @@ export const ModelName = {
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
   ViewerTicket: "ViewerTicket",
+  ViewGrant: "ViewGrant",
   ContentKey: "ContentKey",
   Invite: "Invite",
 } as const;
@@ -411,6 +412,7 @@ export type TypeMap<
       | "contentDeletion"
       | "vizSession"
       | "viewerTicket"
+      | "viewGrant"
       | "contentKey"
       | "invite";
     txIsolationLevel: TransactionIsolationLevel;
@@ -940,6 +942,80 @@ export type TypeMap<
         };
       };
     };
+    ViewGrant: {
+      payload: Prisma.$ViewGrantPayload<ExtArgs>;
+      fields: Prisma.ViewGrantFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.ViewGrantFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.ViewGrantFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>;
+        };
+        findFirst: {
+          args: Prisma.ViewGrantFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.ViewGrantFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>;
+        };
+        findMany: {
+          args: Prisma.ViewGrantFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>[];
+        };
+        create: {
+          args: Prisma.ViewGrantCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>;
+        };
+        createMany: {
+          args: Prisma.ViewGrantCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.ViewGrantCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>[];
+        };
+        delete: {
+          args: Prisma.ViewGrantDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>;
+        };
+        update: {
+          args: Prisma.ViewGrantUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>;
+        };
+        deleteMany: {
+          args: Prisma.ViewGrantDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.ViewGrantUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.ViewGrantUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>[];
+        };
+        upsert: {
+          args: Prisma.ViewGrantUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ViewGrantPayload>;
+        };
+        aggregate: {
+          args: Prisma.ViewGrantAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateViewGrant>;
+        };
+        groupBy: {
+          args: Prisma.ViewGrantGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ViewGrantGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.ViewGrantCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ViewGrantCountAggregateOutputType> | number;
+        };
+      };
+    };
     ContentKey: {
       payload: Prisma.$ContentKeyPayload<ExtArgs>;
       fields: Prisma.ContentKeyFieldRefs;
@@ -1211,6 +1287,7 @@ export const VizSessionScalarFieldEnum = {
   owner_id: "owner_id",
   created_at: "created_at",
   expires_at: "expires_at",
+  grant_id: "grant_id",
 } as const;
 
 export type VizSessionScalarFieldEnum =
@@ -1227,6 +1304,22 @@ export const ViewerTicketScalarFieldEnum = {
 
 export type ViewerTicketScalarFieldEnum =
   (typeof ViewerTicketScalarFieldEnum)[keyof typeof ViewerTicketScalarFieldEnum];
+
+export const ViewGrantScalarFieldEnum = {
+  id: "id",
+  token_hash: "token_hash",
+  owner_id: "owner_id",
+  purpose: "purpose",
+  session_ids: "session_ids",
+  keys: "keys",
+  created_at: "created_at",
+  expires_at: "expires_at",
+  revoked_at: "revoked_at",
+  ended_at: "ended_at",
+} as const;
+
+export type ViewGrantScalarFieldEnum =
+  (typeof ViewGrantScalarFieldEnum)[keyof typeof ViewGrantScalarFieldEnum];
 
 export const ContentKeyScalarFieldEnum = {
   owner_id: "owner_id",
@@ -1562,6 +1655,7 @@ export type GlobalOmitConfig = {
   contentDeletion?: Prisma.ContentDeletionOmit;
   vizSession?: Prisma.VizSessionOmit;
   viewerTicket?: Prisma.ViewerTicketOmit;
+  viewGrant?: Prisma.ViewGrantOmit;
   contentKey?: Prisma.ContentKeyOmit;
   invite?: Prisma.InviteOmit;
 };

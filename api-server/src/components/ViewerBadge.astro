@@ -17,10 +17,17 @@ const { viewer } = Astro.props;
       Administrator · all owners
     </span>
   ) : (
-    viewer?.ownerName && (
-      <span class="min-w-0 max-w-[320px] truncate text-[12px] text-ink/50">
-        Signed in as <span class="text-ink/80">{viewer.ownerName}</span>
+    viewer?.grant ? (
+      <span class="min-w-0 max-w-[360px] truncate text-[12px] text-ink/50">
+        Authorized view · <span class="text-ink/80">{viewer.grant.sessionIds.size} sessions</span> until{" "}
+        <time datetime={viewer.grant.expiresAt.toISOString()}>{viewer.grant.expiresAt.toISOString().slice(11, 16)} UTC</time>
       </span>
+    ) : (
+      viewer?.ownerName && (
+        <span class="min-w-0 max-w-[320px] truncate text-[12px] text-ink/50">
+          Signed in as <span class="text-ink/80">{viewer.ownerName}</span>
+        </span>
+      )
     )
   )
 }

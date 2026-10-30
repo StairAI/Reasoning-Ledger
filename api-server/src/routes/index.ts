@@ -13,6 +13,7 @@ import { agentsRouter } from "./agents";
 import { recordsRouter } from "./records";
 import { sessionsRouter } from "./sessions";
 import { tracesRouter } from "./traces";
+import { viewGrantsRouter } from "./view-grants";
 import { viewerRouter } from "./viewer";
 
 /**
@@ -25,6 +26,7 @@ import { viewerRouter } from "./viewer";
  *   - sessions: Data plane   — session record retrieval
  *   - traces:   Data plane   — paginated agent trace retrieval
  *   - viewer:   Control plane — one-time sign-in links into the trace viewer
+ *   - viewGrants: Control plane — time-limited, revocable views of some sessions
  *
  * Tags are declared per-procedure via .route({ tags }) so the Scalar/Swagger
  * UI renders them in labelled, collapsible sections.
@@ -37,6 +39,7 @@ export const router = {
   records: recordsRouter,
   sessions: sessionsRouter,
   traces: tracesRouter,
+  viewGrants: viewGrantsRouter,
   viewer: viewerRouter,
 };
 

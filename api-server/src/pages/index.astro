@@ -21,7 +21,9 @@ let traceCount = 0;
 let loadError: string | null = null;
 try {
   const scope = viewer?.ownerId ?? null;
-  const [sessions, links] = await Promise.all([ownedSessionSummaries(scope, 500), ownedLinks(scope)]);
+  // A viewer who came with a view grant sees the grant's sessions and nothing else.
+  const only = viewer?.grant ? [...viewer.grant.sessionIds] : undefined;
+  const [sessions, links] = await Promise.all([ownedSessionSummaries(scope, 500, only), ownedLinks(scope, only)]);
   traceCount = sessions.length;
   conversations = buildConversations(sessions, links);
 } catch (error) {

@@ -55,6 +55,7 @@ export const ModelName = {
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
   ViewerTicket: "ViewerTicket",
+  ViewGrant: "ViewGrant",
   ContentKey: "ContentKey",
   Invite: "Invite",
 } as const;
@@ -159,6 +160,7 @@ export const VizSessionScalarFieldEnum = {
   owner_id: "owner_id",
   created_at: "created_at",
   expires_at: "expires_at",
+  grant_id: "grant_id",
 } as const;
 
 export type VizSessionScalarFieldEnum =
@@ -175,6 +177,22 @@ export const ViewerTicketScalarFieldEnum = {
 
 export type ViewerTicketScalarFieldEnum =
   (typeof ViewerTicketScalarFieldEnum)[keyof typeof ViewerTicketScalarFieldEnum];
+
+export const ViewGrantScalarFieldEnum = {
+  id: "id",
+  token_hash: "token_hash",
+  owner_id: "owner_id",
+  purpose: "purpose",
+  session_ids: "session_ids",
+  keys: "keys",
+  created_at: "created_at",
+  expires_at: "expires_at",
+  revoked_at: "revoked_at",
+  ended_at: "ended_at",
+} as const;
+
+export type ViewGrantScalarFieldEnum =
+  (typeof ViewGrantScalarFieldEnum)[keyof typeof ViewGrantScalarFieldEnum];
 
 export const ContentKeyScalarFieldEnum = {
   owner_id: "owner_id",
