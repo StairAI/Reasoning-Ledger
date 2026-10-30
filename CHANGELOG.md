@@ -2,6 +2,15 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## 2.2.0 — 2026-10-30
+
+The server only; the SDKs stay at 2.0.0.
+
+### Added
+
+- **The access gate.** Services other than the ledger that an owner reaches with the same account, the first being the page-sharing service at `share.stair-ai.com`, never receive the owner's API key. `POST /access/token` exchanges the key for a short-lived access token bound to one such resource (RFC 8693 token exchange, form-encoded; the resource named as in RFC 8707): a JWT signed with EdDSA carrying the owner, the resource, the granted scopes and the owner's handle. Resources verify it offline against `/.well-known/jwks.json`; `/.well-known/oauth-authorization-server` describes the gate (RFC 8414) and `GET /access/me` tells an owner its handle and grants. Off unless `RL_ACCESS_SIGNING_KEY` and `RL_ACCESS_ISSUER` are set; `RL_ACCESS_SIGNING_KEY_PREVIOUS` keeps a rotated key published, `RL_ACCESS_TOKEN_TTL` sets the lifetime (an hour by default), and `pnpm access-key` makes a key. The ledger's own endpoints keep taking the API key.
+- **Handles and grants.** An owner may have a handle (`owners.handle`, unique): the namespace every resource behind the gate gives it, as in `share.stair-ai.com/<handle>/`. The administrator sets it at `PUT /v1/admin/owners/{id}/handle` (changing an existing one needs `replace`, since links under it stop working) and finds owners at `GET /v1/admin/owners/lookup`. Grants (`access_grants`) say which resources an owner may get tokens for and with which scopes; the administrator makes, lists and revokes them at `/v1/admin/grants`. One migration adds the column and the table.
+
 ## 2.1.0 — 2026-10-30
 
 The server only.

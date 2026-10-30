@@ -4,6 +4,8 @@
  * or the instance administrator, who reads across owners.
  * The /v1 API (and its reference page at /v1) authenticates each request with
  * its own API key and is not affected; /health answers the platform's check; the login page and built assets stay reachable.
+ * The access gate (lib/access.ts) is open too: its token endpoint takes the API key in the body, /access/me takes it
+ * in a header, and the two documents under /.well-known are public by design.
  * A one-time sign-in link (/session/ticket/{ticket}) is open too: the ticket is the credential; and so is a
  * view grant's link (/session/grant/{token}), whose token is the credential for the grant's sessions only.
  */
@@ -14,6 +16,8 @@ import { VIZ_COOKIE, viewerForSession } from "#/lib/viz-session";
 const OPEN_PATHS = [
   /^\/v1(\/|$)/,
   /^\/health$/,
+  /^\/access\/(token|me)$/,
+  /^\/\.well-known\/(jwks\.json|oauth-authorization-server)$/,
   /^\/login\/?$/,
   /^\/session$/,
   /^\/session\/ticket\/[^/]+\/?$/,

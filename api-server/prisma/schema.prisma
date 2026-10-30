@@ -75,6 +75,9 @@ model Owner {
   contact_email        String?
   /// The invite code this owner registered with, when registration asked for one (lib/invites.ts).
   invite_code          String?
+  /// The owner's handle (2.2.0): a short public name that every resource behind the access gate uses as this
+  /// owner's namespace, as in share.stair-ai.com/<handle>/. Set by the administrator (lib/access.ts).
+  handle               String?    @unique
   created_at           DateTime   @default(now())
   updated_at           DateTime   @updatedAt
 
@@ -84,6 +87,7 @@ model Owner {
   viz_sessions   VizSession[]
   viewer_tickets ViewerTicket[]
   view_grants    ViewGrant[]
+  access_grants  AccessGrant[]
 
   @@map("owners")
 }
@@ -329,4 +333,25 @@ model Invite {
   created_at DateTime  @default(now())
 
   @@map("invites")
+}
+
+/// What the access gate may issue tokens for (2.2.0, lib/access.ts): this owner may ask for tokens whose
+/// audience is `resource`, with any of `scopes`. One live grant per owner and resource; a new grant revokes
+/// the one before it.
+model AccessGrant {
+  id         String    @id @default(uuid())
+  owner_id   String
+  /// The resource's canonical URL, e.g. https://share.stair-ai.com: the audience of the tokens.
+  resource   String
+  /// Scopes the owner may ask for at that resource, e.g. share:write.
+  scopes     String[]
+  /// Who it is for or why, in the operator's words.
+  note       String?
+  created_at DateTime  @default(now())
+  revoked_at DateTime?
+
+  owner Owner @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+
+  @@index([owner_id, resource])
+  @@map("access_grants")
 }

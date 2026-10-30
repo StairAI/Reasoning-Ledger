@@ -385,6 +385,7 @@ export const ModelName = {
   ViewGrant: "ViewGrant",
   ContentKey: "ContentKey",
   Invite: "Invite",
+  AccessGrant: "AccessGrant",
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -414,7 +415,8 @@ export type TypeMap<
       | "viewerTicket"
       | "viewGrant"
       | "contentKey"
-      | "invite";
+      | "invite"
+      | "accessGrant";
     txIsolationLevel: TransactionIsolationLevel;
   };
   model: {
@@ -1164,6 +1166,80 @@ export type TypeMap<
         };
       };
     };
+    AccessGrant: {
+      payload: Prisma.$AccessGrantPayload<ExtArgs>;
+      fields: Prisma.AccessGrantFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.AccessGrantFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.AccessGrantFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>;
+        };
+        findFirst: {
+          args: Prisma.AccessGrantFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.AccessGrantFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>;
+        };
+        findMany: {
+          args: Prisma.AccessGrantFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>[];
+        };
+        create: {
+          args: Prisma.AccessGrantCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>;
+        };
+        createMany: {
+          args: Prisma.AccessGrantCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.AccessGrantCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>[];
+        };
+        delete: {
+          args: Prisma.AccessGrantDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>;
+        };
+        update: {
+          args: Prisma.AccessGrantUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>;
+        };
+        deleteMany: {
+          args: Prisma.AccessGrantDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.AccessGrantUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.AccessGrantUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>[];
+        };
+        upsert: {
+          args: Prisma.AccessGrantUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AccessGrantPayload>;
+        };
+        aggregate: {
+          args: Prisma.AccessGrantAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAccessGrant>;
+        };
+        groupBy: {
+          args: Prisma.AccessGrantGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AccessGrantGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.AccessGrantCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AccessGrantCountAggregateOutputType> | number;
+        };
+      };
+    };
   };
 } & {
   other: {
@@ -1213,6 +1289,7 @@ export const OwnerScalarFieldEnum = {
   website: "website",
   contact_email: "contact_email",
   invite_code: "invite_code",
+  handle: "handle",
   created_at: "created_at",
   updated_at: "updated_at",
 } as const;
@@ -1348,6 +1425,19 @@ export const InviteScalarFieldEnum = {
 
 export type InviteScalarFieldEnum =
   (typeof InviteScalarFieldEnum)[keyof typeof InviteScalarFieldEnum];
+
+export const AccessGrantScalarFieldEnum = {
+  id: "id",
+  owner_id: "owner_id",
+  resource: "resource",
+  scopes: "scopes",
+  note: "note",
+  created_at: "created_at",
+  revoked_at: "revoked_at",
+} as const;
+
+export type AccessGrantScalarFieldEnum =
+  (typeof AccessGrantScalarFieldEnum)[keyof typeof AccessGrantScalarFieldEnum];
 
 export const SortOrder = {
   asc: "asc",
@@ -1658,6 +1748,7 @@ export type GlobalOmitConfig = {
   viewGrant?: Prisma.ViewGrantOmit;
   contentKey?: Prisma.ContentKeyOmit;
   invite?: Prisma.InviteOmit;
+  accessGrant?: Prisma.AccessGrantOmit;
 };
 
 /* Types for Logging */

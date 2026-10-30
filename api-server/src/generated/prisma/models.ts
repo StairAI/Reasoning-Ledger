@@ -17,4 +17,5 @@ export type * from "./models/ViewerTicket.ts";
 export type * from "./models/ViewGrant.ts";
 export type * from "./models/ContentKey.ts";
 export type * from "./models/Invite.ts";
+export type * from "./models/AccessGrant.ts";
 export type * from "./commonInputTypes.ts";
