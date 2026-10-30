@@ -2,7 +2,7 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
-## Unreleased
+## 2.0.3 — 2026-10-30
 
 The server only.
 

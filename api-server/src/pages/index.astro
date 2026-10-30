@@ -44,9 +44,7 @@ try {
         </div>
         <h1 class="font-sans text-[28px] font-medium text-ink">Reasoning Traces</h1>
         <p class="text-[13px] text-ink/50">
-          {conversations.length}
-          {conversations.length === 1 ? "conversation" : "conversations"} · {traceCount}
-          {traceCount === 1 ? "trace" : "traces"} · click a turn to open its reasoning digraph
+          {`${conversations.length} ${conversations.length === 1 ? "conversation" : "conversations"} · ${traceCount} ${traceCount === 1 ? "trace" : "traces"} · click a turn to open its reasoning digraph`}
         </p>
       </header>
 
