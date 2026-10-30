@@ -1758,7 +1758,7 @@ export type $OwnerPayload<
        */
       invite_code: string | null;
       /**
-       * The owner's handle (2.1.0): a short public name that every resource behind the access gate uses as this
+       * The owner's handle (2.2.0): a short public name that every resource behind the access gate uses as this
        * owner's namespace, as in share.stair-ai.com/<handle>/. Set by the administrator (lib/access.ts).
        */
       handle: string | null;

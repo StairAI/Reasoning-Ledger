@@ -13,7 +13,7 @@ import type * as Prisma from "../internal/prismaNamespace.ts";
 
 /**
  * Model AccessGrant
- * What the access gate may issue tokens for (2.1.0, lib/access.ts): this owner may ask for tokens whose
+ * What the access gate may issue tokens for (2.2.0, lib/access.ts): this owner may ask for tokens whose
  * audience is `resource`, with any of `scopes`. One live grant per owner and resource; a new grant revokes
  * the one before it.
  */
