@@ -93,14 +93,13 @@ export const administrator = base.use(({ context, next }) => {
 
 /**
  * Invite-code procedure builder: `X-Admin-Token` must be RL_ADMIN_TOKEN or
- * RL_INVITES_TOKEN (lib/admin.ts). For the invite routes and nothing else, so
- * the application that hands codes out holds no token that reads records or
- * registers owners.
+ * RL_REGISTRATION_TOKEN (lib/admin.ts), so the application that signs people
+ * up hands codes out too, without holding a token that reads records.
  */
 export const inviteManager = base.use(({ context, next }) => {
   if (!mayManageInvites(context.headers)) {
     throw new ORPCError("UNAUTHORIZED", {
-      message: "Administrator token or invites token required",
+      message: "Administrator token or registration token required",
     });
   }
   return next({ context: { admin: isAdminRequest(context.headers) } });

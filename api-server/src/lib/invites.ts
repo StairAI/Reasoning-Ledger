@@ -1,8 +1,9 @@
 /**
  * Invite codes (registration policy `invite`, lib/registration.ts).
  *
- * An operator makes codes with the administrator token, or hands that job to
- * an application with the invites token (lib/admin.ts); a person registering
+ * An operator makes codes with the administrator token, and so does the
+ * application that signs people up, with the registration token
+ * (lib/admin.ts); a person registering
  * through the plugin passes one, and it stays recorded on the owner it
  * admitted. A code has a number of uses, may expire, and can be revoked; its
  * note, saying who it is for, can be changed at any time. The policy is a

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { isAdminToken, mayManageInvites, mayRegisterOwners } from "#/lib/admin";
+import { isAdminToken, mayManageInvites } from "#/lib/admin";
 import { generateInviteCode, inviteProblem, normalizeInviteCode } from "#/lib/invites";
 import { prisma } from "#/lib/prisma";
 import { resetRegistrationAttempts } from "#/lib/registration";
@@ -24,7 +24,6 @@ function holding(token: string) {
   return { context: { headers: { "x-admin-token": token } } };
 }
 
-const INVITES_TOKEN = `test-invites-${crypto.randomUUID()}`;
 const REGISTRATION_TOKEN = `test-registration-${crypto.randomUUID()}`;
 
 describe("invite codes", () => {
@@ -93,11 +92,10 @@ describe("invite codes", () => {
     expect(invites.map((i) => i.code)).toContain(invite.code);
   });
 
-  it("the invites token makes, lists, edits and revokes codes, and opens nothing else", async () => {
-    process.env.RL_INVITES_TOKEN = INVITES_TOKEN;
+  it("the registration token makes, lists, edits and revokes codes, and still reads nothing", async () => {
     process.env.RL_REGISTRATION_TOKEN = REGISTRATION_TOKEN;
     try {
-      const app = holding(INVITES_TOKEN);
+      const app = holding(REGISTRATION_TOKEN);
       const made = await call(createInviteCodes, { count: 1, note: "for the page" }, app);
       codes.push(...made.invites.map((i) => i.code));
       const [invite] = made.invites;
@@ -108,43 +106,35 @@ describe("invite codes", () => {
       const revoked = await call(revokeInviteCode, { code: invite.code }, app);
       expect(revoked.revoked_at).not.toBeNull();
 
-      // It reads no records, takes no other administrator route, registers
-      // nobody, and is not the administrator anywhere (the content route and
-      // the viewer's sign-in ask isAdminToken).
+      // It still reads no records, takes no other administrator route, and is
+      // not the administrator anywhere (the content route and the viewer's
+      // sign-in ask isAdminToken).
       await expect(call(listSessions, { limit: 10 }, app)).rejects.toMatchObject({
         code: "UNAUTHORIZED",
       });
       await expect(call(lookupOwner, { email: "nobody@example.com" }, app)).rejects.toMatchObject({
         code: "UNAUTHORIZED",
       });
-      process.env.RL_REGISTRATION = "admin";
-      await expect(
-        call(registerOwner, { email: email("invites-token") }, app),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      process.env.RL_REGISTRATION = "invite";
-      expect(isAdminToken(INVITES_TOKEN)).toBeFalsy();
-      expect(mayRegisterOwners({ "x-admin-token": INVITES_TOKEN })).toBeFalsy();
+      expect(isAdminToken(REGISTRATION_TOKEN)).toBeFalsy();
 
-      // The registration token still has no say over codes; the administrator's still does.
-      const registrar = holding(REGISTRATION_TOKEN);
-      await expect(call(listInviteCodes, undefined, registrar)).rejects.toMatchObject({
-        code: "UNAUTHORIZED",
-      });
+      // A wrong token gets nowhere; the administrator's still works.
       await expect(
-        call(updateInviteCode, { code: invite.code, note: null }, registrar),
+        call(
+          updateInviteCode,
+          { code: invite.code, note: null },
+          holding(`${REGISTRATION_TOKEN}-not`),
+        ),
       ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
       const byAdmin = await call(updateInviteCode, { code: invite.code, note: null }, adminCtx());
       expect(byAdmin.note).toBeNull();
     } finally {
-      process.env.RL_REGISTRATION = "invite";
-      Reflect.deleteProperty(process.env, "RL_INVITES_TOKEN");
       Reflect.deleteProperty(process.env, "RL_REGISTRATION_TOKEN");
     }
 
-    // Unset, the variable opens nothing: the same value is refused, as before it existed.
-    await expect(call(listInviteCodes, undefined, holding(INVITES_TOKEN))).rejects.toMatchObject({
-      code: "UNAUTHORIZED",
-    });
+    // Unset, the variable opens nothing: the same value is refused.
+    await expect(
+      call(listInviteCodes, undefined, holding(REGISTRATION_TOKEN)),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(mayManageInvites({})).toBeFalsy();
     expect(mayManageInvites({ "x-admin-token": "" })).toBeFalsy();
   });

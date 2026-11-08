@@ -471,19 +471,16 @@ interface InviteSeen {
 }
 
 /**
- * Invite codes over HTTP on the built server, as the application that hands
- * them out calls them: the invites token makes, edits, lists and revokes codes,
- * and every code comes back with the owners it admitted; the registration
- * token has no say over codes; and the invites token is refused everywhere
- * else, the viewer's sign-in included. The unit suites call the procedures
- * directly, so the routes themselves (the PATCH and its body) are only tested
- * here.
+ * Invite codes over HTTP on the built server, as the application that signs
+ * people up calls them with its registration token: it makes, edits, lists and
+ * revokes codes, every code comes back with the owners it admitted, a wrong
+ * token gets nowhere, and the registration token still opens no reads, no
+ * other administrator route and no viewer sign-in. The unit suites call the
+ * procedures directly, so the routes themselves (the PATCH and its body) are
+ * only tested here.
  */
-async function invitesSmoke(
-  baseUrl: string,
-  tokens: { admin: string; invites: string; registration: string },
-): Promise<void> {
-  console.log("\n▶ smoke: invites token");
+async function invitesSmoke(baseUrl: string, registrationToken: string): Promise<void> {
+  console.log("\n▶ smoke: invite codes");
   const started = Date.now();
   const problems: string[] = [];
   const want = (ok: boolean, what: string) => {
@@ -500,79 +497,75 @@ async function invitesSmoke(
     });
   const json = async <T,>(res: Response): Promise<T | undefined> =>
     res.ok ? ((await res.json()) as T) : undefined;
+  const app = registrationToken;
 
-  const made = await send("POST", "/v1/admin/invites", tokens.invites, { count: 1, max_uses: 2, note: "gate" });
+  const made = await send("POST", "/v1/admin/invites", app, { count: 1, max_uses: 2, note: "gate" });
   const code = (await json<{ invites: InviteSeen[] }>(made))?.invites[0]?.code;
-  want(made.status === 200 && code !== undefined, `making a code with the invites token: expected 200, got ${made.status}`);
+  want(made.status === 200 && code !== undefined, `making a code with the registration token: expected 200, got ${made.status}`);
   if (code) {
-    const noted = await send("PATCH", `/v1/admin/invites/${code.toLowerCase()}`, tokens.invites, { note: "  for the gate  " });
+    const noted = await send("PATCH", `/v1/admin/invites/${code.toLowerCase()}`, app, { note: "  for the gate  " });
     const notedBody = await json<InviteSeen>(noted);
     want(
       noted.status === 200 && notedBody?.code === code && notedBody.note === "for the gate",
       `PATCH /v1/admin/invites/{code}: expected 200 with the note, trimmed, got ${noted.status}`,
     );
-    const cleared = await send("PATCH", `/v1/admin/invites/${code}`, tokens.invites, { note: null });
+    const cleared = await send("PATCH", `/v1/admin/invites/${code}`, app, { note: null });
     const clearedBody = await json<InviteSeen>(cleared);
     want(cleared.status === 200 && clearedBody?.note === null, `PATCH with note null: expected the note cleared, got ${cleared.status}`);
     for (const [what, body] of [
       ["without a note", {}],
       ["with a note over 200 characters", { note: "x".repeat(201) }],
     ] as const) {
-      const refused = await send("PATCH", `/v1/admin/invites/${code}`, tokens.invites, body);
+      const refused = await send("PATCH", `/v1/admin/invites/${code}`, app, body);
       want(refused.status === 400, `PATCH ${what}: expected 400, got ${refused.status}`);
     }
-    const unknown = await send("PATCH", "/v1/admin/invites/STAIR-NOPE1-NOPE2", tokens.invites, { note: "x" });
+    const unknown = await send("PATCH", "/v1/admin/invites/STAIR-NOPE1-NOPE2", app, { note: "x" });
     want(unknown.status === 404, `PATCH of an unknown code: expected 404, got ${unknown.status}`);
 
-    // The operator registers someone with the code; the list then names them.
+    // Someone registers with the code; the list then names them.
     const email = `invites-${randomBytes(6).toString("hex")}@example.com`;
-    const registered = await send("POST", "/v1/owners", tokens.admin, { email, invite_code: code, wallet_mode: "custodial" });
+    const registered = await send("POST", "/v1/owners", app, { email, invite_code: code, wallet_mode: "custodial" });
     const ownerId = (await json<{ owner_id?: string }>(registered))?.owner_id;
     want(registered.ok && ownerId !== undefined, `registering with the code: expected an owner, got ${registered.status}`);
-    const listed = await send("GET", "/v1/admin/invites?limit=50", tokens.invites);
+    const listed = await send("GET", "/v1/admin/invites?limit=50", app);
     const entry = (await json<{ invites: InviteSeen[] }>(listed))?.invites.find((i) => i.code === code);
     const [owner] = entry?.owners ?? [];
     want(
       listed.status === 200 && entry?.uses === 1 && entry.owners.length === 1 && owner?.owner_id === ownerId &&
         owner?.email === email && typeof owner?.created_at === "number",
-      `GET /v1/admin/invites with the invites token: expected the code with the owner it admitted, got ${listed.status}`,
+      `GET /v1/admin/invites with the registration token: expected the code with the owner it admitted, got ${listed.status}`,
     );
-    const revoked = await send("POST", `/v1/admin/invites/${code}/revoke`, tokens.invites);
+    const revoked = await send("POST", `/v1/admin/invites/${code}/revoke`, app);
     const revokedBody = await json<InviteSeen>(revoked);
     want(
       revoked.status === 200 && typeof revokedBody?.revoked_at === "number" && revokedBody.owners[0]?.owner_id === ownerId,
-      `revoking with the invites token: expected 200 with the code's owners, got ${revoked.status}`,
+      `revoking with the registration token: expected 200 with the code's owners, got ${revoked.status}`,
     );
 
-    // The registration token has no say over codes.
+    // A wrong token has no say over codes.
     for (const [method, pathname, body] of [
       ["GET", "/v1/admin/invites", undefined],
       ["POST", "/v1/admin/invites", { count: 1 }],
       ["PATCH", `/v1/admin/invites/${code}`, { note: "x" }],
       ["POST", `/v1/admin/invites/${code}/revoke`, undefined],
     ] as const) {
-      const refused = await send(method, pathname, tokens.registration, body);
-      want(refused.status === 401, `${method} ${pathname} with the registration token: expected 401, got ${refused.status}`);
+      const refused = await send(method, pathname, `${app}-not`, body);
+      want(refused.status === 401, `${method} ${pathname} with a wrong token: expected 401, got ${refused.status}`);
     }
   }
 
-  // The invites token opens nothing else: no reads, no other administration, no registration, no viewer.
+  // The registration token still reads nothing, takes no other administrator route and signs into no viewer.
   for (const pathname of [
     "/v1/traces",
     `/v1/content/${"0".repeat(64)}`,
     "/v1/admin/grants",
     "/v1/admin/owners/lookup?email=nobody%40example.com",
   ]) {
-    const refused = await send("GET", pathname, tokens.invites);
-    want(refused.status === 401, `GET ${pathname} with the invites token: expected 401, got ${refused.status}`);
+    const refused = await send("GET", pathname, app);
+    want(refused.status === 401, `GET ${pathname} with the registration token: expected 401, got ${refused.status}`);
   }
-  const registering = await send("POST", "/v1/owners", tokens.invites, {
-    email: `invites-token-${randomBytes(6).toString("hex")}@example.com`,
-    wallet_mode: "custodial",
-  });
-  want(registering.status === 403, `registering an owner with the invites token: expected 403, got ${registering.status}`);
   const signIn = await fetchRetrying(`${baseUrl}/session`, {
-    body: new URLSearchParams({ next: "/", token: tokens.invites }),
+    body: new URLSearchParams({ next: "/", token: app }),
     headers: { origin: baseUrl },
     method: "POST",
     redirect: "manual",
@@ -580,13 +573,13 @@ async function invitesSmoke(
   want(
     signIn.status === 303 && (signIn.headers.get("location") ?? "").startsWith("/login?error=1") &&
       !(signIn.headers.get("set-cookie") ?? "").includes("rl_viz="),
-    `viewer sign-in with the invites token: expected a redirect to /login?error=1 and no session, got ${signIn.status}`,
+    `viewer sign-in with the registration token: expected a redirect to /login?error=1 and no session, got ${signIn.status}`,
   );
 
   for (const problem of problems) {
     console.log(`  ✗ ${problem}`);
   }
-  results.push({ label: "smoke: invites token", ok: problems.length === 0, seconds: (Date.now() - started) / 1000 });
+  results.push({ label: "smoke: invite codes", ok: problems.length === 0, seconds: (Date.now() - started) / 1000 });
 }
 
 /**
@@ -716,7 +709,6 @@ async function databaseSuites(): Promise<void> {
         const port = await freePort();
         const baseUrl = `http://127.0.0.1:${port}`;
         const adminToken = randomBytes(16).toString("hex");
-        const invitesToken = randomBytes(16).toString("hex");
         const registrationToken = randomBytes(16).toString("hex");
         serverLog = path.join(tmpdir(), `${dbName}-api-server.log`);
         const logFd = openSync(serverLog, "w");
@@ -729,7 +721,6 @@ async function databaseSuites(): Promise<void> {
             HOST: "127.0.0.1",
             PORT: String(port),
             RL_ADMIN_TOKEN: adminToken,
-            RL_INVITES_TOKEN: invitesToken,
             RL_REGISTRATION_TOKEN: registrationToken,
           },
           stdio: ["ignore", logFd, logFd],
@@ -753,10 +744,9 @@ async function databaseSuites(): Promise<void> {
           itEnv,
         );
         const tickets = await viewerSmoke(baseUrl, apiKey, adminToken);
-        await invitesSmoke(baseUrl, { admin: adminToken, invites: invitesToken, registration: registrationToken });
+        await invitesSmoke(baseUrl, registrationToken);
         serverLogCheck(serverLog, {
           "administrator token": adminToken,
-          "invites token": invitesToken,
           "registration token": registrationToken,
           "owner API key": apiKey,
           ...Object.fromEntries(tickets.map((ticket, i) => [`viewer sign-in ticket #${i + 1}`, ticket])),

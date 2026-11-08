@@ -13,12 +13,12 @@ import {
 } from "#/lib/invites";
 
 // ---------------------------------------------------------------------------
-// Invite codes (lib/invites.ts). The administrator token, or the invites token
-// (RL_INVITES_TOKEN), which is good for these routes and nothing else.
+// Invite codes (lib/invites.ts). The administrator token, or the registration
+// token, held by the application that signs people up and hands codes out.
 // ---------------------------------------------------------------------------
 
 const WHO_MAY =
-  " Administrator token, or the invites token (`RL_INVITES_TOKEN`), in `X-Admin-Token`.";
+  " Administrator token or registration token (`RL_REGISTRATION_TOKEN`), in `X-Admin-Token`.";
 
 export const createInviteCodes = inviteManager
   .route({
