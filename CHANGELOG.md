@@ -2,6 +2,16 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## 2.3.0 — unreleased
+
+The server only; the SDKs stay at 2.0.0.
+
+### Added
+
+- **The registration token manages invite codes.** `RL_REGISTRATION_TOKEN` now makes, lists, edits and revokes invite codes as well as registering owners, so the application that signs people up also hands codes out without holding the administrator token. It already registered owners without a code, so this adds only seeing which owners each code admitted and revoking codes; it still reads no records, takes no other administrator route and does not sign into the viewer.
+- **A code's note can be changed.** `PATCH /v1/admin/invites/{code}` with `{"note": ...}` changes who a code is for; `null` or a blank note clears it. The code is matched without case or surrounding space, as everywhere else; an unknown one answers 404.
+- **Each code names the owners it admitted.** Every invite the API returns carries `owners`: the owners registered with that code (`owner_id`, `email` when the owner has one, and `created_at`, when it registered), first registered first. `GET /v1/admin/invites` thereby shows who used every code in one request. No migration: owners already record their code.
+
 ## 2.2.0 — 2026-10-30
 
 The server only; the SDKs stay at 2.0.0.

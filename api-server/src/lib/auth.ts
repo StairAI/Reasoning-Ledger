@@ -1,5 +1,5 @@
 import { ORPCError, os } from "@orpc/server";
-import { isAdminRequest } from "#/lib/admin";
+import { isAdminRequest, mayManageInvites } from "#/lib/admin";
 import { prisma } from "#/lib/prisma";
 import { hashApiKey } from "#/lib/crypto";
 
@@ -89,4 +89,18 @@ export const administrator = base.use(({ context, next }) => {
     throw new ORPCError("UNAUTHORIZED", { message: "Administrator token required" });
   }
   return next({ context: { admin: true as const } });
+});
+
+/**
+ * Invite-code procedure builder: `X-Admin-Token` must be RL_ADMIN_TOKEN or
+ * RL_REGISTRATION_TOKEN (lib/admin.ts), so the application that signs people
+ * up hands codes out too, without holding a token that reads records.
+ */
+export const inviteManager = base.use(({ context, next }) => {
+  if (!mayManageInvites(context.headers)) {
+    throw new ORPCError("UNAUTHORIZED", {
+      message: "Administrator token or registration token required",
+    });
+  }
+  return next({ context: { admin: isAdminRequest(context.headers) } });
 });
