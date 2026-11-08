@@ -1,11 +1,13 @@
 /**
  * Invite codes (registration policy `invite`, lib/registration.ts).
  *
- * An operator makes codes with the administrator token; a person registering
+ * An operator makes codes with the administrator token, or hands that job to
+ * an application with the invites token (lib/admin.ts); a person registering
  * through the plugin passes one, and it stays recorded on the owner it
- * admitted. A code has a number of uses, may expire, and can be revoked. The
- * policy is a switch: set RL_REGISTRATION=open and codes are no longer asked
- * for, while the table and the attribution stay.
+ * admitted. A code has a number of uses, may expire, and can be revoked; its
+ * note, saying who it is for, can be changed at any time. The policy is a
+ * switch: set RL_REGISTRATION=open and codes are no longer asked for, while
+ * the table and the attribution stay.
  */
 
 import { randomInt } from "node:crypto";
@@ -43,27 +45,79 @@ export interface InviteRow {
   created_at: Date;
 }
 
+/** An owner a code admitted: `created_at` is when it registered, in milliseconds. */
+export const InviteOwner = z.object({
+  created_at: z.number(),
+  email: z.string().nullable(),
+  owner_id: z.string(),
+});
+export type InviteOwner = z.infer<typeof InviteOwner>;
+
 export const InviteView = z.object({
   code: z.string(),
   created_at: z.number(),
   expires_at: z.number().nullable(),
   max_uses: z.number(),
   note: z.string().nullable(),
+  /** The owners registered with this code, first registered first. */
+  owners: z.array(InviteOwner),
   revoked_at: z.number().nullable(),
   uses: z.number(),
 });
 export type InviteView = z.infer<typeof InviteView>;
 
-export function inviteView(row: InviteRow): InviteView {
+export function inviteView(row: InviteRow, owners: InviteOwner[] = []): InviteView {
   return {
     code: row.code,
     created_at: row.created_at.getTime(),
     expires_at: row.expires_at?.getTime() ?? null,
     max_uses: row.max_uses,
     note: row.note,
+    owners,
     revoked_at: row.revoked_at?.getTime() ?? null,
     uses: row.uses,
   };
+}
+
+/**
+ * The owners each of these codes admitted, in one query: an owner keeps the
+ * normalized code it registered with (`owners.invite_code`, spent by
+ * consumeInvite). A code nobody used is absent from the map.
+ */
+export async function ownersByCode(codes: string[]): Promise<Map<string, InviteOwner[]>> {
+  const byCode = new Map<string, InviteOwner[]>();
+  if (codes.length === 0) {
+    return byCode;
+  }
+  const owners = await prisma.owner.findMany({
+    orderBy: [{ created_at: "asc" }, { id: "asc" }],
+    select: { created_at: true, email: true, id: true, invite_code: true },
+    where: { invite_code: { in: codes } },
+  });
+  for (const owner of owners) {
+    if (owner.invite_code) {
+      const admitted = byCode.get(owner.invite_code) ?? [];
+      admitted.push({
+        created_at: owner.created_at.getTime(),
+        email: owner.email,
+        owner_id: owner.id,
+      });
+      byCode.set(owner.invite_code, admitted);
+    }
+  }
+  return byCode;
+}
+
+/** Views of these codes, each with the owners it admitted. */
+export async function inviteViews(rows: InviteRow[]): Promise<InviteView[]> {
+  const owners = await ownersByCode(rows.map((row) => row.code));
+  return rows.map((row) => inviteView(row, owners.get(row.code)));
+}
+
+/** One code's view, with the owners it admitted. */
+export async function inviteViewWithOwners(row: InviteRow): Promise<InviteView> {
+  const owners = await ownersByCode([row.code]);
+  return inviteView(row, owners.get(row.code));
 }
 
 export type InviteProblem = "unknown" | "revoked" | "expired" | "used up";
@@ -148,15 +202,33 @@ export function listInvites(limit: number): Promise<InviteRow[]> {
   return prisma.invite.findMany({ orderBy: { created_at: "desc" }, take: limit });
 }
 
-/** Revoking is idempotent: a revoked code stays revoked, with its first revocation time. */
-export async function revokeInvite(code: string): Promise<InviteRow> {
-  const normalized = normalizeInviteCode(code);
-  const row = await prisma.invite.findUnique({ where: { code: normalized } });
+/** A code by its normalized form; NOT_FOUND when there is none. */
+async function existingInvite(code: string): Promise<InviteRow> {
+  const row = await prisma.invite.findUnique({ where: { code: normalizeInviteCode(code) } });
   if (!row) {
     throw new ORPCError("NOT_FOUND", { message: "Invite code not found" });
   }
+  return row;
+}
+
+/**
+ * Change who a code is for. Surrounding space is dropped and a blank note
+ * clears it; nothing else about the code changes, revoked or not.
+ */
+export async function updateInviteNote(code: string, note: string | null): Promise<InviteRow> {
+  const row = await existingInvite(code);
+  const trimmed = note?.trim() ?? "";
+  return prisma.invite.update({
+    data: { note: trimmed === "" ? null : trimmed },
+    where: { code: row.code },
+  });
+}
+
+/** Revoking is idempotent: a revoked code stays revoked, with its first revocation time. */
+export async function revokeInvite(code: string): Promise<InviteRow> {
+  const row = await existingInvite(code);
   if (row.revoked_at) {
     return row;
   }
-  return prisma.invite.update({ data: { revoked_at: new Date() }, where: { code: normalized } });
+  return prisma.invite.update({ data: { revoked_at: new Date() }, where: { code: row.code } });
 }

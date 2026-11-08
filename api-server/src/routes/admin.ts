@@ -1,23 +1,32 @@
 import * as z from "zod";
-import { administrator } from "#/lib/auth";
+import { inviteManager } from "#/lib/auth";
 import {
   InviteCode,
   InviteView,
   createInvites,
   inviteView,
+  inviteViewWithOwners,
+  inviteViews,
   listInvites,
   revokeInvite,
+  updateInviteNote,
 } from "#/lib/invites";
 
 // ---------------------------------------------------------------------------
-// Invite codes (lib/invites.ts). Administrator token only.
+// Invite codes (lib/invites.ts). The administrator token, or the invites token
+// (RL_INVITES_TOKEN), which is good for these routes and nothing else.
 // ---------------------------------------------------------------------------
 
-export const createInviteCodes = administrator
+const WHO_MAY =
+  " Administrator token, or the invites token (`RL_INVITES_TOKEN`), in `X-Admin-Token`.";
+
+export const createInviteCodes = inviteManager
   .route({
     description:
-      "Make invite codes for self-service registration (`RL_REGISTRATION=invite`). Each code admits `max_uses` registrations (default one) until it expires or is revoked; `note` says who it is for. " +
-      "A person passes a code when registering (`POST /v1/owners` with `invite_code`), and it stays recorded on their owner. Administrator token only.",
+      `Make invite codes for self-service registration (\`RL_REGISTRATION=invite\`). Each code admits \`max_uses\` registrations (default one) until it expires or is revoked; \`note\` says who it is for. ` +
+      `A person passes a code when registering (\`POST /v1/owners\` with \`invite_code\`), and it stays recorded on their owner.${
+        WHO_MAY
+      }`,
     method: "POST",
     path: "/admin/invites",
     summary: "Create invite codes",
@@ -41,13 +50,15 @@ export const createInviteCodes = administrator
       max_uses: input?.max_uses ?? 1,
       note: input?.note,
     });
-    return { invites: rows.map(inviteView) };
+    // New codes have admitted nobody yet.
+    return { invites: rows.map((row) => inviteView(row)) };
   });
 
-export const listInviteCodes = administrator
+export const listInviteCodes = inviteManager
   .route({
-    description:
-      "List invite codes, newest first, with how many times each was used. Administrator token only.",
+    description: `List invite codes, newest first, with how many times each was used and the owners each admitted (\`owners\`: \`owner_id\`, \`email\` when the owner has one, and \`created_at\`, when it registered; first registered first).${
+      WHO_MAY
+    }`,
     method: "GET",
     path: "/admin/invites",
     summary: "List invite codes",
@@ -57,13 +68,30 @@ export const listInviteCodes = administrator
   .output(z.object({ invites: z.array(InviteView) }))
   .handler(async ({ input }) => {
     const rows = await listInvites(input?.limit ?? 500);
-    return { invites: rows.map(inviteView) };
+    return { invites: await inviteViews(rows) };
   });
 
-export const revokeInviteCode = administrator
+export const updateInviteCode = inviteManager
   .route({
-    description:
-      "Revoke an invite code: it admits nobody from now on; owners it already admitted keep their accounts. Administrator token only.",
+    description: `Change an invite code's \`note\`, which says who it is for; \`null\` or a blank note clears it. Nothing else about the code changes, revoked or not. The code is matched without case or surrounding space; an unknown one answers 404.${
+      WHO_MAY
+    }`,
+    method: "PATCH",
+    path: "/admin/invites/{code}",
+    summary: "Update invite code",
+    tags: ["Administration"],
+  })
+  .input(z.object({ code: InviteCode, note: z.string().max(200).nullable() }))
+  .output(InviteView)
+  .handler(async ({ input }) =>
+    inviteViewWithOwners(await updateInviteNote(input.code, input.note)),
+  );
+
+export const revokeInviteCode = inviteManager
+  .route({
+    description: `Revoke an invite code: it admits nobody from now on; owners it already admitted keep their accounts.${
+      WHO_MAY
+    }`,
     method: "POST",
     path: "/admin/invites/{code}/revoke",
     summary: "Revoke invite code",
@@ -71,10 +99,11 @@ export const revokeInviteCode = administrator
   })
   .input(z.object({ code: InviteCode }))
   .output(InviteView)
-  .handler(async ({ input }) => inviteView(await revokeInvite(input.code)));
+  .handler(async ({ input }) => inviteViewWithOwners(await revokeInvite(input.code)));
 
 export const adminRouter = {
   createInviteCodes,
   listInviteCodes,
   revokeInviteCode,
+  updateInviteCode,
 };

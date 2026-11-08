@@ -1,13 +1,20 @@
 /**
  * The instance administrator (design §4.2, added in 1.1).
  *
- * Two separate tokens, so the ability to read everything is not handed to
- * whoever only needs to create owners:
+ * Separate tokens, so the ability to read everything is not handed to
+ * whoever only needs one part of it:
  *
  *   RL_ADMIN_TOKEN         reads any owner's records, sessions and content,
- *                          and registers owners. Held by the operator.
+ *                          registers owners, and does everything below. Held by
+ *                          the operator.
  *   RL_REGISTRATION_TOKEN  registers owners, reads nothing. Held by the
  *                          application that signs people up.
+ *   RL_INVITES_TOKEN       makes, lists, edits and revokes invite codes, and
+ *                          sees which owners each code admitted; reads no
+ *                          records and registers nobody (added in 2.3). Held by
+ *                          the application that hands codes out.
+ *
+ * All three travel in `X-Admin-Token`; each is checked only where it applies.
  *
  * Reading everything is not a new power — whoever runs the server already has
  * the database and the content directory — but it is worth seeing, so every
@@ -53,6 +60,18 @@ export function mayRegisterOwners(headers: Headers): boolean {
   return (
     sameSecret(given, process.env.RL_ADMIN_TOKEN) ||
     sameSecret(given, process.env.RL_REGISTRATION_TOKEN)
+  );
+}
+
+/**
+ * True when the request may manage invite codes: the administrator token, or
+ * the invites token. Never the registration token, which stays limited to
+ * creating owners.
+ */
+export function mayManageInvites(headers: Headers): boolean {
+  const given = headerValue(headers, "x-admin-token");
+  return (
+    sameSecret(given, process.env.RL_ADMIN_TOKEN) || sameSecret(given, process.env.RL_INVITES_TOKEN)
   );
 }
 
