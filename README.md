@@ -217,7 +217,7 @@ pnpm codegen
 
 The pre-commit hook runs this automatically. Never edit the generated files (`src/generated/`, `src/reasoning_ledger/generated/`) by hand.
 
-The schema version is numbered separately from the SDK and server versions. SDK and server 1.0.0 wrote schema `0.4`; the next release writes `0.5` (see [`schema/SCHEMA.md`](./schema/SCHEMA.md)). The server accepts writes only in the current version and keeps every earlier version readable. The label `1.0` was used by SDK 0.1.0 for what is now `0.2`; it is retired and will never be reused.
+The schema version is numbered separately from the SDK and server versions. The SDKs 1.0.x and the server 1.0.x and 1.1.x wrote schema `0.4`; 2.0.0 and later write `0.5` (see [`schema/SCHEMA.md`](./schema/SCHEMA.md)). The server accepts writes only in the current version and keeps every earlier version readable. The label `1.0` was used by SDK 0.1.0 for what is now `0.2`; it is retired and will never be reused.
 
 ---
 
@@ -227,12 +227,12 @@ Both SDKs are published from GitHub by hand (`workflow_dispatch`), and the versi
 
 | Branch | Version | Published as |
 |---|---|---|
-| `develop` (deployed to staging) | `1.1.0-rc.1` / `1.1.0rc1` | npm tag `next`, a PyPI pre-release — `npm install` and `pip install` do not pick these up |
-| `master` (deployed to production) | `1.1.0` | npm tag `latest`, a PyPI release |
+| `develop` (deployed to staging) | `X.Y.Z-rc.N` / `X.Y.ZrcN` | npm tag `next`, a PyPI pre-release — `npm install` and `pip install` do not pick these up |
+| `master` (deployed to production) | `X.Y.Z` | npm tag `latest`, a PyPI release |
 
 So the version people install by default always matches the production server, and what is released is the same artifact that was already exercised against staging. The workflows refuse a version that is already published, a pre-release from `master`, or a release from `develop`.
 
-The server image is published by pushing a version tag, `v` followed by the version in `api-server/package.json`: `v1.1.0` on a commit on `master`, or `v1.1.0-rc.1` on a commit on `develop` for a pre-release, which does not move `latest`. The [workflow](./.github/workflows/server-image.yml) smoke-tests the image first. It refuses a version already in the registry, a release whose commit is not on `master` and a pre-release whose commit is not on `develop`, and publishes nothing for a tag whose release leaves the server out. `latest` moves only to the highest release so far, never back to an older one. See [Running the published image](./api-server/README.md#running-the-published-image).
+The server image is published by pushing a version tag, `v` followed by the version in `api-server/package.json`: `vX.Y.Z` on a commit on `master`, or `vX.Y.Z-rc.N` on a commit on `develop` for a pre-release, which does not move `latest`. The [workflow](./.github/workflows/server-image.yml) smoke-tests the image first. It refuses a version already in the registry, a release whose commit is not on `master` and a pre-release whose commit is not on `develop`, and publishes nothing for a tag whose release leaves the server out. `latest` moves only to the highest release so far, never back to an older one. See [Running the published image](./api-server/README.md#running-the-published-image).
 
 After the image is published for the first time, open the `reasoning-ledger` package under the organization's packages on GitHub, connect it to this repository if it is not connected yet, and change its visibility to Public in the package settings. GitHub creates a new package as private, and pulls without signing in fail until then. This is needed once.
 
