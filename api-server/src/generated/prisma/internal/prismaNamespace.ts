@@ -379,6 +379,7 @@ export const ModelName = {
   Agent: "Agent",
   TraceRecord: "TraceRecord",
   ContentObject: "ContentObject",
+  ContentBlob: "ContentBlob",
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
   ViewerTicket: "ViewerTicket",
@@ -410,6 +411,7 @@ export type TypeMap<
       | "agent"
       | "traceRecord"
       | "contentObject"
+      | "contentBlob"
       | "contentDeletion"
       | "vizSession"
       | "viewerTicket"
@@ -715,6 +717,80 @@ export type TypeMap<
           result:
             | runtime.Types.Utils.Optional<Prisma.ContentObjectCountAggregateOutputType>
             | number;
+        };
+      };
+    };
+    ContentBlob: {
+      payload: Prisma.$ContentBlobPayload<ExtArgs>;
+      fields: Prisma.ContentBlobFieldRefs;
+      operations: {
+        findUnique: {
+          args: Prisma.ContentBlobFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload> | null;
+        };
+        findUniqueOrThrow: {
+          args: Prisma.ContentBlobFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>;
+        };
+        findFirst: {
+          args: Prisma.ContentBlobFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload> | null;
+        };
+        findFirstOrThrow: {
+          args: Prisma.ContentBlobFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>;
+        };
+        findMany: {
+          args: Prisma.ContentBlobFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>[];
+        };
+        create: {
+          args: Prisma.ContentBlobCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>;
+        };
+        createMany: {
+          args: Prisma.ContentBlobCreateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        createManyAndReturn: {
+          args: Prisma.ContentBlobCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>[];
+        };
+        delete: {
+          args: Prisma.ContentBlobDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>;
+        };
+        update: {
+          args: Prisma.ContentBlobUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>;
+        };
+        deleteMany: {
+          args: Prisma.ContentBlobDeleteManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateMany: {
+          args: Prisma.ContentBlobUpdateManyArgs<ExtArgs>;
+          result: BatchPayload;
+        };
+        updateManyAndReturn: {
+          args: Prisma.ContentBlobUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>[];
+        };
+        upsert: {
+          args: Prisma.ContentBlobUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentBlobPayload>;
+        };
+        aggregate: {
+          args: Prisma.ContentBlobAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentBlob>;
+        };
+        groupBy: {
+          args: Prisma.ContentBlobGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ContentBlobGroupByOutputType>[];
+        };
+        count: {
+          args: Prisma.ContentBlobCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.ContentBlobCountAggregateOutputType> | number;
         };
       };
     };
@@ -1342,10 +1418,21 @@ export const ContentObjectScalarFieldEnum = {
   media_type: "media_type",
   created_at: "created_at",
   deleted_at: "deleted_at",
+  location: "location",
 } as const;
 
 export type ContentObjectScalarFieldEnum =
   (typeof ContentObjectScalarFieldEnum)[keyof typeof ContentObjectScalarFieldEnum];
+
+export const ContentBlobScalarFieldEnum = {
+  owner_id: "owner_id",
+  sha256: "sha256",
+  data: "data",
+  created_at: "created_at",
+} as const;
+
+export type ContentBlobScalarFieldEnum =
+  (typeof ContentBlobScalarFieldEnum)[keyof typeof ContentBlobScalarFieldEnum];
 
 export const ContentDeletionScalarFieldEnum = {
   id: "id",
@@ -1611,6 +1698,16 @@ export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "J
 export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "QueryMode">;
 
 /**
+ * Reference to a field of type 'Bytes'
+ */
+export type BytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "Bytes">;
+
+/**
+ * Reference to a field of type 'Bytes[]'
+ */
+export type ListBytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "Bytes[]">;
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, "Float">;
@@ -1742,6 +1839,7 @@ export type GlobalOmitConfig = {
   agent?: Prisma.AgentOmit;
   traceRecord?: Prisma.TraceRecordOmit;
   contentObject?: Prisma.ContentObjectOmit;
+  contentBlob?: Prisma.ContentBlobOmit;
   contentDeletion?: Prisma.ContentDeletionOmit;
   vizSession?: Prisma.VizSessionOmit;
   viewerTicket?: Prisma.ViewerTicketOmit;

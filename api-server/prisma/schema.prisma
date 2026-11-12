@@ -174,23 +174,45 @@ model TraceRecord {
 // ---------------------------------------------------------------------------
 // ContentObject — raw content referenced by records (design §3).
 // Namespaced per owner: identical bytes from two owners are two objects, so
-// neither can probe the other's uploads. The bytes live in the content store
-// ({CONTENT_DIR}/{owner_id}/{sha256}); this row records ownership and state.
+// neither can probe the other's uploads. This row records ownership, state and
+// where the bytes are (lib/content-store.ts): a file under CONTENT_DIR, a
+// ContentBlob row, or an object in an S3-compatible bucket.
 // ---------------------------------------------------------------------------
 
 model ContentObject {
   owner_id   String
-  owner      Owner     @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  owner      Owner        @relation(fields: [owner_id], references: [id], onDelete: Cascade)
   /// SHA-256 of the raw bytes, lowercase hex.
   sha256     String
   bytes      BigInt
   media_type String
-  created_at DateTime  @default(now())
+  created_at DateTime     @default(now())
   /// Set when the bytes were deleted. The row stays: the hash still shows the content existed.
   deleted_at DateTime?
+  /// Where the bytes are: "fs" ({CONTENT_DIR}/{owner_id}/{sha256}), "db" (content_blobs) or "s3" ({owner_id}/{sha256} in the bucket).
+  location   String       @default("fs")
+  blob       ContentBlob?
 
   @@id([owner_id, sha256])
   @@map("content_objects")
+}
+
+// ---------------------------------------------------------------------------
+// ContentBlob — the bytes of a content object kept in the database (location
+// "db"): small objects, and larger ones while the object store was out of
+// reach. The runtime account may add rows but never change or delete them
+// (prisma/grants.sql); the operator commands delete and move them.
+// ---------------------------------------------------------------------------
+
+model ContentBlob {
+  owner_id   String
+  sha256     String
+  object     ContentObject @relation(fields: [owner_id, sha256], references: [owner_id, sha256], onDelete: Cascade)
+  data       Bytes
+  created_at DateTime      @default(now())
+
+  @@id([owner_id, sha256])
+  @@map("content_blobs")
 }
 
 // ---------------------------------------------------------------------------

@@ -41,6 +41,7 @@ export type ContentObjectMinAggregateOutputType = {
   media_type: string | null;
   created_at: Date | null;
   deleted_at: Date | null;
+  location: string | null;
 };
 
 export type ContentObjectMaxAggregateOutputType = {
@@ -50,6 +51,7 @@ export type ContentObjectMaxAggregateOutputType = {
   media_type: string | null;
   created_at: Date | null;
   deleted_at: Date | null;
+  location: string | null;
 };
 
 export type ContentObjectCountAggregateOutputType = {
@@ -59,6 +61,7 @@ export type ContentObjectCountAggregateOutputType = {
   media_type: number;
   created_at: number;
   deleted_at: number;
+  location: number;
   _all: number;
 };
 
@@ -77,6 +80,7 @@ export type ContentObjectMinAggregateInputType = {
   media_type?: true;
   created_at?: true;
   deleted_at?: true;
+  location?: true;
 };
 
 export type ContentObjectMaxAggregateInputType = {
@@ -86,6 +90,7 @@ export type ContentObjectMaxAggregateInputType = {
   media_type?: true;
   created_at?: true;
   deleted_at?: true;
+  location?: true;
 };
 
 export type ContentObjectCountAggregateInputType = {
@@ -95,6 +100,7 @@ export type ContentObjectCountAggregateInputType = {
   media_type?: true;
   created_at?: true;
   deleted_at?: true;
+  location?: true;
   _all?: true;
 };
 
@@ -196,6 +202,7 @@ export type ContentObjectGroupByOutputType = {
   media_type: string;
   created_at: Date;
   deleted_at: Date | null;
+  location: string;
   _count: ContentObjectCountAggregateOutputType | null;
   _avg: ContentObjectAvgAggregateOutputType | null;
   _sum: ContentObjectSumAggregateOutputType | null;
@@ -226,7 +233,12 @@ export type ContentObjectWhereInput = {
   media_type?: Prisma.StringFilter<"ContentObject"> | string;
   created_at?: Prisma.DateTimeFilter<"ContentObject"> | Date | string;
   deleted_at?: Prisma.DateTimeNullableFilter<"ContentObject"> | Date | string | null;
+  location?: Prisma.StringFilter<"ContentObject"> | string;
   owner?: Prisma.XOR<Prisma.OwnerScalarRelationFilter, Prisma.OwnerWhereInput>;
+  blob?: Prisma.XOR<
+    Prisma.ContentBlobNullableScalarRelationFilter,
+    Prisma.ContentBlobWhereInput
+  > | null;
 };
 
 export type ContentObjectOrderByWithRelationInput = {
@@ -236,7 +248,9 @@ export type ContentObjectOrderByWithRelationInput = {
   media_type?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   deleted_at?: Prisma.SortOrderInput | Prisma.SortOrder;
+  location?: Prisma.SortOrder;
   owner?: Prisma.OwnerOrderByWithRelationInput;
+  blob?: Prisma.ContentBlobOrderByWithRelationInput;
 };
 
 export type ContentObjectWhereUniqueInput = Prisma.AtLeast<
@@ -251,7 +265,12 @@ export type ContentObjectWhereUniqueInput = Prisma.AtLeast<
     media_type?: Prisma.StringFilter<"ContentObject"> | string;
     created_at?: Prisma.DateTimeFilter<"ContentObject"> | Date | string;
     deleted_at?: Prisma.DateTimeNullableFilter<"ContentObject"> | Date | string | null;
+    location?: Prisma.StringFilter<"ContentObject"> | string;
     owner?: Prisma.XOR<Prisma.OwnerScalarRelationFilter, Prisma.OwnerWhereInput>;
+    blob?: Prisma.XOR<
+      Prisma.ContentBlobNullableScalarRelationFilter,
+      Prisma.ContentBlobWhereInput
+    > | null;
   },
   "owner_id_sha256"
 >;
@@ -263,6 +282,7 @@ export type ContentObjectOrderByWithAggregationInput = {
   media_type?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   deleted_at?: Prisma.SortOrderInput | Prisma.SortOrder;
+  location?: Prisma.SortOrder;
   _count?: Prisma.ContentObjectCountOrderByAggregateInput;
   _avg?: Prisma.ContentObjectAvgOrderByAggregateInput;
   _max?: Prisma.ContentObjectMaxOrderByAggregateInput;
@@ -284,6 +304,7 @@ export type ContentObjectScalarWhereWithAggregatesInput = {
   media_type?: Prisma.StringWithAggregatesFilter<"ContentObject"> | string;
   created_at?: Prisma.DateTimeWithAggregatesFilter<"ContentObject"> | Date | string;
   deleted_at?: Prisma.DateTimeNullableWithAggregatesFilter<"ContentObject"> | Date | string | null;
+  location?: Prisma.StringWithAggregatesFilter<"ContentObject"> | string;
 };
 
 export type ContentObjectCreateInput = {
@@ -292,7 +313,9 @@ export type ContentObjectCreateInput = {
   media_type: string;
   created_at?: Date | string;
   deleted_at?: Date | string | null;
+  location?: string;
   owner: Prisma.OwnerCreateNestedOneWithoutContentInput;
+  blob?: Prisma.ContentBlobCreateNestedOneWithoutObjectInput;
 };
 
 export type ContentObjectUncheckedCreateInput = {
@@ -302,6 +325,8 @@ export type ContentObjectUncheckedCreateInput = {
   media_type: string;
   created_at?: Date | string;
   deleted_at?: Date | string | null;
+  location?: string;
+  blob?: Prisma.ContentBlobUncheckedCreateNestedOneWithoutObjectInput;
 };
 
 export type ContentObjectUpdateInput = {
@@ -310,7 +335,9 @@ export type ContentObjectUpdateInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
   owner?: Prisma.OwnerUpdateOneRequiredWithoutContentNestedInput;
+  blob?: Prisma.ContentBlobUpdateOneWithoutObjectNestedInput;
 };
 
 export type ContentObjectUncheckedUpdateInput = {
@@ -320,6 +347,8 @@ export type ContentObjectUncheckedUpdateInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
+  blob?: Prisma.ContentBlobUncheckedUpdateOneWithoutObjectNestedInput;
 };
 
 export type ContentObjectCreateManyInput = {
@@ -329,6 +358,7 @@ export type ContentObjectCreateManyInput = {
   media_type: string;
   created_at?: Date | string;
   deleted_at?: Date | string | null;
+  location?: string;
 };
 
 export type ContentObjectUpdateManyMutationInput = {
@@ -337,6 +367,7 @@ export type ContentObjectUpdateManyMutationInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
 };
 
 export type ContentObjectUncheckedUpdateManyInput = {
@@ -346,6 +377,7 @@ export type ContentObjectUncheckedUpdateManyInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
 };
 
 export type ContentObjectListRelationFilter = {
@@ -370,6 +402,7 @@ export type ContentObjectCountOrderByAggregateInput = {
   media_type?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   deleted_at?: Prisma.SortOrder;
+  location?: Prisma.SortOrder;
 };
 
 export type ContentObjectAvgOrderByAggregateInput = {
@@ -383,6 +416,7 @@ export type ContentObjectMaxOrderByAggregateInput = {
   media_type?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   deleted_at?: Prisma.SortOrder;
+  location?: Prisma.SortOrder;
 };
 
 export type ContentObjectMinOrderByAggregateInput = {
@@ -392,10 +426,16 @@ export type ContentObjectMinOrderByAggregateInput = {
   media_type?: Prisma.SortOrder;
   created_at?: Prisma.SortOrder;
   deleted_at?: Prisma.SortOrder;
+  location?: Prisma.SortOrder;
 };
 
 export type ContentObjectSumOrderByAggregateInput = {
   bytes?: Prisma.SortOrder;
+};
+
+export type ContentObjectScalarRelationFilter = {
+  is?: Prisma.ContentObjectWhereInput;
+  isNot?: Prisma.ContentObjectWhereInput;
 };
 
 export type ContentObjectCreateNestedManyWithoutOwnerInput = {
@@ -488,12 +528,40 @@ export type NullableDateTimeFieldUpdateOperationsInput = {
   set?: Date | string | null;
 };
 
+export type ContentObjectCreateNestedOneWithoutBlobInput = {
+  create?: Prisma.XOR<
+    Prisma.ContentObjectCreateWithoutBlobInput,
+    Prisma.ContentObjectUncheckedCreateWithoutBlobInput
+  >;
+  connectOrCreate?: Prisma.ContentObjectCreateOrConnectWithoutBlobInput;
+  connect?: Prisma.ContentObjectWhereUniqueInput;
+};
+
+export type ContentObjectUpdateOneRequiredWithoutBlobNestedInput = {
+  create?: Prisma.XOR<
+    Prisma.ContentObjectCreateWithoutBlobInput,
+    Prisma.ContentObjectUncheckedCreateWithoutBlobInput
+  >;
+  connectOrCreate?: Prisma.ContentObjectCreateOrConnectWithoutBlobInput;
+  upsert?: Prisma.ContentObjectUpsertWithoutBlobInput;
+  connect?: Prisma.ContentObjectWhereUniqueInput;
+  update?: Prisma.XOR<
+    Prisma.XOR<
+      Prisma.ContentObjectUpdateToOneWithWhereWithoutBlobInput,
+      Prisma.ContentObjectUpdateWithoutBlobInput
+    >,
+    Prisma.ContentObjectUncheckedUpdateWithoutBlobInput
+  >;
+};
+
 export type ContentObjectCreateWithoutOwnerInput = {
   sha256: string;
   bytes: bigint | number;
   media_type: string;
   created_at?: Date | string;
   deleted_at?: Date | string | null;
+  location?: string;
+  blob?: Prisma.ContentBlobCreateNestedOneWithoutObjectInput;
 };
 
 export type ContentObjectUncheckedCreateWithoutOwnerInput = {
@@ -502,6 +570,8 @@ export type ContentObjectUncheckedCreateWithoutOwnerInput = {
   media_type: string;
   created_at?: Date | string;
   deleted_at?: Date | string | null;
+  location?: string;
+  blob?: Prisma.ContentBlobUncheckedCreateNestedOneWithoutObjectInput;
 };
 
 export type ContentObjectCreateOrConnectWithoutOwnerInput = {
@@ -555,6 +625,75 @@ export type ContentObjectScalarWhereInput = {
   media_type?: Prisma.StringFilter<"ContentObject"> | string;
   created_at?: Prisma.DateTimeFilter<"ContentObject"> | Date | string;
   deleted_at?: Prisma.DateTimeNullableFilter<"ContentObject"> | Date | string | null;
+  location?: Prisma.StringFilter<"ContentObject"> | string;
+};
+
+export type ContentObjectCreateWithoutBlobInput = {
+  sha256: string;
+  bytes: bigint | number;
+  media_type: string;
+  created_at?: Date | string;
+  deleted_at?: Date | string | null;
+  location?: string;
+  owner: Prisma.OwnerCreateNestedOneWithoutContentInput;
+};
+
+export type ContentObjectUncheckedCreateWithoutBlobInput = {
+  owner_id: string;
+  sha256: string;
+  bytes: bigint | number;
+  media_type: string;
+  created_at?: Date | string;
+  deleted_at?: Date | string | null;
+  location?: string;
+};
+
+export type ContentObjectCreateOrConnectWithoutBlobInput = {
+  where: Prisma.ContentObjectWhereUniqueInput;
+  create: Prisma.XOR<
+    Prisma.ContentObjectCreateWithoutBlobInput,
+    Prisma.ContentObjectUncheckedCreateWithoutBlobInput
+  >;
+};
+
+export type ContentObjectUpsertWithoutBlobInput = {
+  update: Prisma.XOR<
+    Prisma.ContentObjectUpdateWithoutBlobInput,
+    Prisma.ContentObjectUncheckedUpdateWithoutBlobInput
+  >;
+  create: Prisma.XOR<
+    Prisma.ContentObjectCreateWithoutBlobInput,
+    Prisma.ContentObjectUncheckedCreateWithoutBlobInput
+  >;
+  where?: Prisma.ContentObjectWhereInput;
+};
+
+export type ContentObjectUpdateToOneWithWhereWithoutBlobInput = {
+  where?: Prisma.ContentObjectWhereInput;
+  data: Prisma.XOR<
+    Prisma.ContentObjectUpdateWithoutBlobInput,
+    Prisma.ContentObjectUncheckedUpdateWithoutBlobInput
+  >;
+};
+
+export type ContentObjectUpdateWithoutBlobInput = {
+  sha256?: Prisma.StringFieldUpdateOperationsInput | string;
+  bytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  media_type?: Prisma.StringFieldUpdateOperationsInput | string;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
+  owner?: Prisma.OwnerUpdateOneRequiredWithoutContentNestedInput;
+};
+
+export type ContentObjectUncheckedUpdateWithoutBlobInput = {
+  owner_id?: Prisma.StringFieldUpdateOperationsInput | string;
+  sha256?: Prisma.StringFieldUpdateOperationsInput | string;
+  bytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number;
+  media_type?: Prisma.StringFieldUpdateOperationsInput | string;
+  created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
+  deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
 };
 
 export type ContentObjectCreateManyOwnerInput = {
@@ -563,6 +702,7 @@ export type ContentObjectCreateManyOwnerInput = {
   media_type: string;
   created_at?: Date | string;
   deleted_at?: Date | string | null;
+  location?: string;
 };
 
 export type ContentObjectUpdateWithoutOwnerInput = {
@@ -571,6 +711,8 @@ export type ContentObjectUpdateWithoutOwnerInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
+  blob?: Prisma.ContentBlobUpdateOneWithoutObjectNestedInput;
 };
 
 export type ContentObjectUncheckedUpdateWithoutOwnerInput = {
@@ -579,6 +721,8 @@ export type ContentObjectUncheckedUpdateWithoutOwnerInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
+  blob?: Prisma.ContentBlobUncheckedUpdateOneWithoutObjectNestedInput;
 };
 
 export type ContentObjectUncheckedUpdateManyWithoutOwnerInput = {
@@ -587,6 +731,7 @@ export type ContentObjectUncheckedUpdateManyWithoutOwnerInput = {
   media_type?: Prisma.StringFieldUpdateOperationsInput | string;
   created_at?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string;
   deleted_at?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null;
+  location?: Prisma.StringFieldUpdateOperationsInput | string;
 };
 
 export type ContentObjectSelect<
@@ -599,7 +744,9 @@ export type ContentObjectSelect<
     media_type?: boolean;
     created_at?: boolean;
     deleted_at?: boolean;
+    location?: boolean;
     owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+    blob?: boolean | Prisma.ContentObject$blobArgs<ExtArgs>;
   },
   ExtArgs["result"]["contentObject"]
 >;
@@ -614,6 +761,7 @@ export type ContentObjectSelectCreateManyAndReturn<
     media_type?: boolean;
     created_at?: boolean;
     deleted_at?: boolean;
+    location?: boolean;
     owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
   },
   ExtArgs["result"]["contentObject"]
@@ -629,6 +777,7 @@ export type ContentObjectSelectUpdateManyAndReturn<
     media_type?: boolean;
     created_at?: boolean;
     deleted_at?: boolean;
+    location?: boolean;
     owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
   },
   ExtArgs["result"]["contentObject"]
@@ -641,18 +790,20 @@ export type ContentObjectSelectScalar = {
   media_type?: boolean;
   created_at?: boolean;
   deleted_at?: boolean;
+  location?: boolean;
 };
 
 export type ContentObjectOmit<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = runtime.Types.Extensions.GetOmit<
-  "owner_id" | "sha256" | "bytes" | "media_type" | "created_at" | "deleted_at",
+  "owner_id" | "sha256" | "bytes" | "media_type" | "created_at" | "deleted_at" | "location",
   ExtArgs["result"]["contentObject"]
 >;
 export type ContentObjectInclude<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
 > = {
   owner?: boolean | Prisma.OwnerDefaultArgs<ExtArgs>;
+  blob?: boolean | Prisma.ContentObject$blobArgs<ExtArgs>;
 };
 export type ContentObjectIncludeCreateManyAndReturn<
   ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
@@ -671,6 +822,7 @@ export type $ContentObjectPayload<
   name: "ContentObject";
   objects: {
     owner: Prisma.$OwnerPayload<ExtArgs>;
+    blob: Prisma.$ContentBlobPayload<ExtArgs> | null;
   };
   scalars: runtime.Types.Extensions.GetPayloadResult<
     {
@@ -686,6 +838,10 @@ export type $ContentObjectPayload<
        * Set when the bytes were deleted. The row stays: the hash still shows the content existed.
        */
       deleted_at: Date | null;
+      /**
+       * Where the bytes are: "fs" ({CONTENT_DIR}/{owner_id}/{sha256}), "db" (content_blobs) or "s3" ({owner_id}/{sha256} in the bucket).
+       */
+      location: string;
     },
     ExtArgs["result"]["contentObject"]
   >;
@@ -1239,6 +1395,19 @@ export interface Prisma__ContentObjectClient<
     ExtArgs,
     GlobalOmitOptions
   >;
+  blob<T extends Prisma.ContentObject$blobArgs<ExtArgs> = {}>(
+    args?: Prisma.Subset<T, Prisma.ContentObject$blobArgs<ExtArgs>>,
+  ): Prisma.Prisma__ContentBlobClient<
+    runtime.Types.Result.GetResult<
+      Prisma.$ContentBlobPayload<ExtArgs>,
+      T,
+      "findUniqueOrThrow",
+      GlobalOmitOptions
+    > | null,
+    null,
+    ExtArgs,
+    GlobalOmitOptions
+  >;
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1276,6 +1445,7 @@ export interface ContentObjectFieldRefs {
   readonly media_type: Prisma.FieldRef<"ContentObject", "String">;
   readonly created_at: Prisma.FieldRef<"ContentObject", "DateTime">;
   readonly deleted_at: Prisma.FieldRef<"ContentObject", "DateTime">;
+  readonly location: Prisma.FieldRef<"ContentObject", "String">;
 }
 
 // Custom InputTypes
@@ -1713,6 +1883,27 @@ export type ContentObjectDeleteManyArgs<
    * Limit how many ContentObjects to delete.
    */
   limit?: number;
+};
+
+/**
+ * ContentObject.blob
+ */
+export type ContentObject$blobArgs<
+  ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs,
+> = {
+  /**
+   * Select specific fields to fetch from the ContentBlob
+   */
+  select?: Prisma.ContentBlobSelect<ExtArgs> | null;
+  /**
+   * Omit specific fields from the ContentBlob
+   */
+  omit?: Prisma.ContentBlobOmit<ExtArgs> | null;
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentBlobInclude<ExtArgs> | null;
+  where?: Prisma.ContentBlobWhereInput;
 };
 
 /**

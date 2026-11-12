@@ -2,6 +2,20 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
+## 2.4.0 — unreleased
+
+The server only.
+
+### Added
+
+- **Content can be kept in the database and in an S3-compatible bucket, not only in files.** Each object's row now records where its bytes are (`content_objects.location`: `fs`, `db` or `s3`), so the three hold content side by side and reads go where the row says. `CONTENT_INLINE_MAX_BYTES` keeps content of at most that many bytes in the database, in `content_blobs`, which the runtime account can add to but never change or delete. `CONTENT_STORE=s3` with `CONTENT_S3_BUCKET` and `CONTENT_S3_REGION` (or `CONTENT_S3_ENDPOINT` for R2, MinIO and the like) puts larger content in the bucket as `{owner_id}/{sha256}`, every write conditional (`If-None-Match: *`), so nothing is ever overwritten. While the bucket cannot be reached, content of at most 1 MiB is kept in the database and larger content answers 503. Without these settings nothing changes: content goes to files under `CONTENT_DIR`. One migration adds the column, with `fs` for every existing row, and the table; it rewrites no rows.
+- **`content` operator commands.** `content check` validates the settings and that the bucket takes writes and returns them; the image's entrypoint runs it before starting the server, so settings that do not work fail the deployment. `content census` counts objects and bytes by place, what the current settings would move, and what is not encrypted. `content move` puts each object where the settings place it, or back into files with `--to fs`, checking it on both sides before its row switches, one object at a time while the server runs. `content verify` reads every object back and checks it against its hash.
+
+### Changed
+
+- **`delete-content` clears every place the bytes may be:** the database copy, in the same transaction as the deletion; the file; and the bucket's object. With a bucket credential that may not delete objects, the recommended one for the server, it names the object left in the bucket and exits with status 3.
+- Content the bucket cannot return right now answers 503 at `GET /v1/content/{sha256}`, and the viewer shows it as temporarily unavailable.
+
 ## 2.3.0 — 2026-11-12
 
 The server and both SDKs. The SDKs change only in version: 2.0.0 was never published to npm or PyPI, where 1.0.0 remained the latest release and writes schema `0.4`, which the server has refused since its 2.0.0. They are published here at the server's version, so what `npm install` and `pip install` fetch can write to it.

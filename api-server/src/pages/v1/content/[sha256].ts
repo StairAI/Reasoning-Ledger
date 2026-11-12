@@ -9,6 +9,10 @@
  * All three need X-API-Key and only see the caller's own namespace: another
  * owner's content answers 404, deleted content answers 410. Reads also accept
  * the administrator's token, which sees every owner's content (lib/admin.ts).
+ *
+ * The bytes go where the content store places them (lib/content-store.ts) and
+ * are read from wherever their row says they are. An object store that cannot
+ * be reached answers 503; bytes that are gone or fail their hash check, 500.
  */
 
 import type { APIRoute } from "astro";
@@ -16,7 +20,9 @@ import { Readable } from "node:stream";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import { isAdminToken, logAdminRead } from "#/lib/admin";
 import { ownerForApiKey } from "#/lib/auth";
-import { ContentStoreError, SHA256_HEX, verifiedObject, writeObject } from "#/lib/content-store";
+import { readStored, storeUpload } from "#/lib/content-bytes";
+import { ContentStoreError, SHA256_HEX, openHeld, release } from "#/lib/content-store";
+import type { Held } from "#/lib/content-store";
 import { prisma } from "#/lib/prisma";
 
 export const prerender = false;
@@ -66,9 +72,10 @@ export const PUT: APIRoute = async ({ request, params }) => {
     return Response.json(ref(existing), { status: 200 });
   }
 
-  let bytes: number;
+  const mediaType = request.headers.get("content-type") ?? "application/octet-stream";
   try {
-    bytes = await writeObject(ownerId, sha256, request.body);
+    const row = await storeUpload(ownerId, sha256, request.body, mediaType);
+    return Response.json(ref(row), { status: 201 });
   } catch (error) {
     if (error instanceof ContentStoreError && error.kind === "too_large") {
       return fail(413, error.message);
@@ -76,16 +83,12 @@ export const PUT: APIRoute = async ({ request, params }) => {
     if (error instanceof ContentStoreError && error.kind === "hash_mismatch") {
       return fail(400, error.message);
     }
+    if (error instanceof ContentStoreError && error.kind === "unavailable") {
+      console.error(`content: upload of ${sha256} failed: ${error.message}`);
+      return fail(503, "Content storage is unavailable; try again later");
+    }
     throw error;
   }
-
-  const mediaType = request.headers.get("content-type") ?? "application/octet-stream";
-  const row = await prisma.contentObject.upsert({
-    create: { bytes: BigInt(bytes), media_type: mediaType, owner_id: ownerId, sha256 },
-    update: { bytes: BigInt(bytes), deleted_at: null, media_type: mediaType },
-    where: { owner_id_sha256: { owner_id: ownerId, sha256 } },
-  });
-  return Response.json(ref(row), { status: 201 });
 };
 
 /**
@@ -127,25 +130,34 @@ async function read(request: Request, sha256: string | undefined, withBody: bool
     return fail(410, "Content was deleted");
   }
 
-  let object: Awaited<ReturnType<typeof verifiedObject>>;
+  let held: Held;
   try {
-    object = await verifiedObject(who.ownerId, who.sha256);
+    held = await readStored(row);
   } catch (error) {
-    if (error instanceof ContentStoreError && error.kind === "integrity") {
+    if (error instanceof ContentStoreError && error.kind === "unavailable") {
+      console.error(`content: read of ${row.sha256} failed: ${error.message}`);
+      return fail(503, "Content storage is unavailable; try again later");
+    }
+    if (error instanceof ContentStoreError) {
       return fail(500, error.message);
     }
     throw error;
   }
 
   const headers = {
-    "content-length": String(object.size),
+    "content-length": String(held.size),
     "content-type": row.media_type,
     etag: `"${row.sha256}"`,
   };
   if (!withBody) {
+    await release(held);
     return new Response(null, { headers, status: 200 });
   }
-  const body = Readable.toWeb(object.open()) as unknown as NodeWebReadableStream;
+  const stream = openHeld(held);
+  stream.once("close", () => {
+    void release(held);
+  });
+  const body = Readable.toWeb(stream) as unknown as NodeWebReadableStream;
   return new Response(body as unknown as ReadableStream, { headers, status: 200 });
 }
 

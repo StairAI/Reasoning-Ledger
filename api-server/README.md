@@ -25,26 +25,53 @@ pnpm install
 
 ### Environment
 
-| Variable                         | Required      | Description                                                                                                                   |
-| -------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                   | Yes           | `postgres://` connection string the server uses (the runtime account)                                                         |
-| `MIGRATION_DATABASE_URL`         | No            | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                                              |
-| `RL_RUNTIME_ROLE`                | No            | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating                                |
-| `CONTENT_DIR`                    | No            | Where uploaded content is stored (default `data/content` in the working directory: `/app/data/content` in the image)          |
-| `CONTENT_MAX_BYTES`              | No            | Largest accepted upload, in bytes (default 64 MiB)                                                                            |
-| `RL_REGISTRATION`                | No            | Who may register owners: `admin` (default), `invite` (self-service with an invite code) or `open`                             |
-| `RL_ADMIN_TOKEN`                 | No            | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator                   |
-| `RL_REGISTRATION_TOKEN`          | No            | Registers owners and manages invite codes; reads nothing. Give this one to the application that signs people up               |
-| `RL_REGISTRATION_RATE`           | No            | With `RL_REGISTRATION=open` or `invite`, registration attempts allowed per client address per hour (default 5)                |
-| `RL_ACCESS_SIGNING_KEY`          | No            | Turns the access gate on: its Ed25519 signing key, base64 PKCS#8 (`pnpm access-key` makes one). Off: its endpoints answer 404 |
-| `RL_ACCESS_SIGNING_KEY_PREVIOUS` | No            | The signing key before the last rotation; its public half stays published until the tokens it signed expire                   |
-| `RL_ACCESS_ISSUER`               | With the gate | The gate's own URL, the issuer of every access token (the hosted gate: `https://access.stair-ai.com`)                         |
-| `RL_ACCESS_TOKEN_TTL`            | No            | Lifetime of an access token, in seconds (default 3600, from 60 to 86400)                                                      |
-| `VIZ_SESSION_TTL_HOURS`          | No            | Lifetime of a trace viewer sign-in (default 12)                                                                               |
-| `VIZ_TICKET_TTL_SECONDS`         | No            | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                                       |
-| `HOST`, `PORT`                   | No            | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                          |
+| Variable                                                   | Required                | Description                                                                                                                                                                              |
+| ---------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                             | Yes                     | `postgres://` connection string the server uses (the runtime account)                                                                                                                    |
+| `MIGRATION_DATABASE_URL`                                   | No                      | Account that runs migrations and operator commands; falls back to `DATABASE_URL`                                                                                                         |
+| `RL_RUNTIME_ROLE`                                          | No                      | Role name of the runtime account; when set, `db:deploy` applies its privileges after migrating                                                                                           |
+| `CONTENT_DIR`                                              | No                      | Where uploaded content is stored (default `data/content` in the working directory: `/app/data/content` in the image)                                                                     |
+| `CONTENT_MAX_BYTES`                                        | No                      | Largest accepted upload, in bytes (default 64 MiB)                                                                                                                                       |
+| `CONTENT_STORE`                                            | No                      | Where content larger than `CONTENT_INLINE_MAX_BYTES` goes: `fs` (files under `CONTENT_DIR`, the default) or `s3` (the bucket below); see [Where content is kept](#where-content-is-kept) |
+| `CONTENT_INLINE_MAX_BYTES`                                 | No                      | Content of at most this many bytes is kept in the database (default 0: none)                                                                                                             |
+| `CONTENT_S3_BUCKET`                                        | With `CONTENT_STORE=s3` | The bucket for content. Set, it also lets the server read objects there while new content goes elsewhere                                                                                 |
+| `CONTENT_S3_REGION`                                        | With a bucket on AWS    | The bucket's region (default `auto` when `CONTENT_S3_ENDPOINT` is set)                                                                                                                   |
+| `CONTENT_S3_ENDPOINT`                                      | No                      | An S3-compatible service other than AWS (Cloudflare R2, MinIO, …); requests then use path-style addresses                                                                                |
+| `CONTENT_S3_ACCESS_KEY_ID`, `CONTENT_S3_SECRET_ACCESS_KEY` | No                      | The bucket credential; without them, the AWS SDK's default chain (environment, instance role, …)                                                                                         |
+| `RL_REGISTRATION`                                          | No                      | Who may register owners: `admin` (default), `invite` (self-service with an invite code) or `open`                                                                                        |
+| `RL_ADMIN_TOKEN`                                           | No                      | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator                                                                              |
+| `RL_REGISTRATION_TOKEN`                                    | No                      | Registers owners and manages invite codes; reads nothing. Give this one to the application that signs people up                                                                          |
+| `RL_REGISTRATION_RATE`                                     | No                      | With `RL_REGISTRATION=open` or `invite`, registration attempts allowed per client address per hour (default 5)                                                                           |
+| `RL_ACCESS_SIGNING_KEY`                                    | No                      | Turns the access gate on: its Ed25519 signing key, base64 PKCS#8 (`pnpm access-key` makes one). Off: its endpoints answer 404                                                            |
+| `RL_ACCESS_SIGNING_KEY_PREVIOUS`                           | No                      | The signing key before the last rotation; its public half stays published until the tokens it signed expire                                                                              |
+| `RL_ACCESS_ISSUER`                                         | With the gate           | The gate's own URL, the issuer of every access token (the hosted gate: `https://access.stair-ai.com`)                                                                                    |
+| `RL_ACCESS_TOKEN_TTL`                                      | No                      | Lifetime of an access token, in seconds (default 3600, from 60 to 86400)                                                                                                                 |
+| `VIZ_SESSION_TTL_HOURS`                                    | No                      | Lifetime of a trace viewer sign-in (default 12)                                                                                                                                          |
+| `VIZ_TICKET_TTL_SECONDS`                                   | No                      | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                                                                                                  |
+| `HOST`, `PORT`                                             | No                      | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                                                                                     |
 
-Uploaded content lives on the server's filesystem, so `CONTENT_DIR` needs storage that survives a restart or redeploy (a mounted volume in a container), and belongs in the same backup schedule as the database: a record keeps the hash of content whose bytes are gone, but the bytes cannot be recovered from it.
+### Where content is kept
+
+Uploaded content is kept in one of three places. Each object's row records which (`content_objects.location`), and reads go where the row says, so the three can hold content at the same time:
+
+- **Files** (`fs`, the default): `{CONTENT_DIR}/{owner_id}/{sha256}`. `CONTENT_DIR` needs storage that survives a restart or redeploy (a mounted volume in a container).
+- **The database** (`db`): with `CONTENT_INLINE_MAX_BYTES` set, content of at most that many bytes is a row of `content_blobs`, written in the same transaction as its `content_objects` row. Much of what an agent produces is small (a command's output, a short answer), so a limit of a few kilobytes keeps most objects out of the bucket, and a request per object with them, while most of the bytes still go to the bucket.
+- **An S3-compatible bucket** (`s3`): with `CONTENT_STORE=s3`, larger content is the object `{owner_id}/{sha256}` in `CONTENT_S3_BUCKET`. Every write is conditional (`If-None-Match: *`): the key is the content's hash, so an object already there holds the same bytes and counts as written, the server never overwrites one, and the bucket may refuse overwrites outright. While the bucket cannot be reached, content of at most 1 MiB is kept in the database (logged, counted by `content census`, and put in the bucket by `content move` later) and larger content answers 503.
+
+Wherever they are kept, bytes are checked against their hash when they arrive and again before they are returned.
+
+Back up every place that holds content, on the same schedule as the database: a record keeps the hash of content whose bytes are gone, but the bytes cannot be recovered from it. With content kept in the database, a database backup holds it.
+
+The server needs `s3:PutObject` and `s3:GetObject` on the bucket's objects and `s3:ListBucket` on the bucket (without it a missing object answers 403, not 404). Leave out `s3:DeleteObject`: a server that is compromised then cannot remove content, and `delete-content` names the object to delete with another credential. On AWS, versioning keeps a deleted object for the retention you choose, and a bucket policy can refuse every write that lacks `If-None-Match` (S3's "Enforce conditional writes").
+
+With a bucket configured, the image's entrypoint writes a small probe object (`rl-content-store-probe`) and reads it back before it starts the server (`content check`), so settings that do not work fail the deployment rather than the uploads.
+
+To move a running deployment from files to a bucket without stopping it:
+
+1. Deploy this version with the bucket settings (`CONTENT_S3_*`) but no `CONTENT_STORE`. New content still goes to files; every server can now read the bucket, which matters during the next step, when servers starting and servers stopping run side by side.
+2. Set `CONTENT_STORE=s3` and, if you like, `CONTENT_INLINE_MAX_BYTES`, and redeploy. New content goes to the new places from then on.
+3. Run `content census`, `content move` and `content verify` (see [Operator commands](#operator-commands)). Each object moves on its own, checked on both sides before its row switches.
+4. Keep the files for as long as you may want to move back: `content move --to fs` moves back by switching rows while they are there.
 
 Connection strings must be direct `postgres://` connections. Pooling proxies in transaction mode are not supported: migrations take advisory locks.
 
@@ -213,6 +240,12 @@ They run on the server's host, with the same environment as the server: they rea
 # Delete stored content. Records keep their reference; reading the content then answers 410.
 pnpm --dir api-server delete-content --owner <owner_id> --sha256 <hex> --reason "<why>" --operator "<who>"
 
+# Where content is kept: check the settings and the bucket; count objects by place; move them; read them all back.
+pnpm --dir api-server content check
+pnpm --dir api-server content census [--json]
+pnpm --dir api-server content move [--to fs] [--owner <id>] [--limit n] [--concurrency n] [--dry-run] [--json]
+pnpm --dir api-server content verify [--location fs|db|s3] [--owner <id>] [--concurrency n] [--json]
+
 # Make a signing key for the access gate: the key on stdout (for RL_ACCESS_SIGNING_KEY), its key id on stderr.
 pnpm --dir api-server access-key > access-signing-key
 
@@ -221,7 +254,9 @@ pnpm --dir api-server export-records --out <dir> [--batch 10000] [--settle-secon
 pnpm --dir api-server export-records --verify <dir>
 ```
 
-Deletion is deliberately not an API endpoint. It runs as the migration account and writes every deletion to the `content_deletions` log.
+Deletion is deliberately not an API endpoint. It runs as the migration account and writes every deletion to the `content_deletions` log. It clears every place the bytes may be: the database copy (in the same transaction), the file, and the bucket's object. With a bucket credential that may not delete objects, it names the object left in the bucket and exits with status 3.
+
+`content move` puts each object where the current settings place it, or back into files with `--to fs`: it reads the object and checks it, writes it to the new place, reads it back from there and checks it, and only then switches the object's row. Files are never removed, a database copy goes once its object is elsewhere, and the bucket is only added to. It can be stopped and run again at any time, while the server runs. `content verify` reads every object from where its row says and checks it against its hash; both exit with status 4 when any object fails.
 
 Export continues after the last batch already in `<dir>` and never overwrites a file. Each batch is a `records-<first>-<last>.jsonl` file in sequence order with a manifest holding its count and SHA-256. Records received within the last `--settle-seconds` are left for the next run. Copy `<dir>` to write-once storage (for example object storage with an object lock); `--verify` checks each batch against its manifest and against the database.
 
@@ -234,7 +269,8 @@ The schema is defined in [`prisma/schema.prisma`](./prisma/schema.prisma), with 
 | `Owner`           | `owners`            | One per account; holds `api_key_hash` (SHA-256 of the raw key)                                               |
 | `Agent`           | `agents`            | One per reasoning-producing entity; unique on `(owner_id, name)`                                             |
 | `TraceRecord`     | `trace_records`     | One per record; `record_id` is SDK-generated and the idempotency key; `sequence` is the server's total order |
-| `ContentObject`   | `content_objects`   | Which owner uploaded which content hash, and whether it was deleted                                          |
+| `ContentObject`   | `content_objects`   | Which owner uploaded which content hash, where its bytes are, and whether it was deleted                     |
+| `ContentBlob`     | `content_blobs`     | The bytes of content kept in the database; the runtime account adds rows but never changes or deletes them   |
 | `ContentDeletion` | `content_deletions` | Append-only log of content deletions: owner, hash, reason, operator                                          |
 | `VizSession`      | `viz_sessions`      | Trace viewer sign-ins                                                                                        |
 | `ViewerTicket`    | `viewer_tickets`    | One-time viewer sign-in links; holds the SHA-256 of each ticket, never the ticket                            |

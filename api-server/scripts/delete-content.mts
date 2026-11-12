@@ -5,21 +5,37 @@
  *   pnpm --dir api-server delete-content --owner <owner_id> --sha256 <hex> \
  *     --reason "<why>" --operator "<who>"
  *
- * Marks the object deleted, writes an entry to content_deletions, then removes
- * the bytes from the content store. Records that reference the content are not
- * touched: the hash in them still shows the content existed, and reading the
- * content afterwards answers 410.
+ * Marks the object deleted, writes an entry to content_deletions and removes
+ * its database copy, in one transaction; then removes the bytes from the file
+ * store and, when an object store is configured, from the bucket. Every place
+ * is cleared, not only the one the row names: a file stays behind for a while
+ * after an object is moved (scripts/content.mts), and a bucket may hold a copy
+ * of an object moved back. Records that reference the content are not touched:
+ * the hash in them still shows the content existed, and reading the content
+ * afterwards answers 410.
+ *
+ * The server's bucket credential should not be allowed to delete objects. With
+ * that credential the command marks the content deleted, says which object is
+ * left in the bucket and exits with status 3; delete it with a credential that
+ * may (the bucket's versioning keeps the bytes for its retention period).
  *
  * Runs as the migration account (MIGRATION_DATABASE_URL, falling back to
- * DATABASE_URL): the runtime account cannot write content_deletions. Needs the
- * same CONTENT_DIR the server uses.
+ * DATABASE_URL): the runtime account cannot write content_deletions or delete
+ * from content_blobs. Needs the same CONTENT_DIR and CONTENT_S3_* settings as
+ * the server.
  */
 
 import "./env.mts";
-import { rm } from "node:fs/promises";
-import path from "node:path";
 import { parseArgs } from "node:util";
 import { Client } from "pg";
+import {
+  ContentStoreError,
+  contentConfig,
+  deleteFileObject,
+  deleteS3Object,
+  s3Key,
+  s3ObjectExists,
+} from "../src/lib/content-store.ts";
 
 const { values } = parseArgs({
   options: {
@@ -46,6 +62,13 @@ if (!url) {
   console.error("Set MIGRATION_DATABASE_URL (or DATABASE_URL)");
   process.exit(2);
 }
+let config: ReturnType<typeof contentConfig>;
+try {
+  config = contentConfig();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(2);
+}
 
 const client = new Client({ connectionString: url });
 await client.connect();
@@ -68,11 +91,29 @@ try {
      VALUES (gen_random_uuid()::text, $1, $2, $3, $4)`,
     [owner, sha256, reason, operator],
   );
+  await client.query("DELETE FROM content_blobs WHERE owner_id = $1 AND sha256 = $2", [
+    owner,
+    sha256,
+  ]);
   await client.query("COMMIT");
 } finally {
   await client.end();
 }
 
-const file = path.join(path.resolve(process.env.CONTENT_DIR ?? "data/content"), owner, sha256);
-await rm(file, { force: true });
+await deleteFileObject(owner, sha256);
+
+if (config.s3) {
+  const where = `s3://${config.s3.bucket}/${s3Key(owner, sha256)}`;
+  try {
+    if (await s3ObjectExists(owner, sha256, config)) {
+      await deleteS3Object(owner, sha256, config);
+    }
+  } catch (error) {
+    const why = error instanceof ContentStoreError ? error.message : String(error);
+    console.error(
+      `marked ${sha256} deleted for owner ${owner}, but its bytes are still in the bucket at ${where}: ${why}. Delete that object with a credential that may.`,
+    );
+    process.exit(3);
+  }
+}
 console.log(`deleted ${sha256} for owner ${owner}`);
