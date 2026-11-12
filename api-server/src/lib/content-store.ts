@@ -473,6 +473,17 @@ function statusOf(error: unknown): number | undefined {
     ?.httpStatusCode;
 }
 
+/**
+ * Cloudflare R2's answer to a write or deletion that a bucket lock rule holds
+ * back. R2 checks the lock before a write's conditions, so writing an object
+ * that is already there and locked answers this (409) rather than 412.
+ */
+const LOCKED = "ObjectLockedByBucketPolicy";
+
+function locked(error: unknown): boolean {
+  return statusOf(error) === 409 && error instanceof Error && error.name === LOCKED;
+}
+
 function describe(error: unknown): string {
   const status = statusOf(error);
   const name = error instanceof Error ? error.name : "error";
@@ -488,7 +499,8 @@ function unavailable(message: string, error: unknown): ContentStoreError {
  * Put held (already checked) bytes into the bucket. Every write is
  * conditional (`If-None-Match: *`): the key is the content's hash, so an
  * object already there holds the same bytes and counts as written, and a
- * bucket that refuses overwrites accepts these writes.
+ * bucket that refuses overwrites (an S3 bucket policy, an R2 lock rule)
+ * accepts these writes.
  */
 export async function putS3Object(
   ownerId: string,
@@ -514,6 +526,10 @@ export async function putS3Object(
     } catch (error) {
       const status = statusOf(error);
       if (status === 412) {
+        return;
+      }
+      // Already there, and held by a lock rule (R2).
+      if (locked(error) && (await s3ObjectExists(ownerId, sha256, config))) {
         return;
       }
       // Another write of the same key is in flight; once it lands this one answers 412.
@@ -581,7 +597,8 @@ export async function s3ObjectExists(
 
 /**
  * Delete an object from the bucket. A credential that may only add and read
- * objects (the one recommended for the server) gets ContentStoreError("denied").
+ * objects (the one recommended for the server on S3), or a lock rule that holds
+ * the object (R2), gets ContentStoreError("denied").
  */
 export async function deleteS3Object(
   ownerId: string,
@@ -596,6 +613,13 @@ export async function deleteS3Object(
       throw new ContentStoreError(
         "denied",
         `this credential may not delete objects from bucket ${bucket}`,
+        { cause: error },
+      );
+    }
+    if (locked(error)) {
+      throw new ContentStoreError(
+        "denied",
+        `a lock rule of bucket ${bucket} keeps this object; lift the rule to delete it`,
         { cause: error },
       );
     }
@@ -622,7 +646,8 @@ export async function probeObjectStore(config: ContentConfig = contentConfig()):
       }),
     );
   } catch (error) {
-    if (statusOf(error) !== 412) {
+    // 412: written by an earlier check; a lock rule answers 409 for it instead (R2).
+    if (statusOf(error) !== 412 && !locked(error)) {
       throw unavailable(`cannot write to bucket ${bucket}`, error);
     }
   }

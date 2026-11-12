@@ -64,6 +64,8 @@ Back up every place that holds content, on the same schedule as the database: a 
 
 The server needs `s3:PutObject` and `s3:GetObject` on the bucket's objects and `s3:ListBucket` on the bucket (without it a missing object answers 403, not 404). Leave out `s3:DeleteObject`: a server that is compromised then cannot remove content, and `delete-content` names the object to delete with another credential. On AWS, versioning keeps a deleted object for the retention you choose, and a bucket policy can refuse every write that lacks `If-None-Match` (S3's "Enforce conditional writes").
 
+On Cloudflare R2, give the server an R2 API token with Object Read & Write on the bucket alone, and set `CONTENT_S3_ENDPOINT` to the account's S3 endpoint; a bucket in a jurisdiction has its own, such as `https://<account_id>.eu.r2.cloudflarestorage.com`. Such a token can also delete objects. To keep content from being deleted, by that token or by mistake, add a bucket lock rule (for good, or for a retention period). The server's writes only ever create objects, so they keep working under the rule: R2 answers 409 `ObjectLockedByBucketPolicy` for an object that is already there, which counts as written, and `delete-content` names the object the rule keeps until it is lifted.
+
 With a bucket configured, the image's entrypoint writes a small probe object (`rl-content-store-probe`) and reads it back before it starts the server (`content check`), so settings that do not work fail the deployment rather than the uploads.
 
 To move a running deployment from files to a bucket without stopping it:

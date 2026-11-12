@@ -107,6 +107,7 @@ describe("Content locations: database, object store and files", () => {
 
   afterEach(() => {
     Object.assign(fake.refuse, { deletes: false, reads: false, writes: false });
+    fake.lock.on = false;
   });
 
   afterAll(async () => {
@@ -301,6 +302,34 @@ describe("Content locations: database, object store and files", () => {
     expect(refused.stderr).toContain(`s3://${fake.bucket}/${s3Key(owner.ownerId, sha(kept))}`);
     await expect(readStatus(sha(kept))).resolves.toBe(410);
     expect(fake.objects.has(s3Key(owner.ownerId, sha(kept)))).toBeTruthy();
+  });
+
+  it("works with a bucket whose lock rule keeps every object (R2)", async () => {
+    fake.lock.on = true;
+    const data = "in a locked bucket before it was uploaded here";
+    fake.objects.set(s3Key(owner.ownerId, sha(data)), Buffer.from(data));
+    // R2 answers 409 ObjectLockedByBucketPolicy, not 412, for an object that is already there.
+    const uploaded = await upload(data);
+    expect(uploaded.status).toBe(201);
+    await expect(locationOf(sha(data))).resolves.toBe("s3");
+
+    const first = await operator("scripts/content.mts", ["check"]);
+    const second = await operator("scripts/content.mts", ["check"]);
+    expect([first.status, second.status]).toStrictEqual([0, 0]);
+
+    const deleted = await operator("scripts/delete-content.mts", [
+      "--owner",
+      owner.ownerId,
+      "--sha256",
+      sha(data),
+      "--reason",
+      "test",
+      "--operator",
+      "vitest",
+    ]);
+    expect(deleted.status).toBe(3);
+    expect(deleted.stderr).toContain("lock rule");
+    expect(fake.objects.has(s3Key(owner.ownerId, sha(data)))).toBeTruthy();
   });
 
   it("checks the settings and the bucket before the server starts", async () => {
