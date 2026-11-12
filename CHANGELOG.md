@@ -2,7 +2,7 @@
 
 The server and both SDKs share one version line; a release names the packages it changes. The record schema is numbered separately: the SDKs 1.0.x and the server 1.0.x and 1.1.x write schema `0.4`; 2.0.0 and later write `0.5`.
 
-## 2.3.0 — unreleased
+## 2.3.0 — 2026-11-12
 
 The server and both SDKs. The SDKs change only in version: 2.0.0 was never published to npm or PyPI, where 1.0.0 remained the latest release and writes schema `0.4`, which the server has refused since its 2.0.0. They are published here at the server's version, so what `npm install` and `pip install` fetch can write to it.
 
