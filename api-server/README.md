@@ -34,7 +34,7 @@ pnpm install
 | `CONTENT_MAX_BYTES`              | No            | Largest accepted upload, in bytes (default 64 MiB)                                                                            |
 | `RL_REGISTRATION`                | No            | Who may register owners: `admin` (default), `invite` (self-service with an invite code) or `open`                             |
 | `RL_ADMIN_TOKEN`                 | No            | The instance administrator's token: reads every owner's data, and registers owners. Keep it to the operator                   |
-| `RL_REGISTRATION_TOKEN`          | No            | Registers owners and reads nothing. Give this one to the application that signs people up                                     |
+| `RL_REGISTRATION_TOKEN`          | No            | Registers owners and manages invite codes; reads nothing. Give this one to the application that signs people up               |
 | `RL_REGISTRATION_RATE`           | No            | With `RL_REGISTRATION=open` or `invite`, registration attempts allowed per client address per hour (default 5)                |
 | `RL_ACCESS_SIGNING_KEY`          | No            | Turns the access gate on: its Ed25519 signing key, base64 PKCS#8 (`pnpm access-key` makes one). Off: its endpoints answer 404 |
 | `RL_ACCESS_SIGNING_KEY_PREVIOUS` | No            | The signing key before the last rotation; its public half stays published until the tokens it signed expire                   |
@@ -181,7 +181,7 @@ curl -sS http://127.0.0.1:4321/v1/owners \
   -d '{"email": "you@example.com"}'
 ```
 
-Sign in to the [trace viewer](#trace-viewer) at `/login` with that key, or with `RL_ADMIN_TOKEN` to see every owner's data. An application that signs people up gets `RL_REGISTRATION_TOKEN`, which registers owners and reads nothing, rather than the administrator token.
+Sign in to the [trace viewer](#trace-viewer) at `/login` with that key, or with `RL_ADMIN_TOKEN` to see every owner's data. An application that signs people up gets `RL_REGISTRATION_TOKEN`, which registers owners and manages invite codes and reads nothing, rather than the administrator token.
 
 Serve the viewer over HTTPS: its sign-in cookie is `Secure`, and browsers do not keep such a cookie for a plain-HTTP site (they differ on whether `http://localhost` counts), so signing in seems to do nothing. In the example the port is bound to `127.0.0.1` only, for a reverse proxy on the same host that terminates TLS; let it pass request bodies up to `CONTENT_MAX_BYTES` (see [Running](#running)).
 
@@ -269,8 +269,9 @@ The read endpoints also accept the administrator's token in `X-Admin-Token`, whi
 | `PUT`          | `/v1/content-keys/{key_id}`       | Register a wrapped data key for encrypted content (SDK: `put_content_key`)                             |
 | `GET`          | `/v1/content-keys[/{id}]`         | One wrapped key, or a page of the owner's keys (SDK: `get_content_key`, `list_content_keys`)           |
 | `POST`         | `/v1/viewer/tickets`              | A one-time link that signs a browser into the trace viewer as the owner                                |
-| `POST`, `GET`  | `/v1/admin/invites`               | Make or list invite codes (administrator token only)                                                   |
-| `POST`         | `/v1/admin/invites/{code}/revoke` | Revoke an invite code (administrator token only)                                                       |
+| `POST`, `GET`  | `/v1/admin/invites`               | Make or list invite codes, each with the owners it admitted (administrator or registration token)      |
+| `PATCH`        | `/v1/admin/invites/{code}`        | Change an invite code's note (administrator or registration token)                                     |
+| `POST`         | `/v1/admin/invites/{code}/revoke` | Revoke an invite code (administrator or registration token)                                            |
 | `POST`         | `/access/token`                   | The access gate: exchange the API key, form-encoded, for a token to another resource (see below)       |
 | `GET`          | `/access/me`                      | The calling owner's handle and grants, as the access gate sees them                                    |
 | `GET`          | `/.well-known/jwks.json`          | The gate's public signing keys; `/.well-known/oauth-authorization-server` is its metadata              |
@@ -289,14 +290,16 @@ A writer can encrypt content on its own machine before uploading it ([schema: `e
 
 ### Registering by invitation
 
-With `RL_REGISTRATION=invite`, a self-service registration must carry an `invite_code`. The operator makes codes with the administrator token:
+With `RL_REGISTRATION=invite`, a self-service registration must carry an `invite_code`. The operator makes codes with the administrator token, and the application that signs people up can make them with the registration token:
 
 ```bash
 curl -s -X POST "$LEDGER/v1/admin/invites" -H "x-admin-token: $RL_ADMIN_TOKEN" \
   -H 'content-type: application/json' -d '{"count": 5, "note": "first batch", "max_uses": 1, "expires_in_days": 30}'
 ```
 
-A code is spent in the transaction that creates the owner and recorded on it (`owners.invite_code`); `GET /v1/admin/invites` shows how often each was used, and `POST /v1/admin/invites/{code}/revoke` stops one. The operator's own tokens register without a code. Switching to `RL_REGISTRATION=open` later stops asking for codes and keeps the attribution; a code given in open mode is still checked and recorded.
+A code is spent in the transaction that creates the owner and recorded on it (`owners.invite_code`); `GET /v1/admin/invites` shows how often each was used and which owners it admitted (`owners`: `owner_id`, `email` when the owner has one, and `created_at`, first registered first), `PATCH /v1/admin/invites/{code}` with `{"note": ...}` changes who a code is for (`null` clears it), and `POST /v1/admin/invites/{code}/revoke` stops one. The operator's own tokens register without a code.
+
+The registration token manages codes as well as registering owners. It already registers owners without a code, so this adds only seeing which owners each code admitted, e-mail addresses included, and revoking codes; it still reads no records, takes no other administrator route and does not sign into the viewer. Keep it on the server of the application that holds it. Switching to `RL_REGISTRATION=open` later stops asking for codes and keeps the attribution; a code given in open mode is still checked and recorded.
 
 ### The access gate
 
