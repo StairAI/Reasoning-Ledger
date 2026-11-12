@@ -63,7 +63,7 @@ export type ContentView =
       media_type: string;
       bytes: number;
     }
-  | { state: "binary" | "too_large" | "deleted" | "missing" | "unreadable" };
+  | { state: "binary" | "too_large" | "deleted" | "missing" | "unreadable" | "unavailable" };
 
 /**
  * Where encrypted content goes in the rendered page until the browser
@@ -297,6 +297,9 @@ function unavailable(ref: ContentRef, view: ContentView | undefined): string {
     }
     case "unreadable": {
       return `[content failed its integrity check: ${what}]`;
+    }
+    case "unavailable": {
+      return `[content temporarily unavailable: ${what}]`;
     }
     default: {
       return `[content not available: ${what}]`;
