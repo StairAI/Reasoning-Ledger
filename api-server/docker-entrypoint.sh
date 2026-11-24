@@ -152,11 +152,14 @@ check_content_store() {
     die "the content store is not usable with these settings (see above)"
 }
 
+# api-server/serve.mjs starts the built server and, on SIGTERM, answers the
+# requests in flight before it exits (see there), so a rolling update or
+# `docker stop` drops none.
 serve() {
   unset MIGRATION_DATABASE_URL
   cd "$app_dir"
   log "starting the server on ${HOST:-localhost}:${PORT:-4321}, content in $content_dir"
-  exec node api-server/dist/server/entry.mjs
+  exec node api-server/serve.mjs
 }
 
 if [ $# -eq 0 ]; then

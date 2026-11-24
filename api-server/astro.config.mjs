@@ -7,7 +7,7 @@ import tailwindcss from "@tailwindcss/vite";
 // https://astro.build/config
 export default defineConfig({
   // Standalone Node server — `astro build` emits `dist/server/entry.mjs`, which
-  // the Dockerfile runs after `db:deploy`.
+  // `serve.mjs` starts (the image runs it after `db:deploy`).
   adapter: node({ mode: "standalone" }),
   output: "server",
   // Astro's built-in origin check rejects every cross-site POST/PUT/PATCH/DELETE
