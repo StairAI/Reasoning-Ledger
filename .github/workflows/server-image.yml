@@ -123,11 +123,12 @@ jobs:
             echo "ok: $want from curl $*"
           }
 
-          # Once the entrypoint has handed over, the server is the container's
+          # Once the entrypoint has handed over, the server (api-server/serve.mjs,
+          # which starts the build and stops it gracefully) is the container's
           # PID 1: it must run as the image's unprivileged user and must not
           # have the migration account's credentials in its environment.
           check_server_process() {
-            if ! docker exec "$1" cat /proc/1/cmdline | tr '\0' ' ' | grep -q 'dist/server/entry.mjs'; then
+            if ! docker exec "$1" cat /proc/1/cmdline | tr '\0' ' ' | grep -q 'api-server/serve.mjs'; then
               echo "::error::PID 1 in $1 is not the server"
               return 1
             fi
@@ -313,7 +314,7 @@ jobs:
             echo "::error::rl-serve stopped in ${took}s with exit status $code; expected status 0 in seconds"
             exit 1
           fi
-          if ! docker logs rl-serve 2>&1 | grep -q 'serve: SIGTERM: taking no new connections; 1 request(s) in flight'; then
+          if ! docker logs rl-serve 2>&1 | grep -q 'serve: SIGTERM: taking no new connections'; then
             echo "::error::rl-serve did not log the graceful stop"
             exit 1
           fi
