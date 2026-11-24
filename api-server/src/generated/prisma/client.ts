@@ -65,6 +65,11 @@ export type TraceRecord = Prisma.TraceRecordModel;
  */
 export type ContentObject = Prisma.ContentObjectModel;
 /**
+ * Model ContentBlob
+ *
+ */
+export type ContentBlob = Prisma.ContentBlobModel;
+/**
  * Model ContentDeletion
  *
  */

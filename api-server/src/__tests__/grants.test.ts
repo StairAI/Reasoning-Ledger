@@ -59,6 +59,33 @@ describe.skipIf(!runtimeUrl)("runtime database account", () => {
     ).rejects.toThrow(/permission denied/);
   });
 
+  it("adds content it keeps in the database, but never changes or removes it", async () => {
+    const sha256 = "e".repeat(64);
+    await runtime.query(
+      `INSERT INTO content_objects (owner_id, sha256, bytes, media_type, location)
+       VALUES ($1, $2, 1, 'application/octet-stream', 'db')`,
+      [owner.ownerId, sha256],
+    );
+    const added = await runtime.query(
+      "INSERT INTO content_blobs (owner_id, sha256, data) VALUES ($1, $2, $3)",
+      [owner.ownerId, sha256, Buffer.from("x")],
+    );
+    expect(added.rowCount).toBe(1);
+    await expect(
+      runtime.query("UPDATE content_blobs SET data = $3 WHERE owner_id = $1 AND sha256 = $2", [
+        owner.ownerId,
+        sha256,
+        Buffer.from("y"),
+      ]),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      runtime.query("DELETE FROM content_blobs WHERE owner_id = $1 AND sha256 = $2", [
+        owner.ownerId,
+        sha256,
+      ]),
+    ).rejects.toThrow(/permission denied/);
+  });
+
   it("issues, spends and clears viewer sign-in tickets", async () => {
     const id = "f".repeat(64);
     const issued = await runtime.query(

@@ -11,6 +11,7 @@ export type * from "./models/Owner.ts";
 export type * from "./models/Agent.ts";
 export type * from "./models/TraceRecord.ts";
 export type * from "./models/ContentObject.ts";
+export type * from "./models/ContentBlob.ts";
 export type * from "./models/ContentDeletion.ts";
 export type * from "./models/VizSession.ts";
 export type * from "./models/ViewerTicket.ts";

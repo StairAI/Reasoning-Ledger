@@ -10,10 +10,12 @@
  * fragment (scripts/decrypt.ts), which never reaches the server.
  */
 
+import { readStoredMany } from "#/lib/content-bytes";
 import { contentKeysByIds } from "#/lib/content-keys";
 import { contentRefsOf } from "#/lib/content-refs";
 import type { ContentRef } from "#/lib/content-refs";
-import { ContentStoreError, SHA256_HEX, readVerified } from "#/lib/content-store";
+import type { ContentStoreError } from "#/lib/content-store";
+import { SHA256_HEX } from "#/lib/content-store";
 import { prisma } from "#/lib/prisma";
 import type { ContentMap, ContentView } from "#/lib/trace";
 
@@ -23,6 +25,15 @@ interface StoredObject {
   bytes: bigint;
   deleted_at: Date | null;
   media_type: string;
+  location: string;
+}
+
+/** The bytes the page may show, read beforehand: each one's bytes, or why they could not be read. */
+type ReadBytes = Map<string, Buffer | ContentStoreError>;
+
+/** Whether a stored object's bytes are read for the page at all. */
+function shown(stored: StoredObject | undefined): stored is StoredObject {
+  return Boolean(stored && !stored.deleted_at && Number(stored.bytes) <= DISPLAY_LIMIT);
 }
 
 function isJson(mediaType: string): boolean {
@@ -35,11 +46,11 @@ function isText(mediaType: string): boolean {
 }
 
 /** The stored bytes, or the view state that says why they cannot be shown. */
-async function storedBytes(
-  ownerId: string,
+function storedBytes(
   sha256: string,
   stored: StoredObject | undefined,
-): Promise<Buffer | ContentView> {
+  read: ReadBytes,
+): Buffer | ContentView {
   if (!stored) {
     return { state: "missing" };
   }
@@ -49,26 +60,26 @@ async function storedBytes(
   if (Number(stored.bytes) > DISPLAY_LIMIT) {
     return { state: "too_large" };
   }
-  try {
-    return await readVerified(ownerId, sha256);
-  } catch (error) {
-    if (error instanceof ContentStoreError) {
-      return { state: "unreadable" };
-    }
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+  const data = read.get(sha256);
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+  switch (data?.kind) {
+    case "missing": {
       return { state: "missing" };
     }
-    throw error;
+    case "unavailable": {
+      return { state: "unavailable" };
+    }
+    default: {
+      return { state: "unreadable" };
+    }
   }
 }
 
-async function viewOf(
-  ownerId: string,
-  ref: ContentRef,
-  stored: StoredObject | undefined,
-): Promise<ContentView> {
+function viewOf(ref: ContentRef, stored: StoredObject | undefined, read: ReadBytes): ContentView {
   if (ref.enc) {
-    const data = await storedBytes(ownerId, ref.sha256, stored);
+    const data = storedBytes(ref.sha256, stored, read);
     if (!Buffer.isBuffer(data)) {
       return data;
     }
@@ -84,7 +95,7 @@ async function viewOf(
   if (stored && !stored.deleted_at && !isText(stored.media_type)) {
     return { state: "binary" };
   }
-  const data = await storedBytes(ownerId, ref.sha256, stored);
+  const data = storedBytes(ref.sha256, stored, read);
   if (!Buffer.isBuffer(data)) {
     return data;
   }
@@ -120,15 +131,20 @@ export async function contentForViewer(
     return {};
   }
   const rows = await prisma.contentObject.findMany({
-    select: { bytes: true, deleted_at: true, media_type: true, sha256: true },
+    select: { bytes: true, deleted_at: true, location: true, media_type: true, sha256: true },
     where: { owner_id: ownerId, sha256: { in: [...refs.keys()] } },
   });
   const byHash = new Map(rows.map((row) => [row.sha256, row]));
   const entries = [...refs.values()];
-  const views = await Promise.all(
-    entries.map((ref) => viewOf(ownerId, ref, byHash.get(ref.sha256))),
+  // Only what the page shows is read: not binary unencrypted content, nothing deleted or too large.
+  const wanted = entries
+    .map((ref) => ({ ref, stored: byHash.get(ref.sha256) }))
+    .filter(({ ref, stored }) => shown(stored) && (Boolean(ref.enc) || isText(stored.media_type)))
+    .map(({ stored }) => stored as StoredObject & { sha256: string });
+  const read = await readStoredMany(ownerId, wanted);
+  return Object.fromEntries(
+    entries.map((ref) => [ref.sha256, viewOf(ref, byHash.get(ref.sha256), read)]),
   );
-  return Object.fromEntries(entries.map((ref, i) => [ref.sha256, views[i]]));
 }
 
 /** What the browser needs to decrypt a page: its encrypted objects and their wrapped keys. */

@@ -24,6 +24,10 @@
 # Environment read here, besides what the server and db:deploy read:
 #   CONTENT_DIR  where uploaded content is stored, resolved as the server does:
 #                default data/content, a relative path taken from RL_APP_DIR
+#   CONTENT_*    the content store's other settings: start and serve check them,
+#                and with an object store configured (CONTENT_S3_BUCKET) that
+#                the bucket takes writes and returns them, before anything is
+#                migrated or served (scripts/content.mts check)
 #   RL_APP_DIR   the workspace root that holds api-server/, and the server's
 #                working directory (default /app)
 #   RL_USER      the user to run as when started as root (default rl)
@@ -140,11 +144,22 @@ migrate() {
   (cd "$app_dir" && pnpm --filter "{./api-server}" db:deploy)
 }
 
+# The content store's settings, and the bucket when one is configured: a
+# deployment whose settings do not work fails here, before it migrates or
+# serves, so a rolling update keeps the running server.
+check_content_store() {
+  (cd "$app_dir/api-server" && node scripts/content.mts check) ||
+    die "the content store is not usable with these settings (see above)"
+}
+
+# api-server/serve.mjs starts the built server and, on SIGTERM, answers the
+# requests in flight before it exits (see there), so a rolling update or
+# `docker stop` drops none.
 serve() {
   unset MIGRATION_DATABASE_URL
   cd "$app_dir"
   log "starting the server on ${HOST:-localhost}:${PORT:-4321}, content in $content_dir"
-  exec node api-server/dist/server/entry.mjs
+  exec node api-server/serve.mjs
 }
 
 if [ $# -eq 0 ]; then
@@ -192,6 +207,7 @@ case $mode in
   start)
     check_database_url
     check_content_dir
+    check_content_store
     migrate
     serve
     ;;
@@ -201,6 +217,7 @@ case $mode in
   serve)
     check_database_url
     check_content_dir
+    check_content_store
     serve
     ;;
 esac

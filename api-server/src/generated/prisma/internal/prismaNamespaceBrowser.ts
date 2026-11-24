@@ -52,6 +52,7 @@ export const ModelName = {
   Agent: "Agent",
   TraceRecord: "TraceRecord",
   ContentObject: "ContentObject",
+  ContentBlob: "ContentBlob",
   ContentDeletion: "ContentDeletion",
   VizSession: "VizSession",
   ViewerTicket: "ViewerTicket",
@@ -140,10 +141,21 @@ export const ContentObjectScalarFieldEnum = {
   media_type: "media_type",
   created_at: "created_at",
   deleted_at: "deleted_at",
+  location: "location",
 } as const;
 
 export type ContentObjectScalarFieldEnum =
   (typeof ContentObjectScalarFieldEnum)[keyof typeof ContentObjectScalarFieldEnum];
+
+export const ContentBlobScalarFieldEnum = {
+  owner_id: "owner_id",
+  sha256: "sha256",
+  data: "data",
+  created_at: "created_at",
+} as const;
+
+export type ContentBlobScalarFieldEnum =
+  (typeof ContentBlobScalarFieldEnum)[keyof typeof ContentBlobScalarFieldEnum];
 
 export const ContentDeletionScalarFieldEnum = {
   id: "id",

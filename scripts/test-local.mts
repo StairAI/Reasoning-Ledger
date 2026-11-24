@@ -26,9 +26,11 @@ import type { ChildProcess } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { createServer } from "node:net";
+import { request as httpRequest } from "node:http";
+import { connect, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 const root = path.resolve(import.meta.dirname, "..");
 const requireFromApi = createRequire(path.join(root, "api-server/package.json"));
@@ -616,6 +618,81 @@ function serverLogCheck(logFile: string, known: Record<string, string>): boolean
   return ok;
 }
 
+// SIGTERM while an upload is still arriving: the upload is answered, a new connection is refused, and the server
+// exits with status 0 (api-server/serve.mjs). Before it, the server ignored SIGTERM in a container, and every
+// rolling update killed it mid-request.
+async function stopSmoke(baseUrl: string, apiKey: string, server: ChildProcess, logFile: string): Promise<void> {
+  console.log("\n▶ smoke: graceful stop");
+  const started = Date.now();
+  const problems: string[] = [];
+  const want = (ok: boolean, what: string) => {
+    if (!ok) {
+      problems.push(what);
+    }
+  };
+  const exited = new Promise<number | null>((resolve) => {
+    server.once("exit", (code) => resolve(code));
+  });
+  const body = randomBytes(256 * 1024);
+  const sha256 = createHash("sha256").update(body).digest("hex");
+  const pieces = 16;
+  const url = new URL(`/v1/content/${sha256}`, baseUrl);
+  // 16 pieces, one every 100 ms: the upload is still arriving when SIGTERM comes.
+  const upload = new Promise<number>((resolve, reject) => {
+    const req = httpRequest(
+      url,
+      {
+        headers: {
+          "content-length": String(body.length),
+          "content-type": "application/octet-stream",
+          "x-api-key": apiKey,
+        },
+        method: "PUT",
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode ?? 0));
+      },
+    );
+    req.on("error", reject);
+    const size = body.length / pieces;
+    let sent = 0;
+    const next = () => {
+      if (sent === pieces) {
+        req.end();
+        return;
+      }
+      req.write(body.subarray(sent * size, (sent + 1) * size));
+      sent += 1;
+      setTimeout(next, 100);
+    };
+    next();
+  });
+  await sleep(300);
+  server.kill("SIGTERM");
+  await sleep(100);
+  const refused = await new Promise<boolean>((resolve) => {
+    const socket = connect(Number(url.port), url.hostname);
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once("error", (e: NodeJS.ErrnoException) => resolve(e.code === "ECONNREFUSED"));
+  });
+  want(refused, "a new connection after SIGTERM was not refused");
+  const status = await upload.catch((error: unknown) => `failed (${String(error)})`);
+  want(status === 201, `the upload in flight at SIGTERM: expected 201, got ${status}`);
+  const code = await Promise.race([exited, sleep(5000, "still running after 5 s", { ref: false })]);
+  want(code === 0, `the server after SIGTERM: expected exit status 0, got ${code}`);
+  const log = readFileSync(logFile, "utf8");
+  want(log.includes("serve: SIGTERM: taking no new connections; 1 request(s) in flight"), "the log does not say how many requests were in flight at SIGTERM");
+  want(log.includes("serve: every request answered; exiting"), "the log does not say the server answered every request before exiting");
+  for (const p of problems) {
+    console.log(`  ✗ ${p}`);
+  }
+  results.push({ label: "smoke: graceful stop", ok: problems.length === 0, seconds: (Date.now() - started) / 1000 });
+}
+
 function stopServer(server: ChildProcess | undefined): Promise<void> {
   if (!server || server.exitCode !== null) {
     return Promise.resolve();
@@ -712,7 +789,7 @@ async function databaseSuites(): Promise<void> {
         const registrationToken = randomBytes(16).toString("hex");
         serverLog = path.join(tmpdir(), `${dbName}-api-server.log`);
         const logFd = openSync(serverLog, "w");
-        server = spawn("node", [path.join(root, "api-server/dist/server/entry.mjs")], {
+        server = spawn("node", [path.join(root, "api-server/serve.mjs")], {
           cwd: path.join(root, "api-server"),
           env: {
             ...process.env,
@@ -751,6 +828,7 @@ async function databaseSuites(): Promise<void> {
           "owner API key": apiKey,
           ...Object.fromEntries(tickets.map((ticket, i) => [`viewer sign-in ticket #${i + 1}`, ticket])),
         });
+        await stopSmoke(baseUrl, apiKey, server, serverLog);
       }
     }
   } finally {
