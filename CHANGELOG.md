@@ -15,6 +15,7 @@ The server only.
 
 - **`delete-content` clears every place the bytes may be:** the database copy, in the same transaction as the deletion; the file; and the bucket's object. With a bucket credential that may not delete objects, the recommended one for the server, it names the object left in the bucket and exits with status 3.
 - Content the bucket cannot return right now answers 503 at `GET /v1/content/{sha256}`, and the viewer shows it as temporarily unavailable.
+- **The server stops without dropping a request.** On SIGTERM (`docker stop`, a rolling update) it takes no new connections, answers the requests in flight and exits with status 0. Until now it had no handler for SIGTERM, and in a container, where it is process 1, that signal was ignored: every stop waited out the stop timeout and killed the server, with whatever request it was answering. Connections still open after `RL_SHUTDOWN_GRACE_MS` (default 8000 ms, inside Docker's default stop timeout of 10 s) are closed then. The image starts the server through `api-server/serve.mjs`, which does this; `node api-server/serve.mjs` serves a build the same way.
 
 ## 2.3.0 — 2026-11-12
 

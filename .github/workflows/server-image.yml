@@ -277,6 +277,48 @@ jobs:
           docker exec rl-nocaps test -w /app/data/content
           echo "ok: without capabilities the server warns, runs as root and can store content"
 
+      - name: "stop: an upload in flight is answered, then the server exits in seconds"
+        run: |
+          . "$RUNNER_TEMP/smoke.sh"
+          # docker stop sends SIGTERM to the server, process 1, and kills it
+          # after 10 s. The server answers what it is receiving and exits 0;
+          # before api-server/serve.mjs it ignored SIGTERM and was killed.
+          base=http://127.0.0.1:4321
+          owner=$(curl -fsS "$base/v1/owners" \
+            -H "content-type: application/json" \
+            -H "x-admin-token: $ADMIN_TOKEN" \
+            -d '{"email": "smoke-stop@example.com"}')
+          api_key=$(printf '%s' "$owner" | jq -er .api_key)
+          head -c 393216 /dev/urandom > "$RUNNER_TEMP/slow.bin"
+          sha256=$(sha256sum "$RUNNER_TEMP/slow.bin" | cut -d' ' -f1)
+          # About three seconds at 128 KiB/s: the stop comes while it arrives.
+          curl -sS -o /dev/null -w '%{http_code}' --limit-rate 128k \
+            -X PUT "$base/v1/content/$sha256" \
+            -H "x-api-key: $api_key" \
+            -H "content-type: application/octet-stream" \
+            --data-binary "@$RUNNER_TEMP/slow.bin" > "$RUNNER_TEMP/slow.status" &
+          upload=$!
+          sleep 1
+          started=$(date +%s)
+          docker stop rl-serve >/dev/null
+          took=$(( $(date +%s) - started ))
+          wait "$upload" || true
+          status=$(cat "$RUNNER_TEMP/slow.status")
+          code=$(docker inspect -f '{{.State.ExitCode}}' rl-serve)
+          if [ "$status" != 201 ]; then
+            echo "::error::the upload in flight when rl-serve was stopped got $status, expected 201"
+            exit 1
+          fi
+          if [ "$code" != 0 ] || [ "$took" -ge 8 ]; then
+            echo "::error::rl-serve stopped in ${took}s with exit status $code; expected status 0 in seconds"
+            exit 1
+          fi
+          if ! docker logs rl-serve 2>&1 | grep -q 'serve: SIGTERM: taking no new connections; 1 request(s) in flight'; then
+            echo "::error::rl-serve did not log the graceful stop"
+            exit 1
+          fi
+          echo "ok: rl-serve answered the upload in flight and stopped in ${took}s with status 0"
+
       - name: Server logs
         if: failure()
         run: |

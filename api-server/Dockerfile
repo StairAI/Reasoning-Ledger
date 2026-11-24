@@ -81,7 +81,8 @@ COPY . .
 
 # prisma.config.ts requires DATABASE_URL just to load; generate never connects,
 # so a placeholder is enough at build time. The node adapter (standalone) emits
-# api-server/dist/server/entry.mjs, which the entrypoint launches.
+# api-server/dist/server/entry.mjs, which api-server/serve.mjs starts (the
+# entrypoint runs it).
 #
 # Then, in the same layer:
 # - COPY keeps the build context's modes, so a checkout made under a
@@ -106,6 +107,7 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
     && setpriv --reuid=10001 --regid=10001 --clear-groups -- sh -euc ' \
        test -r api-server/docker-entrypoint.sh; \
        test -r api-server/dist/server/entry.mjs; \
+       test -r api-server/serve.mjs; \
        test -r api-server/node_modules/pg/package.json; \
        unreadable=$(find /app ! -type l \( ! -readable -o -type d ! -executable \) -print -quit); \
        test -z "$unreadable" || { echo "rl cannot read $unreadable" >&2; exit 1; }'

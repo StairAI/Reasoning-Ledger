@@ -48,6 +48,7 @@ pnpm install
 | `RL_ACCESS_TOKEN_TTL`                                      | No                      | Lifetime of an access token, in seconds (default 3600, from 60 to 86400)                                                                                                                 |
 | `VIZ_SESSION_TTL_HOURS`                                    | No                      | Lifetime of a trace viewer sign-in (default 12)                                                                                                                                          |
 | `VIZ_TICKET_TTL_SECONDS`                                   | No                      | Lifetime of a one-time viewer sign-in link, in seconds (default 60, between 10 and 600)                                                                                                  |
+| `RL_SHUTDOWN_GRACE_MS`                                     | No                      | On SIGTERM, how long requests in flight may take before their connections are closed, in milliseconds (default 8000)                                                                     |
 | `HOST`, `PORT`                                             | No                      | Where the built server listens (Astro defaults: `localhost`, `4321`)                                                                                                                     |
 
 ### Where content is kept
@@ -109,7 +110,7 @@ The 1.0 migrations keep all existing records. They relabel records stamped with 
 ```sh
 pnpm --dir api-server dev                    # development server
 pnpm --dir api-server build                  # production build
-node api-server/dist/server/entry.mjs        # serve the build (reads HOST and PORT)
+node api-server/serve.mjs                    # serve the build (reads HOST and PORT; stops gracefully on SIGTERM)
 ```
 
 The [Dockerfile](./Dockerfile) builds from the repository root (`docker build -f api-server/Dockerfile .`); see [Running the published image](#running-the-published-image) for what the image runs.
@@ -137,6 +138,8 @@ Content is stored in `/app/data/content`, as with earlier images (`data/content`
 The first time you deploy this image over one that ran as root, replace the old container rather than start the new one beside it (a stop-first deploy, not a rolling update), or restart the new container once the old one is gone. While both run, the old one can create a directory for an owner's first upload that `rl` cannot write; the next start fixes it.
 
 The image's health check calls `/health` on `$PORT`, and Docker reports the container healthy once the server answers.
+
+On SIGTERM, which `docker stop` and a rolling update send, the server takes no new connections, answers the requests in flight and exits. Connections still open after `RL_SHUTDOWN_GRACE_MS` (8 seconds by default) are closed then: give the container a stop timeout longer than that, as Docker's default of 10 seconds is. A proxy in front of a rolling update should retry a request whose connection was refused (Traefik's `retry` middleware, for one): between SIGTERM and the moment the proxy stops sending the old container traffic, its new connections are refused, and a retry sends them to the new container.
 
 ### A single-host example
 
